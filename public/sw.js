@@ -3,7 +3,7 @@ const VERSION = '1.0.0';
 const SHELL = `digides-shell-v${VERSION}`;
 const RUNTIME = `digides-runtime-v${VERSION}`;
 const SHELL_FILES = [
-  './', './index.html', './manifest.webmanifest', './css/app.css',
+  './', './index.html', './login.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/config.js', './js/firebase.js', './js/fields.js', './js/ui.js', './js/wilayah.js', './js/exporter.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
