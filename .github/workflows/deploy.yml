@@ -1,0 +1,37 @@
+# Deploy otomatis ke Firebase Hosting + Firestore Rules setiap push ke branch main
+name: Deploy ke Firebase
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Siapkan kredensial
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+
+      - name: Deploy Hosting & Firestore Rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project digides-8423e --non-interactive
+
+      - name: Buat GitHub Release untuk versi baru
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          if ! gh release view "v$VER" >/dev/null 2>&1; then
+            gh release create "v$VER" --title "DigiDes v$VER" --notes "Rilis otomatis. Lihat CHANGELOG.md. © Serenity Creativa 2026" || true
+          fi
