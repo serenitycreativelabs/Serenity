@@ -1,0 +1,40 @@
+# OPSIONAL: Deploy ke GitHub Pages (jalankan manual dari tab Actions).
+# Konfigurasi Firebase ditulis dari secret saat build — TIDAK pernah masuk ke repositori,
+# sehingga tidak memicu peringatan "secret leak" GitHub.
+name: Deploy ke GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tulis konfigurasi Firebase dari secret
+        env:
+          CFG: ${{ secrets.FIREBASE_WEB_CONFIG }}
+        run: |
+          if [ -z "$CFG" ]; then
+            echo "::warning::Secret FIREBASE_WEB_CONFIG belum diatur — aplikasi akan mengambil konfigurasi dari situs Firebase Hosting."
+          else
+            printf 'export default %s;\n' "$CFG" > public/js/firebase-config.local.js
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4
