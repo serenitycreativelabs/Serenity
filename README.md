@@ -25,12 +25,21 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 | **Akun admin** | Login **cukup password**. Ubah password & email dari dalam aplikasi. Lupa password via email. |
 | **PWA** | Bisa dipasang di HP/PC, bekerja offline (data Firestore di-cache), notifikasi versi baru. |
 
+## Di mana `index.html` dan halaman login?
+
+- **`public/index.html`** — halaman utama aplikasi (semua halaman ada di sini).
+- **Halaman login** = `public/index.html#/login` (atau buka `public/login.html` yang langsung meneruskan ke sana). Login cukup memasukkan password.
+- `index.html` di folder utama hanya meneruskan ke `public/index.html`.
+- ⚠️ Jangan membuka `index.html` dengan **dobel-klik** — browser memblokir JavaScript dari `file://`. Buka lewat alamat hosting (`https://digides-8423e.web.app/#/login`) atau jalankan `npx serve public` lalu buka `http://localhost:3000/#/login`.
+
 ## Struktur Proyek
 
 ```
 digides/
+├─ index.html               ← meneruskan ke public/index.html
 ├─ public/                  ← situs yang di-deploy ke Firebase Hosting
-│  ├─ index.html
+│  ├─ index.html            ← HALAMAN UTAMA aplikasi (login: index.html#/login)
+│  ├─ login.html            ← jalan pintas ke halaman login
 │  ├─ manifest.webmanifest  ← PWA
 │  ├─ sw.js                 ← service worker (offline + cache)
 │  ├─ css/app.css
