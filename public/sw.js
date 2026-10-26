@@ -1,5 +1,5 @@
 /* DigiDes Service Worker — © Serenity Creativa 2026 */
-const VERSION = '2.0.0';
+const VERSION = '2.0.1';
 const SHELL = `digides-shell-v${VERSION}`;
 const RUNTIME = `digides-runtime-v${VERSION}`;
 const SHELL_FILES = [
