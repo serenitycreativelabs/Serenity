@@ -12,9 +12,15 @@
 export const APP = {
   name: 'DigiDes',
   fullName: 'DigiDes — Sistem Informasi Desa Digital',
-  version: '2.0.0',
+  version: '2.0.1',
   build: '2026.10.27',
   copyright: '© Serenity Creativa 2026',
+
+  // ID proyek Firebase (BUKAN rahasia). Dipakai untuk mengambil konfigurasi dari situs
+  // Firebase Hosting bila aplikasi dibuka di hosting lain (GitHub Pages, domain sendiri, localhost).
+  firebaseProjectId: 'digides-8423e',
+  // Opsional: alamat Firebase Hosting kustom, mis. 'https://gampong-anda.id'
+  firebaseHostingUrl: '',
 
   // Super Admin utama (login cukup password: klik 5x pada tulisan copyright)
   superAdminEmail: 'serenityxcreative@gmail.com',

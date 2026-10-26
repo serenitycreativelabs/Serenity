@@ -115,11 +115,40 @@ function boot() {
 }
 
 function renderConfigError() {
-  root.innerHTML = `<div class="login-page"><div class="login-card"><div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div>
-    <h1>Konfigurasi Firebase belum tersedia</h1>
-    <p class="muted">Aplikasi ini membaca konfigurasi Firebase secara otomatis saat dijalankan di <b>Firebase Hosting</b> (tidak ada API key di kode sumber).</p>
-    <p class="muted small">Untuk uji lokal: salin <code>js/firebase-config.example.js</code> menjadi <code>js/firebase-config.local.js</code> lalu isi nilainya.</p>
-    <p class="muted small" data-copyright>${APP.name} v${APP.version} • ${APP.copyright}</p></div></div>`;
+  const host = location.hostname;
+  const where = location.protocol === 'file:' ? 'file' : /^(localhost|127\.0\.0\.1)$/.test(host) ? 'local' : /github\.io$/.test(host) ? 'pages' : /\.(web\.app|firebaseapp\.com)$/.test(host) ? 'firebase' : 'other';
+  const steps = {
+    firebase: `<li>Situs ini di Firebase Hosting tetapi konfigurasi tidak terbaca. Buka <b>GitHub → Actions</b> dan pastikan workflow <b>Deploy ke Firebase</b> berstatus hijau (berhasil).</li><li>Pastikan aplikasi Web sudah terdaftar: Firebase Console → ⚙ Project settings → <b>Your apps</b> → harus ada aplikasi Web. Jika belum ada, klik ikon <code>&lt;/&gt;</code> untuk menambahkannya, lalu deploy ulang.</li>`,
+    pages: `<li>Anda membuka aplikasi dari <b>GitHub Pages</b>, yang tidak menyediakan konfigurasi Firebase. Buka alamat resmi <a href="https://${esc(APP.firebaseProjectId)}.web.app">https://${esc(APP.firebaseProjectId)}.web.app</a> (setelah workflow <b>Deploy ke Firebase</b> berhasil).</li><li>Atau tetap pakai GitHub Pages: tambahkan secret <code>FIREBASE_WEB_CONFIG</code> lalu aktifkan workflow <b>Deploy ke GitHub Pages</b> (lihat README).</li>`,
+    local: `<li>Untuk uji di komputer: salin <code>public/js/firebase-config.example.js</code> menjadi <code>public/js/firebase-config.local.js</code> lalu isi nilainya, atau gunakan tombol <b>Tempel konfigurasi</b> di bawah.</li>`,
+    file: `<li>File dibuka dengan dobel-klik. Jalankan lewat server: <code>npx serve public</code>, lalu buka <code>http://localhost:3000</code>.</li>`,
+    other: `<li>Hosting ini bukan Firebase Hosting. Deploy dulu ke Firebase (workflow <b>Deploy ke Firebase</b>) agar konfigurasi bisa diambil dari <code>${esc(APP.firebaseProjectId)}.web.app</code>, atau buat berkas <code>js/firebase-config.local.js</code> saat proses deploy.</li>`,
+  }[where];
+  root.innerHTML = `<div class="login-page"><div class="login-card" style="width:min(640px,100%);text-align:left">
+    <div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div>
+    <h1 style="text-align:center">Konfigurasi Firebase belum tersedia</h1>
+    <p class="muted">API key sengaja tidak disimpan di kode sumber (agar tidak bocor di GitHub). Aplikasi mencoba mengambilnya dari sumber berikut:</p>
+    <ul class="small" style="margin:0;padding-left:1.2em">${F.configAttempts.map((a) => `<li>${a.ok ? '✅' : '❌'} <code>${esc(a.src)}</code> — ${esc(a.why || 'berhasil')}</li>`).join('')}</ul>
+    <h3 style="margin-top:12px">Cara memperbaiki</h3><ol class="small" style="padding-left:1.2em">${steps}</ol>
+    <details class="fieldset"><summary>Tempel konfigurasi sementara di browser ini</summary><div class="pad">
+      <p class="small muted">Ambil dari Firebase Console → ⚙ Project settings → Your apps → <b>SDK setup and configuration → Config</b>. Tempel objek <code>firebaseConfig</code> (boleh berikut teks <code>const firebaseConfig =</code>). Hanya tersimpan di browser ini, tidak dikirim ke GitHub.</p>
+      <textarea id="cfg-paste" rows="8" placeholder='{ apiKey: "...", authDomain: "...", projectId: "digides-8423e", ... }'></textarea>
+      <p class="err" id="cfg-err"></p>
+      <button class="btn btn-primary" id="cfg-save">Simpan & muat ulang</button>
+    </div></details>
+    <div class="row-gap"><button class="btn btn-ghost" id="cfg-retry">${ic('refresh')} Coba lagi</button>${localStorage.getItem('dd:fbcfg') ? '<button class="btn btn-ghost" id="cfg-clear">Hapus konfigurasi tersimpan</button>' : ''}</div>
+    <p class="muted small center" data-copyright>${APP.name} v${APP.version} • ${APP.copyright}</p></div></div>`;
+  $('#cfg-retry').onclick = () => location.reload();
+  $('#cfg-clear')?.addEventListener('click', () => { localStorage.removeItem('dd:fbcfg'); location.reload(); });
+  $('#cfg-save').onclick = () => {
+    const raw = $('#cfg-paste').value;
+    const body = (raw.match(/\{[\s\S]*\}/) || [''])[0];
+    const obj = {};
+    for (const m of body.matchAll(/["']?(\w+)["']?\s*:\s*["']([^"']+)["']/g)) obj[m[1]] = m[2];
+    if (!obj.apiKey || !obj.projectId || !obj.appId) { $('#cfg-err').textContent = 'Konfigurasi tidak lengkap — harus ada apiKey, projectId, dan appId.'; return; }
+    localStorage.setItem('dd:fbcfg', JSON.stringify(obj));
+    location.reload();
+  };
 }
 
 function registerSW() {

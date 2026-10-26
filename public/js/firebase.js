@@ -15,21 +15,60 @@ import {
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 
+// Catatan tiap percobaan (ditampilkan di layar bantuan bila semua gagal)
+export const configAttempts = [];
+const note = (src, ok, why) => configAttempts.push({ src, ok, why });
+
+const validCfg = (c) => c && c.apiKey && c.projectId && !String(c.apiKey).startsWith('ISI_');
+
+// Memuat /__/firebase/init.js dari situs Firebase Hosting proyek (bisa lintas domain karena berupa <script>)
+function loadHostingInitScript(origin) {
+  return new Promise((resolve) => {
+    let captured = null; const prev = window.firebase;
+    window.firebase = { initializeApp: (c) => { captured = c; return {}; }, apps: [] };
+    const s = document.createElement('script');
+    const done = (why) => { clearTimeout(t); window.firebase = prev; s.remove(); resolve(captured ? { cfg: captured } : { why }); };
+    const t = setTimeout(() => done('waktu habis'), 7000);
+    s.src = `${origin}/__/firebase/init.js?v=${Date.now()}`;
+    s.onload = () => done(captured ? '' : 'skrip tidak berisi konfigurasi');
+    s.onerror = () => done('tidak dapat dimuat (situs Firebase Hosting belum pernah di-deploy?)');
+    document.head.appendChild(s);
+  });
+}
+
 async function loadConfig() {
-  // 1) Firebase Hosting menyediakan konfigurasi proyek di URL khusus ini
+  // 0) Konfigurasi sementara yang ditempel admin di browser ini (hanya tersimpan di perangkat ini)
+  try {
+    const c = JSON.parse(localStorage.getItem('dd:fbcfg') || 'null');
+    if (validCfg(c)) { note('Konfigurasi tersimpan di browser ini', true); return c; }
+  } catch { /* abaikan */ }
+  // 1) Firebase Hosting: konfigurasi tersedia di domain yang sama
   try {
     const r = await fetch('/__/firebase/init.json', { cache: 'no-cache' });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
+    const ct = r.headers.get('content-type') || '';
+    if (r.ok && ct.includes('json')) {
       const j = await r.json();
-      if (j && j.apiKey) return j;
-    }
-  } catch { /* bukan di Firebase Hosting */ }
-  // 2) Uji lokal: berkas firebase-config.local.js (di-.gitignore)
+      if (validCfg(j)) { note('/__/firebase/init.json', true); return j; }
+      note('/__/firebase/init.json', false, 'isi tidak valid');
+    } else note('/__/firebase/init.json', false, r.ok ? 'bukan Firebase Hosting' : `HTTP ${r.status}`);
+  } catch (e) { note('/__/firebase/init.json', false, 'tidak tersedia'); }
+
+  // 2) Berkas lokal / hasil GitHub Actions (tidak pernah di-commit)
   try {
     const m = await import('./firebase-config.local.js');
     const c = m.default || m.firebaseConfig;
-    if (c && c.apiKey && !String(c.apiKey).startsWith('ISI_')) return c;
-  } catch { /* tidak ada */ }
+    if (validCfg(c)) { note('js/firebase-config.local.js', true); return c; }
+    note('js/firebase-config.local.js', false, 'belum diisi');
+  } catch { note('js/firebase-config.local.js', false, 'berkas tidak ada'); }
+
+  // 3) Hosting lain (GitHub Pages, Netlify, domain sendiri, localhost): ambil dari situs Firebase Hosting proyek
+  const origins = [...new Set([APP.firebaseHostingUrl, APP.firebaseProjectId && `https://${APP.firebaseProjectId}.web.app`, APP.firebaseProjectId && `https://${APP.firebaseProjectId}.firebaseapp.com`].filter(Boolean))]
+    .filter((o) => !location.origin.startsWith(o));
+  for (const o of origins) {
+    const r = await loadHostingInitScript(o);
+    if (validCfg(r.cfg)) { note(`${o}/__/firebase/init.js`, true); return r.cfg; }
+    note(`${o}/__/firebase/init.js`, false, r.why || 'tidak valid');
+  }
   return null;
 }
 
