@@ -1,0 +1,19 @@
+{
+  "name": "digides",
+  "version": "1.0.0",
+  "description": "DigiDes — Sistem Informasi Desa Digital (PWA + Firebase). © Serenity Creativa 2026",
+  "private": true,
+  "type": "module",
+  "author": "Serenity Creativa",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "dev": "npx --yes serve public -l 5173",
+    "deploy": "npx --yes firebase-tools deploy --only hosting,firestore:rules",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "sync:instagram": "node scripts/sync-instagram.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

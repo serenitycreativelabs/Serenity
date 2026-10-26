@@ -1,0 +1,48 @@
+rules_version = '2';
+// DigiDes — Aturan keamanan Firestore. © Serenity Creativa 2026
+// Hanya akun yang terdaftar di koleksi /admins yang dapat membaca data warga.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    // Akun admin pertama (bootstrap). Setelah dokumen /admins/{uid} terbentuk,
+    // akses tetap berlaku walau email admin diganti dari dalam aplikasi.
+    function isBootstrap() {
+      return signedIn() && request.auth.token.email == 'serenityxcreative@gmail.com';
+    }
+
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid && (isAdmin() || isBootstrap());
+      allow delete: if false;
+    }
+
+    // Profil desa & statistik ringkas (publik, tanpa data pribadi)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Papan informasi: publik hanya yang diterbitkan
+    match /informasi/{id} {
+      allow read: if isAdmin() || resource.data.published == true;
+      allow write: if isAdmin();
+    }
+
+    // Highlight Instagram (publik)
+    match /instagram/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Data pribadi — hanya admin
+    match /warga/{id}   { allow read, write: if isAdmin(); }
+    match /dusun/{id}   { allow read, write: if isAdmin(); }
+    match /master/{id}  { allow read, write: if isAdmin(); }
+    match /private/{id} { allow read, write: if isAdmin(); }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
