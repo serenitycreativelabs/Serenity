@@ -3,7 +3,6 @@
 //  © Serenity Creativa 2026
 // =============================================================
 import { APP, IG_GRAPH } from './config.js';
-import * as F from './firebase.js';
 import {
   FIELDS, GROUPS, DEFAULT_MASTER, MASTER_EXTRA_LABELS, AGE_GROUPS, ageGroup,
   mapHeaders, ageFromDate, parseAlamat, canonical, slugify, normKey,
@@ -15,60 +14,14 @@ import {
 } from './ui.js';
 import { bindWilayahChain } from './wilayah.js';
 import { exportExcel, exportPdf, getXLSX } from './exporter.js';
+import {
+  F, I, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
+  PERMS, isSuper, can, ROLE_LABEL, logAudit, diff, requirePassword, superEmail, insightsFromStats, pct, loginFailed,
+} from './core.js';
+import { PAGES, pageLabel, renderPubPage, renderInfografis, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
+import { viewAdmins, viewAudit, viewCadangan, openSuperLogin } from './security.js';
 
-// ---------------------------------------------------------------- ikon
-const I = {
-  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
-  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
-  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
-  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
-  map: '<path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/>',
-  db: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>',
-  mega: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
-  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
-  ig: '<rect x="2.5" y="2.5" width="19" height="19" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/>',
-  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
-  cog: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
-  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  search: '<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>',
-  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
-  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-  wa: '<path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.6-4.7A8.5 8.5 0 1 1 20.5 11.6z"/><path d="M8.8 8.7c.2-.5.5-.6.8-.6h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2 0 .5-.1.6l-.5.6c-.1.2-.1.4 0 .6.6 1 1.4 1.8 2.5 2.4.2.1.4.1.6-.1l.6-.7c.2-.2.4-.2.6-.1l1.8.9c.3.1.4.3.3.6-.1.9-.9 1.6-1.8 1.7-1.5.2-3.4-.6-5.1-2.3-1.7-1.6-2.5-3.5-2.3-4.9z" fill="currentColor" stroke="none"/>',
-  pin: '<path d="M12 17v5M5 17h14l-2-4V5h1V3H6v2h1v8z"/>',
-  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
-  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-  loc: '<path d="M12 22s-8-6-8-12a8 8 0 0 1 16 0c0 6-8 12-8 12z"/><circle cx="12" cy="10" r="3"/>',
-  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
-  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-  phone: '<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>',
-  ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>',
-  chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
-};
-const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ''}</svg>`;
-
-// ---------------------------------------------------------------- state
-const state = {
-  route: null, view: '', authReady: false, user: null, isAdmin: false,
-  config: {}, stats: {}, warga: [], wargaReady: false, dusun: [], master: {}, masterReady: false,
-  info: [], ig: [], adminUnsubs: [], infoUnsub: null,
-  filters: { q: '', dusun: '', field: '', value: '', jk: '', page: 1, per: 25, sort: 'nama' },
-  selected: new Set(), deferredPrompt: null, swReg: null,
-};
 const root = document.getElementById('app');
-const C = (p) => F.doc(F.db, ...p.split('/'));
-const desaName = () => state.config.namaDesa || 'Desa Digital';
-const desaJenis = () => state.config.jenisDesa || 'Desa';
-const instansi = () => {
-  const w = state.config.wilayah || {};
-  return [`${desaJenis()} ${desaName()}`, w.kecamatan && `Kec. ${w.kecamatan}`, w.kabupaten, w.provinsi].filter(Boolean).join(', ');
-};
-const appLink = (hash = '') => location.origin + location.pathname + (hash ? '#' + hash : '');
-const clean = (o) => { const r = {}; for (const [k, v] of Object.entries(o)) if (v !== undefined) r[k] = v; return r; };
 
 // ---------------------------------------------------------------- field helpers
 function customFields() {
@@ -99,47 +52,82 @@ function displayValue(w, key) {
 }
 const isAktif = (w) => !['kematian', 'pindah keluar'].includes(norm(w.peristiwa));
 
+
 // ---------------------------------------------------------------- boot
 function boot() {
+  if (F.configError) { renderConfigError(); return; }
   F.onSnapshot(C('config/app'), (s) => { state.config = s.data() || {}; applyBranding(); softRerender(['public', 'dash', 'shell']); }, (e) => console.warn('config', e));
+  F.onSnapshot(C('config/auth'), (s) => { state.authCfg = s.data() || {}; }, () => {});
   F.onSnapshot(C('config/stats'), (s) => { state.stats = s.data() || {}; softRerender(['public']); }, () => {});
   F.onSnapshot(F.collection(F.db, 'instagram'), (s) => {
     state.ig = s.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
     softRerender(['public', 'instagram']);
   }, () => {});
+  F.onSnapshot(F.collection(F.db, 'halaman'), (s) => { const h = {}; s.docs.forEach((d) => { h[d.id] = d.data(); }); state.halaman = h; softRerender(['public']); }, () => {});
+  F.onSnapshot(F.collection(F.db, 'kegiatan'), (s) => {
+    state.kegiatan = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
+    softRerender(['public', 'kegiatan']);
+  }, () => {});
   subscribeInfo(false);
 
   F.onAuthStateChanged(F.auth, async (user) => {
     state.user = user;
     if (user) {
-      const ok = await ensureAdmin(user);
-      state.isAdmin = ok;
-      if (ok) startAdmin();
-      else { await F.signOut(F.auth); toast('Akun ini tidak memiliki akses admin.', 'error'); }
+      const u = await ensureUser(user);
+      if (u && u.active !== false) {
+        state.isAdmin = true; state.profile = u; state.role = u.role; state.perms = u.perms || {};
+        startAdmin();
+        if (sessionStorage.getItem('dd:justLogin')) {
+          const fails = Number(localStorage.getItem('dd:fails') || 0);
+          sessionStorage.removeItem('dd:justLogin'); localStorage.removeItem('dd:fails');
+          logAudit('auth', 'login', `Login sebagai ${ROLE_LABEL[u.role] || u.role}`, { detail: fails ? `${fails} percobaan login gagal sebelumnya di perangkat ini` : '' });
+        }
+      } else {
+        state.isAdmin = false;
+        await F.signOut(F.auth);
+        toast(u?.active === false ? 'Akun Anda dinonaktifkan oleh Super Admin.' : 'Akun ini belum didaftarkan oleh Super Admin.', 'error', { duration: 8000 });
+      }
     } else {
-      state.isAdmin = false; stopAdmin();
+      state.isAdmin = false; state.profile = null; state.role = ''; state.perms = {}; stopAdmin();
     }
     state.authReady = true;
     render();
   });
 
-  window.addEventListener('hashchange', render);
+  window.addEventListener('hashchange', () => render());
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.deferredPrompt = e; $$('[data-install]').forEach((b) => b.hidden = false); });
   window.addEventListener('appinstalled', () => { state.deferredPrompt = null; $$('[data-install]').forEach((b) => b.hidden = true); toast('Aplikasi berhasil dipasang', 'success'); });
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-install]');
     if (b && state.deferredPrompt) { state.deferredPrompt.prompt(); state.deferredPrompt.userChoice.finally(() => { state.deferredPrompt = null; }); }
   });
+  // Klik 5x pada tulisan copyright → login Super Admin
+  let clicks = [];
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-copyright]')) return;
+    const now = Date.now(); clicks = clicks.filter((t) => now - t < 3000); clicks.push(now);
+    if (clicks.length >= 5) { clicks = []; if (state.isAdmin && isSuper()) location.hash = '#/admin'; else openSuperLogin(); }
+  });
+  setupIdleLogout();
   render();
   registerSW();
+}
+
+function renderConfigError() {
+  root.innerHTML = `<div class="login-page"><div class="login-card"><div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div>
+    <h1>Konfigurasi Firebase belum tersedia</h1>
+    <p class="muted">Aplikasi ini membaca konfigurasi Firebase secara otomatis saat dijalankan di <b>Firebase Hosting</b> (tidak ada API key di kode sumber).</p>
+    <p class="muted small">Untuk uji lokal: salin <code>js/firebase-config.example.js</code> menjadi <code>js/firebase-config.local.js</code> lalu isi nilainya.</p>
+    <p class="muted small" data-copyright>${APP.name} v${APP.version} • ${APP.copyright}</p></div></div>`;
 }
 
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('./sw.js').then((reg) => {
+    if (!reg) return;
     state.swReg = reg;
-    const notify = (w) => toast(`Versi baru tersedia.`, 'info', { duration: 15000, action: { label: 'Muat ulang', onClick: () => w.postMessage('skipWaiting') } });
+    const notify = (w) => toast('Versi baru tersedia.', 'info', { duration: 15000, action: { label: 'Muat ulang', onClick: () => w.postMessage('skipWaiting') } });
     if (reg.waiting && navigator.serviceWorker.controller) notify(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
@@ -163,48 +151,65 @@ function subscribeInfo(all) {
     softRerender(['public', 'informasi', 'dash', 'broadcast']);
   }, (e) => console.warn('info', e));
 }
+const pubInfo = () => state.info.filter((i) => i.published);
 
-async function ensureAdmin(user) {
-  try {
-    await F.setDoc(C(`admins/${user.uid}`), { email: user.email, lastLogin: F.serverTimestamp() }, { merge: true });
-  } catch (e) { /* bukan admin bootstrap; cek dokumen */ }
-  try {
-    const s = await F.getDoc(C(`admins/${user.uid}`));
-    if (!s.exists()) return false;
-  } catch { return false; }
-  // Sinkronkan email admin (setelah ganti email terverifikasi)
-  try {
-    const cfg = (await F.getDoc(C('config/app'))).data() || {};
-    if (cfg.adminEmail !== user.email || cfg.pendingEmail) {
-      await F.setDoc(C('config/app'), { adminEmail: user.email, pendingEmail: F.deleteField() }, { merge: true });
-    }
-  } catch (e) { console.warn(e); }
-  return true;
+// Profil pengguna di koleksi users/{uid}. Super Admin utama dibuat otomatis saat login pertama.
+async function ensureUser(user) {
+  const ref = C(`users/${user.uid}`);
+  let snap;
+  try { snap = await F.getDoc(ref); } catch { return null; }
+  if (!snap.exists()) {
+    if (norm(user.email) !== norm(APP.superAdminEmail)) return null;
+    try {
+      await F.setDoc(ref, { email: user.email, nama: 'Super Admin', role: 'superadmin', active: true, perms: {}, createdAt: F.serverTimestamp(), createdBy: 'bootstrap' });
+      snap = await F.getDoc(ref);
+    } catch (e) { console.warn('bootstrap super', e); return null; }
+  }
+  const u = snap.data();
+  if (u.active === false) return u;
+  try { await F.updateDoc(ref, { lastLogin: F.serverTimestamp(), email: user.email }); } catch { /* abaikan */ }
+  if (u.role === 'superadmin') {
+    try {
+      const a = (await F.getDoc(C('config/auth'))).data() || {};
+      if (norm(a.superEmail) !== norm(user.email) || a.pendingEmail) await F.setDoc(C('config/auth'), { superEmail: user.email, pendingEmail: F.deleteField() }, { merge: true });
+    } catch (e) { console.warn(e); }
+  }
+  return { ...u, email: user.email };
 }
 
 function startAdmin() {
   stopAdmin();
   const u = state.adminUnsubs;
-  u.push(F.onSnapshot(F.collection(F.db, 'warga'), (s) => {
-    state.warga = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-    state.wargaReady = true;
-    softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
-    updatePublicStats();
-  }, (e) => toast('Gagal memuat data warga: ' + e.message, 'error')));
+  if (can('warga')) {
+    u.push(F.onSnapshot(F.collection(F.db, 'warga'), (s) => {
+      state.warga = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+      state.wargaReady = true;
+      softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
+      updatePublicStats();
+    }, (e) => toast('Gagal memuat data warga: ' + e.message, 'error')));
+  } else state.wargaReady = true;
   u.push(F.onSnapshot(F.collection(F.db, 'dusun'), (s) => {
     state.dusun = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
     softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
     updatePublicStats();
-  }));
+  }, () => {}));
   let seeded = false;
   u.push(F.onSnapshot(F.collection(F.db, 'master'), (s) => {
     const m = {}; s.docs.forEach((d) => { m[d.id] = { key: d.id, ...d.data() }; });
     state.master = m; state.masterReady = true;
-    if (!seeded && !s.metadata.fromCache) { seeded = true; seedMaster(m); }
+    if (!seeded && !s.metadata.fromCache && can('master')) { seeded = true; seedMaster(m); }
     softRerender(['master']);
-  }));
+  }, () => {}));
+  // Profil terbaru (hak akses bisa diubah Super Admin sewaktu-waktu)
+  u.push(F.onSnapshot(C(`users/${state.user.uid}`), (s) => {
+    const d = s.data();
+    if (!d || d.active === false) { toast('Akses Anda telah dicabut.', 'error'); doLogout('akses_dicabut'); return; }
+    const changed = JSON.stringify(d.perms || {}) !== JSON.stringify(state.perms) || d.role !== state.role;
+    state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
+    if (changed) { toast('Hak akses Anda diperbarui', 'info'); root.dataset.shell = ''; startAdmin(); render(); }
+  }, () => {}));
   subscribeInfo(true);
-  setTimeout(() => autoSyncInstagram(), 4000);
+  setTimeout(() => { if (can('instagram')) autoSyncInstagram(); }, 4000);
 }
 function stopAdmin() {
   state.adminUnsubs.forEach((f) => f()); state.adminUnsubs = [];
@@ -213,8 +218,28 @@ function stopAdmin() {
   subscribeInfo(false);
 }
 
+async function doLogout(reason = 'logout') {
+  const labels = { logout: 'Logout', idle: 'Logout otomatis (tidak ada aktivitas)', akses_dicabut: 'Logout paksa (akses dicabut)' };
+  try { await logAudit('auth', reason, labels[reason] || reason); } catch { /* */ }
+  stopAdmin();
+  await F.signOut(F.auth).catch(() => {});
+  await F.wipeLocalCache();
+  location.hash = '#/login';
+  location.reload();
+}
+function setupIdleLogout() {
+  let last = Date.now();
+  const bump = () => { last = Date.now(); };
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+  setInterval(() => {
+    if (!state.isAdmin) return;
+    const mins = Number(state.config.idleMinutes || APP.idleMinutesDefault);
+    if (mins > 0 && Date.now() - last > mins * 60e3) { toast('Sesi berakhir karena tidak ada aktivitas.', 'info'); doLogout('idle'); }
+  }, 30e3);
+}
+
 async function seedMaster(existing) {
-  const keys = [...FIELDS.filter((f) => f.type === 'select').map((f) => f.key), 'kategoriInfo'];
+  const keys = [...FIELDS.filter((f) => f.type === 'select').map((f) => f.key), 'kategoriInfo', 'kategoriKegiatan'];
   const missing = keys.filter((k) => !existing[k]);
   if (!missing.length) return;
   const b = F.writeBatch(F.db);
@@ -225,18 +250,49 @@ async function seedMaster(existing) {
   try { await b.commit(); } catch (e) { console.warn('seed master', e); }
 }
 
-const updatePublicStats = debounce(async () => {
-  if (!state.isAdmin || !state.wargaReady) return;
+// ---- Statistik publik (agregat, tanpa data pribadi) untuk halaman Infografis
+const DEFAULT_INFOGRAFIS = ['kelompokUmur', 'jk', 'dusun', 'agama', 'pendidikan', 'pekerjaan', 'statusKawin', 'sektor'];
+const PYR = [[0, 4], [5, 9], [10, 14], [15, 19], [20, 24], [25, 29], [30, 34], [35, 39], [40, 44], [45, 49], [50, 54], [55, 59], [60, 64], [65, 69], [70, 74], [75, 200]];
+function computePublicStats() {
   const aktif = state.warga.filter(isAktif);
-  const s = {
-    penduduk: aktif.length,
-    kk: aktif.filter((w) => norm(w.shdk) === 'kepala keluarga').length,
-    laki: aktif.filter((w) => norm(w.jk).startsWith('l')).length,
-    perempuan: aktif.filter((w) => norm(w.jk).startsWith('p')).length,
-    dusun: state.dusun.length,
+  const t = aktif.length;
+  const L = (w) => norm(w.jk).startsWith('l'), P = (w) => norm(w.jk).startsWith('p');
+  const ages = aktif.map((w) => Number(w.umur)).filter((n) => !Number.isNaN(n) && n >= 0);
+  const kk = aktif.filter((w) => norm(w.shdk) === 'kepala keluarga').length;
+  const anak = ages.filter((a) => a < 15).length, produktif = ages.filter((a) => a >= 15 && a <= 64).length, tua = ages.filter((a) => a >= 65).length;
+  const laki = aktif.filter(L).length, perempuan = aktif.filter(P).length;
+  const ig = state.config.infografis || {};
+  const cats = ig.cats || DEFAULT_INFOGRAFIS;
+  const min = Number(ig.min ?? 3);
+  const breakdown = {};
+  for (const k of cats) {
+    let rows = countBy(aktif, k).filter(([v]) => v !== '(Kosong)');
+    if (k === 'kelompokUmur') rows.sort((a, b) => AGE_GROUPS.findIndex((g) => g[2] === a[0]) - AGE_GROUPS.findIndex((g) => g[2] === b[0]));
+    if (min > 1) {
+      const small = rows.filter(([, n]) => n < min);
+      rows = rows.filter(([, n]) => n >= min);
+      if (small.length) rows.push([`Lainnya (kurang dari ${min})`, small.reduce((a, [, n]) => a + n, 0)]);
+    }
+    breakdown[k] = rows.slice(0, 25).map(([v, n]) => ({ v: String(v), n }));
+  }
+  const dusunRows = countBy(aktif, 'dusun').filter(([v]) => v !== '(Kosong)');
+  return {
+    penduduk: t, kk, laki, perempuan, dusun: state.dusun.length,
+    rataKeluarga: kk ? Math.round((t / kk) * 10) / 10 : 0,
+    rasioJK: perempuan ? Math.round((laki / perempuan) * 100) : 0,
+    produktif, anak, tua,
+    rasioKetergantungan: produktif ? Math.round(((anak + tua) / produktif) * 100) : 0,
+    lansia: ages.filter((a) => a >= 60).length, balita: ages.filter((a) => a <= 5).length,
+    dusunTerbesar: dusunRows[0] ? `${dusunRows[0][0]} (${dusunRows[0][1]} jiwa)` : '',
+    piramida: PYR.map(([a, b]) => ({ g: b >= 200 ? `${a}+` : `${a}–${b}`, l: aktif.filter((w) => L(w) && Number(w.umur) >= a && Number(w.umur) <= b).length, p: aktif.filter((w) => P(w) && Number(w.umur) >= a && Number(w.umur) <= b).length })),
+    breakdown, cats,
   };
-  const prev = state.stats || {};
-  if (['penduduk', 'kk', 'laki', 'perempuan', 'dusun'].every((k) => prev[k] === s[k])) return;
+}
+const updatePublicStats = debounce(async () => {
+  if (!state.isAdmin || !can('warga') || !state.wargaReady) return;
+  const s = computePublicStats();
+  const prev = { ...state.stats }; delete prev.updatedAt;
+  if (JSON.stringify(prev) === JSON.stringify(s)) return;
   try { await F.setDoc(C('config/stats'), { ...s, updatedAt: F.serverTimestamp() }); } catch (e) { console.warn(e); }
 }, 3000);
 
@@ -252,12 +308,14 @@ function softRerender(tags) {
     return;
   }
   if (document.activeElement && root.contains(document.activeElement) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && state.view !== 'public') return;
-  if (state._rerenderLock) return;
+  if ($('.modal-backdrop')) return;
   render(true);
 }
 function render(soft = false) {
+  if (F.configError) return;
   const r = parseRoute(); state.route = r;
-  document.body.classList.remove('nav-open');
+  document.body.classList.remove('nav-open', 'pubnav-open');
+  state.timers.forEach(clearInterval); state.timers = [];
   applyBranding();
   const p0 = r.parts[0];
   if (p0 === 'admin') {
@@ -278,21 +336,32 @@ const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" 
 function renderPublic(r, soft) {
   state.view = 'public';
   const y = soft ? window.scrollY : 0;
+  const p0 = r.parts[0] || '';
   let content;
-  if (r.parts[0] === 'informasi' && r.parts[1]) content = pubInfoDetail(r.parts[1]);
-  else if (r.parts[0] === 'informasi') content = pubInfoList(r.query.get('k') || '');
-  else if (r.parts[0] === 'highlight') content = pubHighlight(true);
+  if (p0 === 'informasi' && r.parts[1]) content = pubInfoDetail(r.parts[1]);
+  else if (p0 === 'informasi') content = pubInfoList(r.query.get('k') || '');
+  else if (p0 === 'highlight') content = pubHighlight(true);
+  else if (p0 === 'profil') content = renderPubPage(r.parts[1] || 'profil');
+  else if (p0 === 'infografis') content = renderInfografis();
   else content = pubHome();
-  const active = r.parts[0] || '';
   root.dataset.shell = 'public';
+  const profilActive = p0 === 'profil' || p0 === 'infografis';
   root.innerHTML = `
   <header class="pub-header">
     <div class="pub-header-inner">
       <a class="brand" href="#/"><span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaJenis())} ${esc(desaName())}</b><small>${esc(state.config.tagline || 'Sistem Informasi Desa Digital')}</small></span></a>
-      <nav class="pub-nav">
-        <a href="#/" class="${active === '' ? 'active' : ''}">Beranda</a>
-        <a href="#/highlight" class="${active === 'highlight' ? 'active' : ''}">Highlight</a>
-        <a href="#/informasi" class="${active === 'informasi' ? 'active' : ''}">Informasi</a>
+      <button class="icon-btn pubnav-toggle" id="pubnav-toggle" aria-label="Menu">${ic('menu')}</button>
+      <nav class="pub-nav" id="pub-nav">
+        <a href="#/" class="${p0 === '' ? 'active' : ''}">Beranda</a>
+        <div class="dropdown ${profilActive ? 'active' : ''}">
+          <button class="dropdown-btn" aria-haspopup="true" aria-expanded="false">Profil ${esc(jenisLabel())} ${ic('chev')}</button>
+          <div class="dropdown-menu">
+            ${PAGES.map((p) => `<a href="#/profil/${p.key}" class="${p0 === 'profil' && (r.parts[1] || 'profil') === p.key ? 'active' : ''}">${ic(p.icon)} ${esc(pageLabel(p))}</a>`).join('')}
+            <a href="#/infografis" class="${p0 === 'infografis' ? 'active' : ''}">${ic('chart')} Infografis Penduduk</a>
+          </div>
+        </div>
+        <a href="#/informasi" class="${p0 === 'informasi' ? 'active' : ''}">Informasi</a>
+        <a href="#/highlight" class="${p0 === 'highlight' ? 'active' : ''}">Highlight</a>
         <a href="${state.isAdmin ? '#/admin' : '#/login'}" class="btn btn-sm btn-primary">${ic('lock')} ${state.isAdmin ? 'Dasbor' : 'Admin'}</a>
       </nav>
     </div>
@@ -309,17 +378,20 @@ function pubFooter() {
     <div><b>${esc(desaJenis())} ${esc(desaName())}</b><p class="muted">${esc([c.alamatKantor, instansi()].filter(Boolean).join(' — '))}</p>
       ${c.telepon ? `<p><a href="${esc(waLink(c.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(c.telepon)}</a></p>` : ''}
       ${c.emailDesa ? `<p class="muted">${esc(c.emailDesa)}</p>` : ''}</div>
+    <div class="footer-links">${PAGES.slice(0, 5).map((p) => `<a href="#/profil/${p.key}">${esc(pageLabel(p))}</a>`).join('')}<a href="#/infografis">Infografis</a></div>
     <div class="footer-right"><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang Aplikasi</button>
-      <p class="muted small">${APP.name} v${APP.version} • ${APP.copyright}</p></div>
+      <p class="muted small"><span>${APP.name} v${APP.version}</span> • <span class="copyright" data-copyright title="${esc(APP.copyright)}">${APP.copyright}</span></p></div>
   </div></footer>`;
 }
 
 function pubHome() {
   const s = state.stats || {};
   const now = todayISO();
-  const agenda = state.info.filter((i) => i.tanggalAcara && i.tanggalAcara >= now).sort((a, b) => a.tanggalAcara.localeCompare(b.tanggalAcara)).slice(0, 4);
-  const latest = state.info.slice(0, 6);
+  const info = pubInfo();
+  const agenda = info.filter((i) => i.tanggalAcara && i.tanggalAcara >= now).sort((a, b) => a.tanggalAcara.localeCompare(b.tanggalAcara)).slice(0, 4);
+  const latest = info.slice(0, 6);
   const w = state.config.wilayah || {};
+  const ins = insightsFromStats(s).slice(0, 3);
   return `
   <section class="hero">
     <div class="hero-text">
@@ -328,7 +400,7 @@ function pubHome() {
       <p>${esc(state.config.deskripsi || 'Informasi kegiatan, pengumuman, dan layanan desa dalam satu genggaman. Pasang aplikasi ini di ponsel Anda untuk akses cepat.')}</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="#/informasi">${ic('mega')} Papan Informasi</a>
-        ${state.config.igUsername ? `<a class="btn btn-ghost" href="https://instagram.com/${esc(state.config.igUsername)}" target="_blank" rel="noopener">${ic('ig')} @${esc(state.config.igUsername)}</a>` : ''}
+        <a class="btn btn-ghost" href="#/profil/layanan">${ic('file')} Layanan Administrasi</a>
         <button class="btn btn-ghost" data-install hidden>${ic('phone')} Pasang Aplikasi</button>
       </div>
     </div>
@@ -336,12 +408,20 @@ function pubHome() {
       ${[['Penduduk', s.penduduk], ['Kepala Keluarga', s.kk], ['Laki-laki', s.laki], ['Perempuan', s.perempuan], ['Dusun', s.dusun]].map(([l, v]) => `<div class="hstat"><b>${v != null ? fmtNum(v) : '–'}</b><span>${l}</span></div>`).join('')}
     </div>
   </section>
-  ${pubHighlight(false)}
-  ${agenda.length ? `<section class="section"><div class="section-head"><h2>${ic('cal')} Agenda Terdekat</h2></div>
-    <div class="agenda">${agenda.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="agenda-item" href="#/informasi/${a.id}"><div class="agenda-date"><b>${d.getDate()}</b><span>${d.toLocaleString('id-ID', { month: 'short' })}</span></div><div><h4>${esc(a.judul)}</h4><p class="muted small">${esc([a.waktu, a.lokasi].filter(Boolean).join(' • '))}</p></div></a>`; }).join('')}</div></section>` : ''}
-  <section class="section"><div class="section-head"><h2>${ic('mega')} Papan Informasi</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
-    ${latest.length ? `<div class="cards">${latest.map(infoCard).join('')}</div>` : emptyBox('Belum ada informasi yang diterbitkan.')}
-  </section>`;
+  <div class="home-grid">
+    <aside class="home-left">${sholatPanel()}</aside>
+    <div class="home-center">
+      ${ins.length ? `<section class="section"><div class="section-head"><h2>${ic('bulb')} Insight Penduduk</h2><a href="#/infografis" class="link">Infografis lengkap →</a></div>
+        <div class="insight-list">${ins.map((x) => `<div class="insight">${ic(x.icon)}<p>${esc(x.text)}</p></div>`).join('')}</div></section>` : ''}
+      ${pubHighlight(false)}
+      ${agenda.length ? `<section class="section"><div class="section-head"><h2>${ic('cal')} Agenda Terdekat</h2></div>
+        <div class="agenda">${agenda.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="agenda-item" href="#/informasi/${a.id}"><div class="agenda-date"><b>${d.getDate()}</b><span>${d.toLocaleString('id-ID', { month: 'short' })}</span></div><div><h4>${esc(a.judul)}</h4><p class="muted small">${esc([a.waktu, a.lokasi].filter(Boolean).join(' • '))}</p></div></a>`; }).join('')}</div></section>` : ''}
+      <section class="section"><div class="section-head"><h2>${ic('mega')} Papan Informasi</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
+        ${latest.length ? `<div class="cards">${latest.map(infoCard).join('')}</div>` : emptyBox('Belum ada informasi yang diterbitkan.')}
+      </section>
+    </div>
+    <aside class="home-right">${kegiatanPanel()}</aside>
+  </div>`;
 }
 
 function igPostCard(p) {
@@ -382,19 +462,20 @@ function infoMessage(i, withLink = true) {
   return parts.join('\n');
 }
 function pubInfoList(kat) {
-  const kats = [...new Set(state.info.map((i) => i.kategori).filter(Boolean))];
-  const list = kat ? state.info.filter((i) => i.kategori === kat) : state.info;
+  const all = pubInfo();
+  const kats = [...new Set(all.map((i) => i.kategori).filter(Boolean))];
+  const list = kat ? all.filter((i) => i.kategori === kat) : all;
   return `<section class="section"><div class="section-head"><h2>${ic('mega')} Papan Informasi</h2></div>
     <div class="chips"><a class="chip ${!kat ? 'active' : ''}" href="#/informasi">Semua</a>${kats.map((k) => `<a class="chip ${k === kat ? 'active' : ''}" href="#/informasi?k=${encodeURIComponent(k)}">${esc(k)}</a>`).join('')}</div>
     ${list.length ? `<div class="cards">${list.map(infoCard).join('')}</div>` : emptyBox('Belum ada informasi.')}
   </section>`;
 }
 function pubInfoDetail(id) {
-  const i = state.info.find((x) => x.id === id);
+  const i = pubInfo().find((x) => x.id === id);
   if (!i) {
     // Mungkin belum termuat; ambil langsung
     F.getDoc(C(`informasi/${id}`)).then((s) => {
-      if (s.exists() && !state.info.find((x) => x.id === id)) { state.info.push({ id, ...s.data() }); render(true); }
+      if (s.exists() && s.data().published && !state.info.find((x) => x.id === id)) { state.info.push({ id, ...s.data() }); render(true); }
     }).catch(() => {});
     return `<section class="section narrow">${emptyBox('Memuat informasi… Jika tidak muncul, informasi mungkin sudah dihapus.')}</section>`;
   }
@@ -412,62 +493,77 @@ function pubInfoDetail(id) {
     </div>
   </article>`;
 }
+
 function bindPublic() {
   $$('[data-copy-link]').forEach((b) => b.onclick = () => copyText(b.dataset.copyLink));
   if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
+  $('#pubnav-toggle')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
+  $$('.dropdown').forEach((dd) => {
+    const btn = dd.querySelector('.dropdown-btn');
+    btn.onclick = (e) => { e.stopPropagation(); const o = !dd.classList.contains('open'); $$('.dropdown.open').forEach((x) => x.classList.remove('open')); dd.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); };
+  });
+  document.addEventListener('click', closeDropdowns);
+  startPublicTickers();
 }
-const emptyBox = (t) => `<div class="empty">${esc(t)}</div>`;
+function closeDropdowns(e) { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((x) => x.classList.remove('open')); }
 
-// ================================================================ LOGIN
-function maskEmail(e) {
-  const [u, d] = String(e).split('@'); if (!d) return e;
-  return u.slice(0, 2) + '•'.repeat(Math.max(3, u.length - 2)) + '@' + d;
-}
+// ================================================================ LOGIN (Admin: email + password)
 function renderLogin() {
   state.view = 'login';
   root.dataset.shell = 'login';
-  const email = state.config.adminEmail || APP.defaultAdminEmail;
   root.innerHTML = `<div class="login-page">
     <form class="login-card" id="login-form">
       <div class="logo-mark big">${logoImg()}</div>
       <h1>Masuk Admin</h1>
-      <p class="muted">${esc(desaJenis())} ${esc(desaName())}<br><small>${esc(maskEmail(email))}</small></p>
+      <p class="muted">${esc(desaJenis())} ${esc(desaName())}</p>
+      <label class="field"><span>Email</span><input type="email" id="em" autocomplete="username" required placeholder="email@contoh.com"></label>
       <label class="field"><span>Password</span>
-        <div class="input-group"><input type="password" id="pw" autocomplete="current-password" required autofocus placeholder="Masukkan password admin">
+        <div class="input-group"><input type="password" id="pw" autocomplete="current-password" required placeholder="Password">
         <button type="button" class="btn btn-ghost" id="pw-toggle" aria-label="Tampilkan password">${ic('eye')}</button></div></label>
       <button class="btn btn-primary btn-block" id="login-btn">${ic('lock')} Masuk</button>
       <p class="err" id="login-err" role="alert"></p>
       <div class="login-links"><a href="#" id="forgot">Lupa password?</a><a href="#/">← Ke beranda</a></div>
-      <p class="muted small center">${APP.name} v${APP.version} • ${APP.copyright}</p>
+      <p class="muted small center">Akun admin hanya dapat dibuat oleh Super Admin.</p>
+      <p class="muted small center"><span>${APP.name} v${APP.version}</span> • <span class="copyright" data-copyright>${APP.copyright}</span></p>
     </form></div>`;
   $('#pw-toggle').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
   $('#forgot').onclick = async (e) => {
     e.preventDefault();
-    try { await F.sendPasswordResetEmail(F.auth, email); toast(`Tautan reset password dikirim ke ${maskEmail(email)}`, 'success'); }
+    const em = $('#em').value.trim();
+    if (!em) { $('#login-err').textContent = 'Isi email terlebih dahulu, lalu klik "Lupa password?".'; return; }
+    try { await F.sendPasswordResetEmail(F.auth, em); toast('Jika email terdaftar, tautan reset password telah dikirim.', 'success'); }
     catch (err) { toast(authErrorMessage(err), 'error'); }
   };
   $('#login-form').onsubmit = async (e) => {
     e.preventDefault();
-    const pw = $('#pw').value; const btn = $('#login-btn'); const errEl = $('#login-err');
+    const btn = $('#login-btn'), errEl = $('#login-err');
+    const lock = Number(localStorage.getItem('dd:lockUntil') || 0);
+    if (Date.now() < lock) { errEl.textContent = `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil((lock - Date.now()) / 60000)} menit.`; return; }
     btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Memeriksa…'; errEl.textContent = '';
-    const emails = [...new Set([state.config.adminEmail, state.config.pendingEmail, APP.defaultAdminEmail].filter(Boolean))];
-    let lastErr;
-    for (const em of emails) {
-      try { await F.signInWithEmailAndPassword(F.auth, em, pw); lastErr = null; break; }
-      catch (err) { lastErr = err; if (!['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-login-credentials', 'auth/user-disabled'].includes(err.code)) break; }
+    try {
+      sessionStorage.setItem('dd:justLogin', '1');
+      await F.signInWithEmailAndPassword(F.auth, $('#em').value.trim(), $('#pw').value);
+      location.hash = '#/admin';
+    } catch (err) {
+      sessionStorage.removeItem('dd:justLogin');
+      loginFailed();
+      errEl.textContent = authErrorMessage(err).replace('Password salah.', 'Email atau password salah.');
+      btn.disabled = false; btn.innerHTML = `${ic('lock')} Masuk`;
     }
-    if (lastErr) { errEl.textContent = authErrorMessage(lastErr); btn.disabled = false; btn.innerHTML = `${ic('lock')} Masuk`; return; }
-    location.hash = '#/admin';
   };
 }
 
 // ================================================================ ADMIN SHELL
 const NAV = [
-  ['dashboard', 'Dasbor', 'grid'], ['warga', 'Data Warga', 'users'], ['import', 'Import Excel', 'upload'],
-  ['dusun', 'Dusun & Kadus', 'map'], ['master', 'Data Master', 'db'], ['laporan', 'Laporan & Ekspor', 'chart'],
-  ['informasi', 'Papan Informasi', 'mega'], ['broadcast', 'Kirim WhatsApp', 'wa'], ['instagram', 'Instagram', 'ig'],
-  ['pengaturan', 'Pengaturan', 'cog'],
+  ['dashboard', 'Dasbor', 'grid', null],
+  ['warga', 'Data Warga', 'users', 'warga'], ['import', 'Import Excel', 'upload', 'import'],
+  ['dusun', 'Dusun & Kadus', 'map', 'dusun'], ['master', 'Data Master', 'db', 'master'], ['laporan', 'Laporan & Ekspor', 'chart', 'export'],
+  ['informasi', 'Papan Informasi', 'mega', 'informasi'], ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast'], ['instagram', 'Instagram', 'ig', 'instagram'],
+  ['profil', 'Profil Gampong', 'book', 'profil'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan'],
+  ['pengaturan', 'Pengaturan', 'cog', null],
+  ['admin', 'Manajemen Admin', 'shield', 'super'], ['audit', 'Audit Log', 'log', 'super'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super'],
 ];
+const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : can(p));
 function updateShellBrand() {
   const b = $('#shell-brand'); if (b) b.innerHTML = `<span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaName())}</b><small>${APP.name} v${APP.version}</small></span>`;
 }
@@ -475,26 +571,30 @@ function renderAdmin(r, soft) {
   const sec = r.parts[1] || 'dashboard';
   if (root.dataset.shell !== 'admin') {
     root.dataset.shell = 'admin';
+    const items = NAV.filter(navAllowed);
+    const nav = (list) => list.map(([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span></a>`).join('');
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
         <a class="brand" id="shell-brand" href="#/admin"></a>
-        <nav class="side-nav">${NAV.map(([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span></a>`).join('')}</nav>
+        <div class="me"><span class="avatar">${esc((state.profile?.nama || state.user?.email || '?').slice(0, 1).toUpperCase())}</span><div><b>${esc(state.profile?.nama || '')}</b><small><span class="badge ${isSuper() ? 'badge-warn' : ''}">${esc(ROLE_LABEL[state.role] || state.role)}</span></small></div></div>
+        <nav class="side-nav">${nav(items.filter((n) => n[3] !== 'super'))}
+          ${isSuper() ? `<small class="nav-group">Super Admin</small>${nav(items.filter((n) => n[3] === 'super'))}` : ''}</nav>
         <div class="side-foot">
           <a href="#/" target="_blank">${ic('ext')}<span>Lihat Situs Publik</span></a>
           <button id="logout">${ic('out')}<span>Keluar</span></button>
-          <p class="muted small">${APP.copyright}</p>
+          <p class="muted small copyright" data-copyright>${APP.copyright}</p>
         </div>
       </aside>
       <div class="admin-body">
         <header class="topbar"><button class="icon-btn" id="nav-toggle" aria-label="Menu">${ic('menu')}</button><h2 id="page-title"></h2><div class="topbar-right"><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang</button><span class="muted small hide-sm">${esc(state.user?.email || '')}</span></div></header>
         <main class="admin-main" id="admin-main"></main>
-        <footer class="admin-footer">${APP.name} v${APP.version} (build ${APP.build}) • ${APP.copyright}</footer>
+        <footer class="admin-footer">${APP.name} v${APP.version} (build ${APP.build}) • <span class="copyright" data-copyright>${APP.copyright}</span></footer>
       </div>
       <div class="nav-scrim" id="nav-scrim"></div>
     </div>`;
     $('#nav-toggle').onclick = () => document.body.classList.toggle('nav-open');
     $('#nav-scrim').onclick = () => document.body.classList.remove('nav-open');
-    $('#logout').onclick = async () => { if (await confirmDialog('Keluar dari akun admin?', { okText: 'Keluar' })) { await F.signOut(F.auth); location.hash = '#/login'; } };
+    $('#logout').onclick = async () => { if (await confirmDialog('Keluar dari akun admin? Data yang tersimpan sementara di perangkat ini akan dihapus.', { okText: 'Keluar' })) doLogout('logout'); };
     if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   }
   updateShellBrand();
@@ -503,11 +603,23 @@ function renderAdmin(r, soft) {
   $('#page-title').textContent = item ? item[1] : 'Admin';
   const main = $('#admin-main');
   const y = soft ? window.scrollY : 0;
-  const views = { dashboard: viewDashboard, warga: viewWarga, import: viewImport, dusun: viewDusun, master: viewMaster, laporan: viewLaporan, informasi: viewInformasi, broadcast: viewBroadcast, instagram: viewInstagram, pengaturan: viewPengaturan };
+  if (item && !navAllowed(item)) {
+    state.view = 'denied';
+    main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Akses ditolak</b><p>Menu ini tidak termasuk hak akses Anda. Hubungi Super Admin.</p></div></div>`;
+    logAudit('akses', 'akses_ditolak', `Mencoba membuka menu ${item[1]} tanpa izin`);
+    return;
+  }
+  const views = {
+    dashboard: viewDashboard, warga: viewWarga, import: viewImport, dusun: viewDusun, master: viewMaster, laporan: viewLaporan,
+    informasi: viewInformasi, broadcast: viewBroadcast, instagram: viewInstagram, pengaturan: viewPengaturan,
+    profil: viewProfilAdmin, kegiatan: viewKegiatanAdmin, admin: viewAdmins, audit: viewAudit, cadangan: viewCadangan,
+  };
   (views[sec] || viewDashboard)(main, r);
+  if (!soft && ['warga', 'laporan'].includes(sec)) logOnce(`akses_${sec}`, () => logAudit('akses', `buka_${sec}`, `Membuka menu ${item[1]}`));
   if (soft) window.scrollTo(0, y); else window.scrollTo(0, 0);
 }
-const loadingBox = () => '<div class="empty"><span class="spinner"></span> Memuat data…</div>';
+const _logged = new Set();
+function logOnce(key, fn) { if (_logged.has(key)) return; _logged.add(key); fn(); }
 
 // ---------------------------------------------------------------- Dasbor
 function countBy(list, key) {
@@ -522,8 +634,51 @@ function bars(entries, total, { max = 8, link } = {}) {
   return `<div class="bars">${top.map(([k, v]) => `<div class="bar-row" ${link ? `data-link="${esc(link(k))}"` : ''}><span class="bar-label" title="${esc(k)}">${esc(k)}</span><span class="bar-track"><span class="bar-fill" style="width:${(v / peak) * 100}%"></span></span><span class="bar-val">${fmtNum(v)}<small>${total ? Math.round((v / total) * 100) : 0}%</small></span></div>`).join('')}${entries.length > max ? `<p class="muted small">+${entries.length - max} kategori lain</p>` : ''}</div>`;
 }
 function filterLink(field, value) { return `#/admin/warga?field=${encodeURIComponent(field)}&value=${encodeURIComponent(value)}`; }
+function adminInsights(all) {
+  const aktif = all.filter(isAktif); const t = aktif.length; const out = [];
+  if (!t) return out;
+  const d12 = aktif.filter((w) => /desil [12]\b/i.test(w.desil || ''));
+  const d12no = d12.filter((w) => !w.bansos || norm(w.bansos) === 'tidak menerima');
+  if (d12no.length) out.push({ tone: 'warn', icon: 'bulb', text: `${d12no.length} warga Desil 1–2 (miskin) belum menerima bansos — potensi exclusion error, perlu diverifikasi.`, link: '#/admin/laporan' });
+  const d6 = aktif.filter((w) => /desil 6/i.test(w.desil || '') && w.bansos && norm(w.bansos) !== 'tidak menerima');
+  if (d6.length) out.push({ tone: 'warn', icon: 'bulb', text: `${d6.length} warga Desil 6+ (mampu) tercatat menerima bansos — potensi inclusion error.` });
+  const noBpjs = aktif.filter((w) => /belum terdaftar|tidak aktif/i.test(w.bpjs || ''));
+  if (noBpjs.length) out.push({ tone: noBpjs.length / t > 0.2 ? 'warn' : '', icon: 'shield', text: `${noBpjs.length} warga (${String(pct(noBpjs.length, t)).replace('.', ',')}%) belum terdaftar / tidak aktif BPJS Kesehatan.`, link: filterLink('bpjs', 'Belum Terdaftar') });
+  const lansiaNo = noBpjs.filter((w) => Number(w.umur) >= 60);
+  if (lansiaNo.length) out.push({ tone: 'warn', icon: 'users', text: `${lansiaNo.length} lansia (60+) tanpa jaminan kesehatan aktif — prioritas pendaftaran PBI.` });
+  const gizi = aktif.filter((w) => /kurang|buruk|stunting/i.test(w.gizi || ''));
+  if (gizi.length) out.push({ tone: 'warn', icon: 'users', text: `${gizi.length} warga berstatus gizi kurang/buruk/stunting.` });
+  const dis = aktif.filter((w) => w.disabilitas && norm(w.disabilitas) !== 'tidak ada');
+  if (dis.length) out.push({ icon: 'users', text: `${dis.length} penyandang disabilitas tercatat — pastikan masuk sasaran program inklusi.` });
+  const listrik = aktif.filter((w) => /450|tidak ada listrik|non-pln/i.test(w.listrik || ''));
+  if (listrik.length) out.push({ icon: 'bulb', text: `${listrik.length} warga dengan daya listrik ≤450 VA / tanpa PLN.` });
+  return out;
+}
+function dataQuality(all) {
+  const out = [];
+  const nikCount = new Map(); all.forEach((w) => { if (w.nik) nikCount.set(w.nik, (nikCount.get(w.nik) || 0) + 1); });
+  const dup = [...nikCount.values()].filter((n) => n > 1).length;
+  const q = [
+    [all.filter((w) => !w.nik).length, 'warga tanpa NIK'],
+    [all.filter((w) => w.nik && !/^\d{16}$/.test(w.nik)).length, 'NIK tidak 16 digit'],
+    [dup, 'NIK ganda (terdaftar lebih dari sekali)'],
+    [all.filter((w) => !w.tglLahir).length, 'tanggal lahir kosong'],
+    [all.filter((w) => !waNumber(w.noHp)).length, 'tanpa nomor HP/WhatsApp valid'],
+    [all.filter((w) => !w.dusun).length, 'belum dikelompokkan ke dusun', '#/admin/warga?dusun=__none'],
+  ];
+  const kkMap = new Map(); all.filter(isAktif).forEach((w) => { if (w.noKk) { const g = kkMap.get(w.noKk) || []; g.push(w); kkMap.set(w.noKk, g); } });
+  const noHead = [...kkMap.values()].filter((g) => !g.some((w) => norm(w.shdk) === 'kepala keluarga')).length;
+  q.push([noHead, 'No. KK tanpa anggota berstatus Kepala Keluarga']);
+  for (const [n, label, link] of q) if (n) out.push({ n, label, link });
+  return out;
+}
 function viewDashboard(main) {
   state.view = 'dash';
+  if (!can('warga')) {
+    main.innerHTML = `<div class="callout">${ic('shield')}<div><b>Selamat datang, ${esc(state.profile?.nama || '')}</b><p>Anda masuk sebagai ${esc(ROLE_LABEL[state.role])}. Menu yang tersedia sesuai hak akses yang diberikan Super Admin.</p></div></div>
+    <div class="quick">${NAV.filter(navAllowed).filter((n) => n[0] !== 'dashboard').map(([k, l, i]) => `<a class="btn btn-ghost" href="#/admin/${k}">${ic(i)} ${l}</a>`).join('')}</div>`;
+    return;
+  }
   if (!state.wargaReady) { main.innerHTML = loadingBox(); return; }
   const all = state.warga; const aktif = all.filter(isAktif);
   const kk = aktif.filter((w) => norm(w.shdk) === 'kepala keluarga').length;
@@ -532,22 +687,28 @@ function viewDashboard(main) {
   const bansos = aktif.filter((w) => w.bansos && norm(w.bansos) !== 'tidak menerima').length;
   const noHp = aktif.filter((w) => waNumber(w.noHp)).length;
   const t = aktif.length;
+  const ins = [...insightsFromStats(computePublicStats()).map((x) => ({ ...x, tone: '' })), ...adminInsights(all)];
+  const dq = dataQuality(all);
   main.innerHTML = `
-  ${!all.length ? `<div class="callout">${ic('upload')}<div><b>Mulai isi data warga</b><p>Import dari Excel atau tambahkan secara manual.</p></div><a class="btn btn-primary" href="#/admin/import">Import Excel</a><a class="btn btn-ghost" href="#/admin/warga/baru">Input Manual</a></div>` : ''}
+  ${!all.length ? `<div class="callout">${ic('upload')}<div><b>Mulai isi data warga</b><p>Import dari Excel atau tambahkan secara manual.</p></div>${can('import') ? '<a class="btn btn-primary" href="#/admin/import">Import Excel</a>' : ''}${can('wargaEdit') ? '<a class="btn btn-ghost" href="#/admin/warga/baru">Input Manual</a>' : ''}</div>` : ''}
   <div class="stat-grid">
     ${statCard('Penduduk Aktif', t, `${fmtNum(all.length)} total tercatat`, 'users')}
-    ${statCard('Kepala Keluarga', kk, 'berdasarkan SHDK', 'home')}
+    ${statCard('Kepala Keluarga', kk, kk ? `rata-rata ${(t / kk).toFixed(1).replace('.', ',')} jiwa/KK` : 'berdasarkan SHDK', 'home')}
     ${statCard('Laki-laki / Perempuan', `${fmtNum(l)} / ${fmtNum(p)}`, t ? `${Math.round(l / t * 100)}% : ${Math.round(p / t * 100)}%` : '', 'users')}
     ${statCard('Penerima Bansos', bansos, t ? `${Math.round(bansos / t * 100)}% penduduk aktif` : '', 'db')}
     ${statCard('Dusun', state.dusun.length, `${state.dusun.filter((d) => d.kepalaNama).length} punya kepala dusun`, 'map')}
     ${statCard('Terhubung WhatsApp', noHp, t ? `${Math.round(noHp / t * 100)}% punya nomor HP` : '', 'wa')}
   </div>
   <div class="quick">
-    <a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>
-    <a class="btn btn-ghost" href="#/admin/import">${ic('upload')} Import Excel</a>
-    <a class="btn btn-ghost" href="#/admin/informasi?baru=1">${ic('mega')} Tulis Informasi</a>
-    <a class="btn btn-ghost" href="#/admin/laporan">${ic('download')} Ekspor Laporan</a>
+    ${can('wargaEdit') ? `<a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>` : ''}
+    ${can('import') ? `<a class="btn btn-ghost" href="#/admin/import">${ic('upload')} Import Excel</a>` : ''}
+    ${can('informasi') ? `<a class="btn btn-ghost" href="#/admin/informasi?baru=1">${ic('mega')} Tulis Informasi</a>` : ''}
+    ${can('export') ? `<a class="btn btn-ghost" href="#/admin/laporan">${ic('download')} Ekspor Laporan</a>` : ''}
   </div>
+  ${all.length ? `<div class="panel-grid two">
+    <div class="panel"><h3>${ic('bulb')} Insight Penduduk</h3><div class="insight-list">${ins.map((x) => `<div class="insight ${x.tone === 'warn' ? 'warn' : ''}" ${x.link ? `data-link="${esc(x.link)}"` : ''}>${ic(x.icon)}<p>${esc(x.text)}</p></div>`).join('') || emptyBox('Belum cukup data')}</div></div>
+    <div class="panel"><h3>${ic('check')} Kualitas Data</h3>${dq.length ? `<div class="dq">${dq.map((d) => `<div class="dq-row" ${d.link ? `data-link="${esc(d.link)}"` : ''}><b>${fmtNum(d.n)}</b><span>${esc(d.label)}</span></div>`).join('')}</div><p class="muted small">Lengkapi data agar laporan dan penyaluran bantuan lebih akurat.</p>` : `<div class="callout ok">${ic('check')}<div><b>Data lengkap</b><p>Tidak ditemukan masalah kualitas data.</p></div></div>`}</div>
+  </div>` : ''}
   <div class="panel-grid">
     <div class="panel"><h3>Penduduk per Dusun</h3>${bars(countBy(aktif, 'dusun'), t, { max: 12, link: (k) => filterLink('dusun', k) })}</div>
     <div class="panel"><h3>Kelompok Umur</h3>${bars(AGE_GROUPS.map((g) => [g[2], aktif.filter((w) => ageGroup(w.umur) === g[2]).length]).filter((e) => e[1]), t, { link: (k) => filterLink('kelompokUmur', k) })}</div>
@@ -610,10 +771,10 @@ function viewWarga(main, r) {
     <button class="btn btn-ghost btn-sm" id="w-reset">Reset</button>
   </div>
   <div class="toolbar toolbar-actions">
-    <a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>
-    <a class="btn btn-ghost" href="#/admin/import">${ic('upload')} Import</a>
-    <button class="btn btn-ghost" id="w-export">${ic('download')} Ekspor</button>
-    <button class="btn btn-wa" id="w-wa">${ic('wa')} Kirim WA</button>
+    ${can('wargaEdit') ? `<a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>` : ''}
+    ${can('import') ? `<a class="btn btn-ghost" href="#/admin/import">${ic('upload')} Import</a>` : ''}
+    ${can('export') ? `<button class="btn btn-ghost" id="w-export">${ic('download')} Ekspor</button>` : ''}
+    ${can('broadcast') ? `<button class="btn btn-wa" id="w-wa">${ic('wa')} Kirim WA</button>` : ''}
     <span class="spacer"></span>
     <select id="w-sort"><option value="nama">Urut: Nama</option><option value="dusun">Urut: Dusun</option><option value="umur">Urut: Umur</option><option value="terbaru">Urut: Terbaru</option></select>
     <select id="w-per"><option>25</option><option>50</option><option>100</option><option>250</option></select>
@@ -642,8 +803,8 @@ function viewWarga(main, r) {
   $('#w-sort').onchange = (e) => { f.sort = e.target.value; drawTable(); };
   $('#w-per').onchange = (e) => { f.per = Number(e.target.value); upd(); };
   $('#w-reset').onclick = () => { Object.assign(f, { q: '', dusun: '', field: '', value: '', jk: '', page: 1 }); render(); };
-  $('#w-export').onclick = () => exportWargaDialog(currentList(), filterTitle());
-  $('#w-wa').onclick = () => { const ids = state.selected.size ? [...state.selected] : currentList().map((w) => w.id); sessionStorage.setItem('bc:ids', JSON.stringify(ids)); location.hash = '#/admin/broadcast?target=ids'; };
+  $('#w-export')?.addEventListener('click', () => exportWargaDialog(currentList(), filterTitle()));
+  $('#w-wa')?.addEventListener('click', () => { const ids = state.selected.size ? [...state.selected] : currentList().map((w) => w.id); sessionStorage.setItem('bc:ids', JSON.stringify(ids)); location.hash = '#/admin/broadcast?target=ids'; });
   drawTable();
 }
 function currentList() { return sortWarga(filterWarga(state.warga, state.filters), state.filters.sort); }
@@ -670,7 +831,7 @@ function drawTable() {
       <td>${esc(norm(w.jk).startsWith('l') ? 'L' : norm(w.jk).startsWith('p') ? 'P' : '')}</td>
       <td>${esc(w.umur ?? '')}</td><td>${esc(w.dusun || '')}</td><td>${esc([w.rt, w.rw].filter(Boolean).join('/'))}</td><td>${esc(w.shdk || '')}</td>
       <td>${waNumber(w.noHp) ? `<a class="wa-link" href="${esc(waLink(w.noHp, `Assalamu'alaikum ${w.nama || ''}, `))}" target="_blank" rel="noopener">${ic('wa')} ${esc(w.noHp)}</a>` : `<span class="muted">${esc(w.noHp || '-')}</span>`}</td>
-      <td class="actions-col"><button class="icon-btn" data-view="${w.id}" title="Lihat">${ic('eye')}</button><a class="icon-btn" href="#/admin/warga/edit/${w.id}" title="Ubah">${ic('edit')}</a><button class="icon-btn danger" data-del="${w.id}" title="Hapus">${ic('trash')}</button></td>
+      <td class="actions-col"><button class="icon-btn" data-view="${w.id}" title="Lihat">${ic('eye')}</button>${can('wargaEdit') ? `<a class="icon-btn" href="#/admin/warga/edit/${w.id}" title="Ubah">${ic('edit')}</a>` : ''}${can('wargaDelete') ? `<button class="icon-btn danger" data-del="${w.id}" title="Hapus">${ic('trash')}</button>` : ''}</td>
     </tr>`).join('') || `<tr><td colspan="9">${emptyBox('Tidak ada data yang cocok.')}</td></tr>`}</tbody></table></div>
   ${pages > 1 ? `<div class="pager"><button class="btn btn-sm btn-ghost" data-pg="${f.page - 1}" ${f.page <= 1 ? 'disabled' : ''}>‹ Sebelumnya</button><span>Halaman ${f.page} / ${pages}</span><button class="btn btn-sm btn-ghost" data-pg="${f.page + 1}" ${f.page >= pages ? 'disabled' : ''}>Berikutnya ›</button></div>` : ''}`;
   $$('[data-pg]', box).forEach((b) => b.onclick = () => { f.page = Number(b.dataset.pg); drawTable(); window.scrollTo(0, 0); });
@@ -683,51 +844,53 @@ function drawTable() {
 function drawBulk() {
   const el = $('#w-bulk'); if (!el) return;
   const n = state.selected.size; el.hidden = !n;
-  el.innerHTML = `<b>${n} warga dipilih</b><button class="btn btn-sm btn-ghost" id="b-export">${ic('download')} Ekspor</button><button class="btn btn-sm btn-ghost" id="b-dusun">${ic('map')} Pindah dusun</button><button class="btn btn-sm btn-danger" id="b-del">${ic('trash')} Hapus</button><button class="btn btn-sm btn-ghost" id="b-clear">Batal pilih</button>`;
+  el.innerHTML = `<b>${n} warga dipilih</b>${can('export') ? `<button class="btn btn-sm btn-ghost" id="b-export">${ic('download')} Ekspor</button>` : ''}${can('wargaEdit') ? `<button class="btn btn-sm btn-ghost" id="b-dusun">${ic('map')} Pindah dusun</button>` : ''}${can('wargaDelete') ? `<button class="btn btn-sm btn-danger" id="b-del">${ic('trash')} Hapus</button>` : ''}<button class="btn btn-sm btn-ghost" id="b-clear">Batal pilih</button>`;
   if (!n) return;
   const sel = () => state.warga.filter((w) => state.selected.has(w.id));
-  $('#b-export').onclick = () => exportWargaDialog(sortWarga(sel(), state.filters.sort), `Data Warga Terpilih (${n})`);
-  $('#b-del').onclick = () => deleteWarga([...state.selected]);
+  $('#b-export')?.addEventListener('click', () => exportWargaDialog(sortWarga(sel(), state.filters.sort), `Data Warga Terpilih (${n})`));
+  $('#b-del')?.addEventListener('click', () => deleteWarga([...state.selected]));
   $('#b-clear').onclick = () => { state.selected.clear(); drawTable(); };
-  $('#b-dusun').onclick = () => {
+  if ($('#b-dusun')) $('#b-dusun').onclick = () => {
     const m = modal({ title: 'Pindahkan ke dusun', size: 'sm', body: `<label class="field"><span>Dusun tujuan</span><select id="mv-d">${dusunOptions('', { all: false, none: false })}<option value="">(Kosongkan)</option></select></label>`, footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="mv-ok">Pindahkan</button>' });
     $('#mv-ok', m.el).onclick = async () => {
       const d = $('#mv-d', m.el).value; m.close();
       await batchWrite([...state.selected].map((id) => ['update', C(`warga/${id}`), { dusun: d, updatedAt: F.serverTimestamp() }]));
+      logAudit('warga', 'pindah_dusun_massal', `Memindahkan ${n} warga ke dusun ${d || '(kosong)'}`, { count: n, detail: sel().map((w) => w.nama).slice(0, 50).join(', ') });
       toast(`${n} warga dipindahkan`, 'success'); state.selected.clear(); drawTable();
     };
   };
 }
-async function batchWrite(ops, onProgress) {
-  for (let i = 0; i < ops.length; i += 400) {
-    const b = F.writeBatch(F.db);
-    ops.slice(i, i + 400).forEach(([t, ref, data, opt]) => { if (t === 'delete') b.delete(ref); else if (t === 'update') b.update(ref, data); else b.set(ref, data, opt || {}); });
-    await b.commit();
-    onProgress?.(Math.min(i + 400, ops.length), ops.length);
-  }
-}
 async function deleteWarga(ids) {
   const names = ids.length === 1 ? `“${state.warga.find((w) => w.id === ids[0])?.nama || ''}”` : `${ids.length} warga`;
   if (!await confirmDialog(`Hapus data ${names}? Tindakan ini tidak dapat dibatalkan.`, { danger: true, okText: 'Hapus' })) return;
-  try { await batchWrite(ids.map((id) => ['delete', C(`warga/${id}`)])); ids.forEach((id) => state.selected.delete(id)); toast('Data dihapus', 'success'); }
+  const recs = state.warga.filter((w) => ids.includes(w.id));
+  try {
+    await batchWrite(ids.map((id) => ['delete', C(`warga/${id}`)])); ids.forEach((id) => state.selected.delete(id));
+    logAudit('warga', 'hapus', ids.length === 1 ? `Menghapus data warga ${recs[0]?.nama || ''}` : `Menghapus ${ids.length} data warga`, { count: ids.length, target: recs.map((w) => `${w.nama} (${w.nik || '-'})`).slice(0, 40).join(', '), targetId: ids.length === 1 ? ids[0] : undefined });
+    toast('Data dihapus', 'success');
+  }
   catch (e) { toast('Gagal menghapus: ' + e.message, 'error'); }
 }
 function showWargaDetail(id) {
   const w = state.warga.find((x) => x.id === id); if (!w) return;
+  logAudit('akses', 'lihat_detail', `Melihat detail warga ${w.nama}`, { target: `${w.nama} (${w.nik || '-'})`, targetId: w.id });
+  const keluarga = w.noKk ? state.warga.filter((x) => x.noKk === w.noKk && x.id !== w.id) : [];
   const groups = GROUPS.map((g) => {
     const fs = allFields().filter((f) => f.group === g.id && w[f.key] !== undefined && w[f.key] !== '');
     if (!fs.length) return '';
     return `<h4 class="detail-h">${esc(g.label)}</h4><dl class="detail">${fs.map((f) => `<dt>${esc(f.label)}</dt><dd>${f.type === 'phone' && waNumber(w[f.key]) ? `<a class="wa-link" target="_blank" rel="noopener" href="${esc(waLink(w[f.key]))}">${ic('wa')} ${esc(w[f.key])}</a>` : esc(displayValue(w, f.key))}</dd>`).join('')}</dl>`;
   }).join('');
   const m = modal({
-    title: w.nama || 'Detail Warga', size: 'lg', body: groups || emptyBox('Data kosong'),
-    footer: `${waNumber(w.noHp) ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(w.noHp, `Assalamu'alaikum ${w.nama}, `))}">${ic('wa')} Chat WhatsApp</a>` : ''}<span class="spacer"></span><button class="btn btn-ghost" id="d-pdf">${ic('download')} PDF</button><a class="btn btn-primary" href="#/admin/warga/edit/${w.id}">${ic('edit')} Ubah</a>`,
+    title: w.nama || 'Detail Warga', size: 'lg',
+    body: (groups || emptyBox('Data kosong')) + (keluarga.length ? `<h4 class="detail-h">Anggota Keluarga (No. KK ${esc(w.noKk)})</h4><div class="fam">${keluarga.map((k) => `<button class="fam-item" data-fam="${k.id}"><b>${esc(k.nama)}</b><small>${esc([k.shdk, k.umur !== '' && k.umur != null ? k.umur + ' th' : '', k.jk].filter(Boolean).join(' • '))}</small></button>`).join('')}</div>` : ''),
+    footer: `${waNumber(w.noHp) ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(w.noHp, `Assalamu'alaikum ${w.nama}, `))}">${ic('wa')} Chat WhatsApp</a>` : ''}<span class="spacer"></span>${can('export') ? `<button class="btn btn-ghost" id="d-pdf">${ic('download')} PDF</button>` : ''}${can('wargaEdit') ? `<a class="btn btn-primary" href="#/admin/warga/edit/${w.id}">${ic('edit')} Ubah</a>` : ''}`,
   });
-  m.el.querySelector('a[href^="#/admin/warga/edit"]').addEventListener('click', () => m.close());
-  $('#d-pdf', m.el).onclick = () => exportPdf({
+  m.el.querySelector('a[href^="#/admin/warga/edit"]')?.addEventListener('click', () => m.close());
+  $$('[data-fam]', m.el).forEach((b) => b.onclick = () => { m.close(); showWargaDetail(b.dataset.fam); });
+  if ($('#d-pdf', m.el)) $('#d-pdf', m.el).onclick = () => (logAudit('export', 'biodata_pdf', `Mengekspor biodata ${w.nama} (PDF)`, { target: w.nama, targetId: w.id }), exportPdf({
     filename: `Biodata_${w.nama}`, title: `Biodata Warga — ${w.nama}`, orientation: 'portrait', meta: { instansi: instansi() },
     sections: GROUPS.map((g) => ({ heading: g.label, head: ['Data', 'Keterangan'], body: allFields().filter((f) => f.group === g.id).map((f) => [f.label, String(displayValue(w, f.key) ?? '')]) })),
-  }).catch((e) => toast(e.message, 'error'));
+  }).catch((e) => toast(e.message, 'error')));
 }
 
 // ---- form warga
@@ -748,6 +911,7 @@ function fieldInput(f, rec) {
 }
 function viewWargaForm(main, id) {
   state.view = 'form';
+  if (!can('wargaEdit')) { main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Akses ditolak</b><p>Anda tidak memiliki izin menambah/mengubah data warga.</p></div></div>`; return; }
   const rec = id ? state.warga.find((w) => w.id === id) : null;
   if (id && !rec) { main.innerHTML = state.wargaReady ? emptyBox('Data warga tidak ditemukan.') : loadingBox(); if (!state.wargaReady) state.view = 'warga'; return; }
   $('#page-title').textContent = rec ? 'Ubah Data Warga' : 'Tambah Warga';
@@ -765,7 +929,7 @@ function viewWargaForm(main, id) {
         ${fs.map((f) => `<label class="field ${f.type === 'textarea' || f.key === 'alamat' ? 'span-2' : ''}"><span>${esc(f.label)}${f.required ? ' *' : ''}</span>${fieldInput(f, init)}</label>`).join('')}
       </div></details>`;
     }).join('')}
-    <div class="sticky-actions"><a class="btn btn-ghost" href="#/admin/warga">Batal</a>${rec ? `<button type="button" class="btn btn-danger btn-ghost" id="wf-del">${ic('trash')} Hapus</button>` : ''}<span class="spacer"></span>
+    <div class="sticky-actions"><a class="btn btn-ghost" href="#/admin/warga">Batal</a>${rec && can('wargaDelete') ? `<button type="button" class="btn btn-danger btn-ghost" id="wf-del">${ic('trash')} Hapus</button>` : ''}<span class="spacer"></span>
       ${!rec ? '<button type="submit" class="btn btn-ghost" data-again="1">Simpan & Tambah Lagi</button>' : ''}<button type="submit" class="btn btn-primary">${ic('check')} Simpan</button></div>
   </form>`;
   const form = $('#wf');
@@ -822,8 +986,14 @@ function viewWargaForm(main, id) {
     try {
       await addNewMasterValues([data]);
       await ensureDusun([data.dusun]);
-      if (rec) await F.updateDoc(C(`warga/${rec.id}`), { ...clean(data), updatedAt: F.serverTimestamp() });
-      else await F.addDoc(F.collection(F.db, 'warga'), { ...clean(data), createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp() });
+      if (rec) {
+        await F.updateDoc(C(`warga/${rec.id}`), { ...clean(data), updatedAt: F.serverTimestamp() });
+        const ch = diff(rec, data, (k) => fieldByKey(k)?.label || k);
+        logAudit('warga', 'ubah', `Mengubah data warga ${data.nama}`, { target: `${data.nama} (${data.nik || '-'})`, targetId: rec.id, changes: ch, count: Object.keys(ch).length });
+      } else {
+        const ref = await F.addDoc(F.collection(F.db, 'warga'), { ...clean(data), createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), createdBy: state.user.email });
+        logAudit('warga', 'tambah', `Menambah warga baru ${data.nama}`, { target: `${data.nama} (${data.nik || '-'})`, targetId: ref.id });
+      }
       toast(`Data ${data.nama} tersimpan`, 'success');
       if (again && !rec) { viewWargaForm(main, null); window.scrollTo(0, 0); }
       else location.hash = '#/admin/warga';
@@ -883,6 +1053,7 @@ function exportWargaDialog(list, title) {
   $('#ex-xls', m.el).onclick = () => go('xls');
 }
 async function exportWarga({ list, cols, title, group, fmt }) {
+  logAudit('export', `warga_${fmt}`, `Mengekspor ${title} (${fmt === 'pdf' ? 'PDF' : 'Excel'})`, { count: list.length, detail: `Kolom: ${cols.map((k) => fieldByKey(k)?.label || k).join(', ')}${group ? ' • per dusun' : ''}` });
   const head = ['No', ...cols.map((k) => fieldByKey(k)?.label || k)];
   const row = (w, i, forPdf) => [i + 1, ...cols.map((k) => (k === 'pendapatan' && !forPdf ? (w[k] === '' || w[k] == null ? '' : Number(w[k])) : (k === 'nik' || k === 'noKk' || k === 'noHp') ? String(w[k] || '') : String(displayValue(w, k) ?? '')))];
   const groups = [];
@@ -910,6 +1081,7 @@ function viewImport(main) {
   main.innerHTML = `
   <div class="panel">
     <h3>${ic('upload')} Import Data Warga dari Excel</h3>
+    <p class="callout small-callout">${ic('lock')} Demi keamanan, setiap proses import wajib dikonfirmasi dengan password akun Anda dan tercatat di audit log.</p>
     <p class="muted">Format .xlsx, .xls, atau .csv. Baris judul (header) dideteksi otomatis — termasuk format “Data Master Kependudukan” 33 kolom. Kolom “Alamat Domisili” seperti <i>Dusun Cempaka, RT 02/RW 01</i> otomatis dipecah ke Dusun, RT, dan RW.</p>
     <label class="dropzone" id="dz"><input type="file" id="imp-file" accept=".xlsx,.xls,.csv" hidden>${ic('upload')}<b>Pilih atau seret berkas Excel ke sini</b><span class="muted small">Data diproses di perangkat Anda sebelum disimpan.</span></label>
     <div class="row-gap"><button class="btn btn-ghost btn-sm" id="imp-tpl">${ic('download')} Unduh Template Excel</button></div>
@@ -920,9 +1092,11 @@ function viewImport(main) {
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
   dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files[0]) handleImportFile(e.dataTransfer.files[0]); });
   fileIn.onchange = () => fileIn.files[0] && handleImportFile(fileIn.files[0]);
+  importFileName = '';
   $('#imp-tpl').onclick = downloadTemplate;
 }
 async function downloadTemplate() {
+  logAudit('export', 'template', 'Mengunduh template import Excel');
   try {
     const fields = allFields();
     const ex = { idWarga: 'WRG-0001', nik: '1101010101900001', noKk: '1101010101900099', nama: 'Contoh Nama Warga', jk: 'Laki-laki', tempatLahir: 'Banda Aceh', tglLahir: '1990-01-01', agama: 'Islam', shdk: 'Kepala Keluarga', statusKawin: 'Kawin', noHp: '081234567890', dusun: 'Dusun Contoh', rt: '01', rw: '01', alamat: 'Dusun Contoh, RT 01/RW 01' };
@@ -951,7 +1125,9 @@ function cellToValue(f, raw, XLSX) {
   const s = String(raw).trim();
   return s === '-' ? '' : s;
 }
+let importFileName = '';
 async function handleImportFile(file) {
+  importFileName = file.name;
   const step = $('#imp-step');
   step.innerHTML = loadingBox();
   let XLSX, wb;
@@ -1009,6 +1185,11 @@ async function handleImportFile(file) {
     });
     $('#imp-cancel').onclick = () => { step.innerHTML = ''; $('#imp-file').value = ''; };
     $('#imp-go').onclick = () => runImport(buildRecords(dataRows));
+    const nikCol = cur.map.indexOf('nik');
+    if (nikCol >= 0) {
+      const risky = dataRows.filter((r) => typeof r[nikCol] === 'number' && r[nikCol] > Number.MAX_SAFE_INTEGER).length;
+      if (risky) $('#imp-prev').insertAdjacentHTML('beforebegin', `<div class="callout">${ic('bulb')}<div><b>${risky} NIK tersimpan sebagai angka di Excel</b><p>Angka 16 digit di atas 9.007.199.254.740.991 bisa berubah digit terakhirnya. Format kolom NIK sebagai <i>Teks</i> di Excel lalu upload ulang agar akurat.</p></div></div>`);
+    }
     preview();
   };
   const buildRecords = (rows) => {
@@ -1038,6 +1219,7 @@ async function runImport(records) {
   const prog = $('#imp-progress'); const go = $('#imp-go');
   if (!records.length) return toast('Tidak ada baris bernama untuk diimport', 'error');
   const upd = $('#o-upd').checked, addM = $('#o-master').checked, addD = $('#o-dusun').checked;
+  if (!await requirePassword(`Import ${records.length} data warga dari “${importFileName}”. Masukkan password Anda untuk melanjutkan.`)) { toast('Import dibatalkan', 'info'); return; }
   go.disabled = true;
   prog.innerHTML = '<div class="progress"><span style="width:0%"></span></div><p class="muted small" id="pg-t">Menyiapkan…</p>';
   try {
@@ -1055,9 +1237,11 @@ async function runImport(records) {
       return ['set', ref, { ...clean(r), createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), sumber: 'import' }];
     });
     await batchWrite(ops, (d, t) => { $('.progress span', prog).style.width = `${(d / t) * 100}%`; $('#pg-t').textContent = `${fmtNum(d)} / ${fmtNum(t)} baris tersimpan`; });
+    logAudit('import', 'import_excel', `Import Excel “${importFileName}”: ${created} baru, ${updated} diperbarui`, { count: records.length, target: importFileName, detail: `${created} warga baru, ${updated} diperbarui, ${nd} dusun baru, ${nm} nilai master baru. Opsi: perbarui NIK=${upd}, master=${addM}, dusun=${addD}` });
     prog.innerHTML = `<div class="callout ok">${ic('check')}<div><b>Import selesai</b><p>${created} warga baru, ${updated} diperbarui${nd ? `, ${nd} dusun baru` : ''}${nm ? `, ${nm} nilai master baru` : ''}.</p></div><a class="btn btn-primary" href="#/admin/warga">Lihat Data Warga</a></div>`;
     toast('Import selesai', 'success');
   } catch (e) {
+    logAudit('import', 'import_gagal', `Import Excel “${importFileName}” gagal`, { detail: e.message });
     prog.innerHTML = `<p class="err">Import gagal: ${esc(e.message)}</p>`; go.disabled = false;
   }
 }
@@ -1067,7 +1251,7 @@ function viewDusun(main) {
   state.view = 'dusun';
   if (!state.wargaReady) { main.innerHTML = loadingBox(); return; }
   const tanpa = state.warga.filter((w) => !w.dusun).length;
-  main.innerHTML = `<div class="toolbar toolbar-actions"><button class="btn btn-primary" id="d-add">${ic('plus')} Tambah Dusun</button><button class="btn btn-ghost" id="d-exp">${ic('download')} Ekspor Daftar Dusun & Kadus</button><button class="btn btn-wa" id="d-wa">${ic('wa')} Kirim WA ke Semua Kadus</button></div>
+  main.innerHTML = `<div class="toolbar toolbar-actions"><button class="btn btn-primary" id="d-add">${ic('plus')} Tambah Dusun</button>${can('export') ? `<button class="btn btn-ghost" id="d-exp">${ic('download')} Ekspor Daftar Dusun & Kadus</button>` : ''}${can('broadcast') ? `<button class="btn btn-wa" id="d-wa">${ic('wa')} Kirim WA ke Semua Kadus</button>` : ''}</div>
   ${tanpa ? `<div class="callout">${ic('users')}<div><b>${tanpa} warga belum punya dusun</b><p>Kelompokkan dengan memilih warga lalu “Pindah dusun”.</p></div><a class="btn btn-ghost" href="#/admin/warga?dusun=__none">Lihat</a></div>` : ''}
   <div class="dusun-grid">${state.dusun.map((d) => {
     const ws = state.warga.filter((w) => w.dusun === d.nama); const ak = ws.filter(isAktif);
@@ -1076,7 +1260,7 @@ function viewDusun(main) {
       <div class="kadus">${d.kepalaNama ? `<span class="muted small">Kepala Dusun</span><b>${esc(d.kepalaNama)}</b>${waNumber(d.kepalaHp) ? `<a class="wa-link" target="_blank" rel="noopener" href="${esc(waLink(d.kepalaHp, `Assalamu'alaikum Bapak/Ibu ${d.kepalaNama}, `))}">${ic('wa')} ${esc(d.kepalaHp)}</a>` : ''}` : '<span class="muted">Kepala dusun belum diisi</span>'}</div>
       <div class="dusun-stats"><span><b>${ak.length}</b> jiwa</span><span><b>${ak.filter((w) => norm(w.shdk) === 'kepala keluarga').length}</b> KK</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('l')).length}</b> L</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('p')).length}</b> P</span></div>
       ${d.keterangan ? `<p class="muted small">${esc(d.keterangan)}</p>` : ''}
-      <div class="dusun-actions"><a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a><button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button><button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button></div>
+      <div class="dusun-actions">${can('warga') ? `<a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a>` : ''}${can('export') ? `<button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button>` : ''}${can('broadcast') ? `<button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button>` : ''}</div>
     </div>`;
   }).join('') || emptyBox('Belum ada dusun. Tambahkan dusun atau import data warga.')}</div>`;
   $('#d-add').onclick = () => dusunForm(null);
@@ -1085,19 +1269,20 @@ function viewDusun(main) {
     const d = state.dusun.find((x) => x.id === b.dataset.del); const n = state.warga.filter((w) => w.dusun === d.nama).length;
     if (!await confirmDialog(`Hapus Dusun ${d.nama}?${n ? ` ${n} warga di dusun ini akan menjadi “tanpa dusun”.` : ''}`, { danger: true, okText: 'Hapus' })) return;
     await batchWrite([['delete', C(`dusun/${d.id}`)], ...state.warga.filter((w) => w.dusun === d.nama).map((w) => ['update', C(`warga/${w.id}`), { dusun: '' }])]);
+    logAudit('dusun', 'hapus', `Menghapus Dusun ${d.nama}`, { target: d.nama, count: n });
     toast('Dusun dihapus', 'success');
   });
   const dusunList = (id) => { const d = state.dusun.find((x) => x.id === id); return [d, sortWarga(state.warga.filter((w) => w.dusun === d.nama), 'nama')]; };
   $$('[data-xls]', main).forEach((b) => b.onclick = () => { const [d, l] = dusunList(b.dataset.xls); exportWarga({ list: l, cols: COL_PRESETS.ringkas, title: `Data Warga Dusun ${d.nama}`, group: true, fmt: 'xls' }).catch((e) => toast(e.message, 'error')); });
   $$('[data-pdf]', main).forEach((b) => b.onclick = () => { const [d, l] = dusunList(b.dataset.pdf); exportWarga({ list: l, cols: COL_PRESETS.ringkas, title: `Data Warga Dusun ${d.nama}`, group: true, fmt: 'pdf' }).catch((e) => toast(e.message, 'error')); });
   $$('[data-wa]', main).forEach((b) => b.onclick = () => { location.hash = `#/admin/broadcast?target=dusun&dusun=${encodeURIComponent(b.dataset.wa)}`; });
-  $('#d-wa').onclick = () => { location.hash = '#/admin/broadcast?target=kadus'; };
-  $('#d-exp').onclick = async () => {
+  $('#d-wa')?.addEventListener('click', () => { location.hash = '#/admin/broadcast?target=kadus'; });
+  if ($('#d-exp')) $('#d-exp').onclick = async () => {
     const head = ['No', 'Dusun', 'Kepala Dusun', 'No. HP Kadus', 'Jiwa', 'KK', 'L', 'P', 'Keterangan'];
     const body = state.dusun.map((d, i) => { const ak = state.warga.filter((w) => w.dusun === d.nama && isAktif(w)); return [i + 1, d.nama, d.kepalaNama || '', d.kepalaHp || '', ak.length, ak.filter((w) => norm(w.shdk) === 'kepala keluarga').length, ak.filter((w) => norm(w.jk).startsWith('l')).length, ak.filter((w) => norm(w.jk).startsWith('p')).length, d.keterangan || '']; });
     const m = modal({ title: 'Ekspor Daftar Dusun', size: 'sm', body: '<p>Pilih format berkas.</p>', footer: `<button class="btn btn-ghost" id="dx-pdf">PDF</button><button class="btn btn-primary" id="dx-xls">Excel</button>` });
-    $('#dx-pdf', m.el).onclick = () => { m.close(); exportPdf({ filename: 'Daftar_Dusun_Kadus', title: 'Daftar Dusun & Kepala Dusun', sections: [{ head, body }], orientation: 'portrait', meta: { instansi: instansi() } }); };
-    $('#dx-xls', m.el).onclick = () => { m.close(); exportExcel('Daftar_Dusun_Kadus', [{ name: 'Dusun', title: 'Daftar Dusun & Kepala Dusun', head, body }], { instansi: instansi() }); };
+    $('#dx-pdf', m.el).onclick = () => { m.close(); logAudit('export', 'dusun_pdf', 'Mengekspor daftar dusun & kadus (PDF)'); exportPdf({ filename: 'Daftar_Dusun_Kadus', title: 'Daftar Dusun & Kepala Dusun', sections: [{ head, body }], orientation: 'portrait', meta: { instansi: instansi() } }); };
+    $('#dx-xls', m.el).onclick = () => { m.close(); logAudit('export', 'dusun_xls', 'Mengekspor daftar dusun & kadus (Excel)'); exportExcel('Daftar_Dusun_Kadus', [{ name: 'Dusun', title: 'Daftar Dusun & Kepala Dusun', head, body }], { instansi: instansi() }); };
   };
 }
 function dusunForm(d) {
@@ -1129,6 +1314,7 @@ function dusunForm(d) {
         if (d.nama !== nama) state.warga.filter((w) => w.dusun === d.nama).forEach((w) => ops.push(['update', C(`warga/${w.id}`), { dusun: nama }]));
       } else ops.push(['set', C(`dusun/${slugify(nama)}`), { ...data, createdAt: F.serverTimestamp() }]);
       await batchWrite(ops);
+      logAudit('dusun', d ? 'ubah' : 'tambah', d ? `Mengubah Dusun ${nama}` : `Menambah Dusun ${nama}`, { target: nama, changes: d ? diff(d, data, (k) => ({ nama: 'Nama', kepalaNama: 'Kepala Dusun', kepalaHp: 'HP Kadus', keterangan: 'Keterangan', urutan: 'Urutan' }[k] || k)) : undefined });
       m.close(); toast('Dusun tersimpan', 'success');
     } catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };
@@ -1139,10 +1325,10 @@ let masterSel = 'jk';
 function viewMaster(main) {
   state.view = 'master';
   if (!state.masterReady) { main.innerHTML = loadingBox(); return; }
-  const builtins = [...FIELDS.filter((f) => f.type === 'select').map((f) => ({ key: f.key, label: f.label, group: f.group })), { key: 'kategoriInfo', label: MASTER_EXTRA_LABELS.kategoriInfo, group: 'info' }];
+  const builtins = [...FIELDS.filter((f) => f.type === 'select').map((f) => ({ key: f.key, label: f.label, group: f.group })), { key: 'kategoriInfo', label: MASTER_EXTRA_LABELS.kategoriInfo, group: 'info' }, { key: 'kategoriKegiatan', label: MASTER_EXTRA_LABELS.kategoriKegiatan, group: 'info' }];
   const customs = customFields();
   if (![...builtins, ...customs].find((c) => c.key === masterSel)) masterSel = 'jk';
-  const groupLabel = (g) => GROUPS.find((x) => x.id === g)?.label || (g === 'info' ? 'Papan Informasi' : g);
+  const groupLabel = (g) => GROUPS.find((x) => x.id === g)?.label || (g === 'info' ? 'Publikasi' : g);
   const sideGroups = [...new Set(builtins.map((b) => b.group))];
   const items = masterItems(masterSel);
   const usage = (v) => state.warga.filter((w) => norm(w[masterSel]) === norm(v)).length;
@@ -1158,10 +1344,10 @@ function viewMaster(main) {
         <div class="row-gap">${state.master[masterSel]?.custom ? `<button class="btn btn-sm btn-ghost" id="ms-rencat">${ic('edit')} Ganti nama</button><button class="btn btn-sm btn-danger btn-ghost" id="ms-delcat">${ic('trash')} Hapus kategori</button>` : ''}<button class="btn btn-sm btn-ghost" id="ms-sort">Urutkan A–Z</button></div></div>
       <form id="ms-add" class="input-group"><input id="ms-new" placeholder="Tambah pilihan baru… (pisahkan dengan ; untuk banyak sekaligus)"><button class="btn btn-primary">${ic('plus')} Tambah</button></form>
       <div class="search">${ic('search')}<input id="ms-filter" placeholder="Cari di daftar…"></div>
-      <ul class="ms-items">${items.map((v, i) => `<li data-v="${esc(v)}"><span class="ms-order"><button class="icon-btn" data-up="${i}" title="Naik" ${i === 0 ? 'disabled' : ''}>↑</button></span><span class="ms-val">${esc(v)}</span>${masterSel !== 'kategoriInfo' ? `<span class="muted small">${usage(v)} warga</span>` : ''}<button class="icon-btn" data-ren="${i}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></li>`).join('') || `<li>${emptyBox('Belum ada pilihan')}</li>`}</ul>
+      <ul class="ms-items">${items.map((v, i) => `<li data-v="${esc(v)}"><span class="ms-order"><button class="icon-btn" data-up="${i}" title="Naik" ${i === 0 ? 'disabled' : ''}>↑</button></span><span class="ms-val">${esc(v)}</span>${!masterSel.startsWith('kategori') ? `<span class="muted small">${usage(v)} warga</span>` : ''}<button class="icon-btn" data-ren="${i}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></li>`).join('') || `<li>${emptyBox('Belum ada pilihan')}</li>`}</ul>
     </section></div>`;
   const ref = C(`master/${masterSel}`);
-  const save = (arr) => F.setDoc(ref, { items: arr, label: masterLabel(masterSel) }, { merge: true }).catch((e) => toast(e.message, 'error'));
+  const save = (arr, label) => F.setDoc(ref, { items: arr, label: masterLabel(masterSel) }, { merge: true }).then(() => logAudit('master', 'ubah', `${label} — kategori ${masterLabel(masterSel)}`, { target: masterLabel(masterSel) })).catch((e) => toast(e.message, 'error'));
   $$('[data-k]', main).forEach((b) => b.onclick = () => { masterSel = b.dataset.k; viewMaster(main); });
   $('#ms-q').oninput = (e) => { const q = norm(e.target.value); $$('[data-k]', main).forEach((b) => b.hidden = q && !norm(b.textContent).includes(q)); };
   $('#ms-filter').oninput = (e) => { const q = norm(e.target.value); $$('.ms-items li[data-v]', main).forEach((li) => li.hidden = q && !norm(li.dataset.v).includes(q)); };
@@ -1170,21 +1356,21 @@ function viewMaster(main) {
     const vals = $('#ms-new').value.split(';').map((s) => s.trim()).filter(Boolean);
     const have = new Set(items.map(norm)); const add = vals.filter((v) => !have.has(norm(v)));
     if (!add.length) return toast(vals.length ? 'Pilihan sudah ada' : 'Isi nama pilihan', 'error');
-    save([...items, ...add]).then(() => toast(`${add.length} pilihan ditambahkan`, 'success'));
+    save([...items, ...add], `Menambah pilihan: ${add.join(', ')}`).then(() => toast(`${add.length} pilihan ditambahkan`, 'success'));
   };
-  $('#ms-sort').onclick = () => save([...items].sort((a, b) => a.localeCompare(b, 'id', { numeric: true })));
-  $$('[data-up]', main).forEach((b) => b.onclick = () => { const i = +b.dataset.up; const a = [...items];[a[i - 1], a[i]] = [a[i], a[i - 1]]; save(a); });
+  $('#ms-sort').onclick = () => save([...items].sort((a, b) => a.localeCompare(b, 'id', { numeric: true })), 'Mengurutkan pilihan A–Z');
+  $$('[data-up]', main).forEach((b) => b.onclick = () => { const i = +b.dataset.up; const a = [...items];[a[i - 1], a[i]] = [a[i], a[i - 1]]; save(a, `Mengubah urutan “${items[i]}”`); });
   $$('[data-rm]', main).forEach((b) => b.onclick = async () => {
     const v = items[+b.dataset.rm]; const u = usage(v);
     if (!await confirmDialog(`Hapus pilihan “${v}”?${u ? ` (${u} warga masih memakai nilai ini; data warga tidak diubah)` : ''}`, { danger: true, okText: 'Hapus' })) return;
-    save(items.filter((x) => x !== v));
+    save(items.filter((x) => x !== v), `Menghapus pilihan “${v}”`);
   });
   $$('[data-ren]', main).forEach((b) => b.onclick = async () => {
     const old = items[+b.dataset.ren]; const nv = await promptDialog('Ubah pilihan', 'Nama pilihan', old); if (!nv || nv === old) return;
-    await save(items.map((x) => (x === old ? nv : x)));
+    await save(items.map((x) => (x === old ? nv : x)), `Mengubah pilihan “${old}” → “${nv}”`);
     const affected = state.warga.filter((w) => w[masterSel] === old);
     if (affected.length && await confirmDialog(`Perbarui juga ${affected.length} data warga dari “${old}” menjadi “${nv}”?`, { okText: 'Perbarui' })) {
-      await batchWrite(affected.map((w) => ['update', C(`warga/${w.id}`), { [masterSel]: nv }])); toast('Data warga diperbarui', 'success');
+      await batchWrite(affected.map((w) => ['update', C(`warga/${w.id}`), { [masterSel]: nv }])); logAudit('warga', 'ubah_massal', `Memperbarui ${affected.length} warga: ${masterLabel(masterSel)} “${old}” → “${nv}”`, { count: affected.length }); toast('Data warga diperbarui', 'success');
     }
     if (masterSel === 'kategoriInfo') { const inf = state.info.filter((i) => i.kategori === old); if (inf.length) await batchWrite(inf.map((i) => ['update', C(`informasi/${i.id}`), { kategori: nv }])); }
   });
@@ -1194,12 +1380,13 @@ function viewMaster(main) {
     const key = 'x_' + slugify(label).replace(/-/g, '_');
     if (state.master[key] || fieldByKey(key)) return toast('Kategori sudah ada', 'error');
     await F.setDoc(C(`master/${key}`), { label, items: [], custom: true, group: 'tambahan', order: customs.length + 1 });
+    logAudit('master', 'kategori_baru', `Membuat kategori dropdown baru “${label}”`, { target: label });
     masterSel = key; toast('Kategori dibuat — silakan tambah pilihannya', 'success');
   };
-  $('#ms-rencat')?.addEventListener('click', async () => { const l = await promptDialog('Ganti nama kategori', 'Nama kategori', masterLabel(masterSel)); if (l) await F.updateDoc(ref, { label: l }); });
+  $('#ms-rencat')?.addEventListener('click', async () => { const l = await promptDialog('Ganti nama kategori', 'Nama kategori', masterLabel(masterSel)); if (l) { await F.updateDoc(ref, { label: l }); logAudit('master', 'ganti_nama', `Mengganti nama kategori menjadi “${l}”`); } });
   $('#ms-delcat')?.addEventListener('click', async () => {
     if (!await confirmDialog(`Hapus kategori “${masterLabel(masterSel)}” beserta semua pilihannya? Nilai yang sudah tersimpan di data warga tetap ada.`, { danger: true, okText: 'Hapus' })) return;
-    await F.deleteDoc(ref); masterSel = 'jk';
+    await F.deleteDoc(ref); logAudit('master', 'hapus_kategori', `Menghapus kategori “${masterLabel(masterSel)}”`); masterSel = 'jk';
   });
 }
 
@@ -1260,8 +1447,8 @@ function viewLaporan(main) {
     const r = build(); if (!r.length) return toast('Pilih kategori', 'error');
     $('#lp-out').innerHTML = r.map((t) => `<h4 class="detail-h">${esc(t.label)}</h4><div class="table-wrap"><table class="table small"><thead><tr>${t.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.body.map((row) => `<tr>${row.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`).join('');
   };
-  $('#lp-pdf').onclick = () => { const r = build(); if (!r.length) return toast('Pilih kategori', 'error'); exportPdf({ filename: 'Rekap_Kategori_Penduduk', title: 'Rekapitulasi Penduduk per Kategori', subtitle: scopeLabel(), sections: r.map((t) => ({ heading: t.label, head: t.head, body: t.body })), orientation: r.some((t) => t.head.length > 7) ? 'landscape' : 'portrait', meta: { instansi: instansi() } }).catch((e) => toast(e.message, 'error')); };
-  $('#lp-xls').onclick = () => { const r = build(); if (!r.length) return toast('Pilih kategori', 'error'); exportExcel('Rekap_Kategori_Penduduk', r.map((t) => ({ name: t.label, title: `Rekap ${t.label} — ${scopeLabel()}`, head: t.head, body: t.body })), { instansi: instansi() }).catch((e) => toast(e.message, 'error')); };
+  $('#lp-pdf').onclick = () => { const r = build(); if (!r.length) return toast('Pilih kategori', 'error'); logAudit('export', 'rekap_pdf', `Mengekspor rekap kategori (PDF): ${r.map((t) => t.label).join(', ')}`, { detail: scopeLabel() }); exportPdf({ filename: 'Rekap_Kategori_Penduduk', title: 'Rekapitulasi Penduduk per Kategori', subtitle: scopeLabel(), sections: r.map((t) => ({ heading: t.label, head: t.head, body: t.body })), orientation: r.some((t) => t.head.length > 7) ? 'landscape' : 'portrait', meta: { instansi: instansi() } }).catch((e) => toast(e.message, 'error')); };
+  $('#lp-xls').onclick = () => { const r = build(); if (!r.length) return toast('Pilih kategori', 'error'); logAudit('export', 'rekap_xls', `Mengekspor rekap kategori (Excel): ${r.map((t) => t.label).join(', ')}`, { detail: scopeLabel() }); exportExcel('Rekap_Kategori_Penduduk', r.map((t) => ({ name: t.label, title: `Rekap ${t.label} — ${scopeLabel()}`, head: t.head, body: t.body })), { instansi: instansi() }).catch((e) => toast(e.message, 'error')); };
 
   const exValue = $('#ex-value');
   attachAutocomplete(exValue, { source: () => { const k = $('#ex-field').value; if (!k) return []; return countBy(state.warga, k).filter((e) => e[0] !== '(Kosong)').map(([v, n]) => ({ label: v, sub: n + ' warga' })); }, onSelect: () => count() });
@@ -1290,14 +1477,14 @@ function viewInformasi(main, r) {
     ${i.gambar ? `<img src="${esc(i.gambar)}" alt="">` : `<div class="info-ph">${ic('mega')}</div>`}
     <div class="info-row-main"><div class="info-meta"><span class="badge">${esc(i.kategori || '-')}</span><span class="badge ${i.published ? 'badge-ok' : 'badge-muted'}">${i.published ? 'Terbit' : 'Draf'}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}${i.broadcastCount ? `<span class="badge">${ic('wa')} ${i.broadcastCount} terkirim</span>` : ''}</div>
       <h4>${esc(i.judul)}</h4><p class="muted small">${esc(fmtDate(i.createdAt, true))}${i.tanggalAcara ? ' • Acara ' + esc(fmtDate(i.tanggalAcara)) : ''}</p></div>
-    <div class="info-row-actions"><button class="btn btn-sm btn-wa" data-bc="${i.id}">${ic('wa')} Sebarkan</button><button class="icon-btn" data-copy="${i.id}" title="Salin teks WA">${ic('copy')}</button><button class="icon-btn" data-pin="${i.id}" title="Sematkan">${ic('pin')}</button><button class="icon-btn" data-ed="${i.id}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-del="${i.id}" title="Hapus">${ic('trash')}</button></div>
+    <div class="info-row-actions">${can('broadcast') ? '' : '<!--'}<button class="btn btn-sm btn-wa" data-bc="${i.id}">${ic('wa')} Sebarkan</button>${can('broadcast') ? '' : '-->'}<button class="icon-btn" data-copy="${i.id}" title="Salin teks WA">${ic('copy')}</button><button class="icon-btn" data-pin="${i.id}" title="Sematkan">${ic('pin')}</button><button class="icon-btn" data-ed="${i.id}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-del="${i.id}" title="Hapus">${ic('trash')}</button></div>
   </div>`).join('') || emptyBox('Belum ada informasi. Tulis pengumuman, berita kegiatan, atau acara desa pertama Anda.')}</div>`;
   $('#i-new').onclick = () => infoForm(null);
   $$('[data-ed]', main).forEach((b) => b.onclick = () => infoForm(state.info.find((i) => i.id === b.dataset.ed)));
   $$('[data-bc]', main).forEach((b) => b.onclick = () => { location.hash = `#/admin/broadcast?info=${b.dataset.bc}`; });
   $$('[data-copy]', main).forEach((b) => b.onclick = () => copyText(infoMessage(state.info.find((i) => i.id === b.dataset.copy))));
-  $$('[data-pin]', main).forEach((b) => b.onclick = () => { const i = state.info.find((x) => x.id === b.dataset.pin); F.updateDoc(C(`informasi/${i.id}`), { pinned: !i.pinned }); });
-  $$('[data-del]', main).forEach((b) => b.onclick = async () => { const i = state.info.find((x) => x.id === b.dataset.del); if (await confirmDialog(`Hapus “${i.judul}”?`, { danger: true, okText: 'Hapus' })) { await F.deleteDoc(C(`informasi/${i.id}`)); toast('Informasi dihapus', 'success'); } });
+  $$('[data-pin]', main).forEach((b) => b.onclick = () => { const i = state.info.find((x) => x.id === b.dataset.pin); F.updateDoc(C(`informasi/${i.id}`), { pinned: !i.pinned }); logAudit('informasi', i.pinned ? 'lepas_sematan' : 'sematkan', `${i.pinned ? 'Melepas sematan' : 'Menyematkan'} informasi “${i.judul}”`, { targetId: i.id }); });
+  $$('[data-del]', main).forEach((b) => b.onclick = async () => { const i = state.info.find((x) => x.id === b.dataset.del); if (await confirmDialog(`Hapus “${i.judul}”?`, { danger: true, okText: 'Hapus' })) { await F.deleteDoc(C(`informasi/${i.id}`)); logAudit('informasi', 'hapus', `Menghapus informasi “${i.judul}”`, { targetId: i.id }); toast('Informasi dihapus', 'success'); } });
   if (r.query.get('baru')) { history.replaceState(null, '', '#/admin/informasi'); infoForm(null); }
 }
 function infoForm(i) {
@@ -1316,7 +1503,7 @@ function infoForm(i) {
       <label class="check"><input type="checkbox" name="pinned" ${i?.pinned ? 'checked' : ''}> Sematkan di atas</label>
     </form>
     <details class="fieldset"><summary>Pratinjau pesan WhatsApp</summary><div class="wa-preview" id="if-wa"></div></details>`,
-    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-ghost" id="if-save">Simpan</button><button class="btn btn-wa" id="if-bc">${ic('wa')} Simpan & Sebarkan</button>`,
+    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-ghost" id="if-save">Simpan</button>${can('broadcast') ? `<button class="btn btn-wa" id="if-bc">${ic('wa')} Simpan & Sebarkan</button>` : ''}`,
   });
   const form = $('#if', m.el);
   attachAutocomplete(form.elements.kategori, { source: () => masterItems('kategoriInfo'), smallList: 12 });
@@ -1335,14 +1522,14 @@ function infoForm(i) {
     try {
       if (d.kategori && !masterItems('kategoriInfo').some((x) => norm(x) === norm(d.kategori))) await F.setDoc(C('master/kategoriInfo'), { items: F.arrayUnion(d.kategori), label: MASTER_EXTRA_LABELS.kategoriInfo }, { merge: true });
       let id = i?.id;
-      if (i) await F.updateDoc(C(`informasi/${id}`), { ...d, updatedAt: F.serverTimestamp() });
-      else { const ref = await F.addDoc(F.collection(F.db, 'informasi'), { ...d, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp() }); id = ref.id; }
+      if (i) { await F.updateDoc(C(`informasi/${id}`), { ...d, updatedAt: F.serverTimestamp() }); logAudit('informasi', 'ubah', `Mengubah informasi “${d.judul}”`, { targetId: id, changes: diff(i, d, (k) => ({ judul: 'Judul', isi: 'Isi', kategori: 'Kategori', published: 'Terbit', pinned: 'Sematkan', tanggalAcara: 'Tanggal acara', waktu: 'Waktu', lokasi: 'Lokasi' }[k] || k)) }); }
+      else { const ref = await F.addDoc(F.collection(F.db, 'informasi'), { ...d, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), createdBy: state.user.email }); id = ref.id; logAudit('informasi', 'tambah', `${d.published ? 'Menerbitkan' : 'Membuat draf'} informasi “${d.judul}”`, { targetId: id }); }
       m.close(); toast('Informasi tersimpan', 'success');
       if (thenBc) location.hash = `#/admin/broadcast?info=${id}`;
     } catch (err) { toast('Gagal menyimpan: ' + err.message, 'error'); }
   };
   $('#if-save', m.el).onclick = () => save(false);
-  $('#if-bc', m.el).onclick = () => save(true);
+  $('#if-bc', m.el)?.addEventListener('click', () => save(true));
 }
 
 // ---------------------------------------------------------------- Broadcast WhatsApp
@@ -1397,21 +1584,23 @@ function viewBroadcast(main, r) {
     const done = list.filter((x) => bcState.sent.has(x.id)).length;
     $('#bc-progress').innerHTML = `<div class="progress"><span style="width:${list.length ? (done / list.length) * 100 : 0}%"></span></div><p class="small muted">${done} dari ${list.length} penerima sudah dibuka • nomor ganda & tanpa HP dilewati</p>`;
     $('#bc-list').innerHTML = list.map((x) => `<li class="${bcState.sent.has(x.id) ? 'done' : ''}"><div><b>${esc(x.nama)}</b><small>${esc([x.role, x.dusun && 'Dusun ' + x.dusun, x.noHp].filter(Boolean).join(' • '))}</small></div><a class="btn btn-sm ${bcState.sent.has(x.id) ? 'btn-ghost' : 'btn-wa'}" data-send="${x.id}" href="${esc(waLink(x.noHp, personal(x)))}" target="_blank" rel="noopener">${bcState.sent.has(x.id) ? ic('check') + ' Terbuka' : ic('wa') + ' Kirim'}</a></li>`).join('') || `<li>${emptyBox('Tidak ada penerima dengan nomor HP.')}</li>`;
-    $$('[data-send]').forEach((a) => a.addEventListener('click', () => { bcState.sent.add(a.dataset.send); markInfo(); setTimeout(draw, 50); }));
+    $$('[data-send]').forEach((a) => a.addEventListener('click', () => { const rc = list.find((x) => x.id === a.dataset.send); bcState.sent.add(a.dataset.send); markInfo(); logBc(rc); setTimeout(draw, 50); }));
     $('#bc-share').href = waShareLink(bcState.msg.replace(/\{nama\}/g, 'Bapak/Ibu').replace(/\{dusun\}/g, ''));
     $('#bc-prev').innerHTML = waFormat(personal(list[0] || { nama: 'Bapak/Ibu', dusun: '' }));
   };
+  const logBc = (rc) => logAudit('broadcast', 'kirim_wa', `Membuka pesan WhatsApp untuk ${rc?.nama || '-'}${info ? ` — “${info.judul}”` : ''}`, { target: `${rc?.nama || ''} (${rc?.noHp || ''})`, targetId: info?.id, detail: bcState.msg.slice(0, 300) });
   const markInfo = debounce(() => { if (info) F.updateDoc(C(`informasi/${info.id}`), { broadcastCount: bcState.sent.size, lastBroadcast: F.serverTimestamp() }).catch(() => {}); }, 1500);
   $('#bc-target').value = bcState.target;
   $('#bc-target').onchange = (e) => { bcState.target = e.target.value; $('#bc-dusun-wrap').hidden = bcState.target !== 'dusun'; if (bcState.target === 'dusun' && !bcState.dusun) bcState.dusun = state.dusun[0]?.nama || ''; draw(); };
   $('#bc-dusun').onchange = (e) => { bcState.dusun = e.target.value; draw(); };
   msgEl.addEventListener('input', debounce(() => { bcState.msg = msgEl.value; draw(); }, 250));
-  $('#bc-copy').onclick = () => copyText(bcState.msg);
+  $('#bc-copy').onclick = () => { copyText(bcState.msg); logAudit('broadcast', 'salin_pesan', 'Menyalin pesan WhatsApp untuk disebarkan'); };
+  $('#bc-share').addEventListener('click', () => logAudit('broadcast', 'bagikan_grup', 'Membagikan pesan ke grup/kontak WhatsApp', { targetId: info?.id }));
   $('#bc-reset').onclick = () => { bcState.sent.clear(); draw(); };
   $('#bc-next').onclick = () => {
     const nx = recipients().find((x) => !bcState.sent.has(x.id));
     if (!nx) return toast('Semua penerima sudah dibuka', 'success');
-    bcState.sent.add(nx.id); markInfo(); window.open(waLink(nx.noHp, personal(nx)), '_blank', 'noopener'); draw();
+    bcState.sent.add(nx.id); markInfo(); logBc(nx); window.open(waLink(nx.noHp, personal(nx)), '_blank', 'noopener'); draw();
   };
   draw();
 }
@@ -1438,6 +1627,7 @@ async function syncInstagram({ silent = false } = {}) {
   await batchWrite(posts.map((p) => ['set', C(`instagram/${p.id}`), clean({ caption: p.caption || '', mediaType: p.media_type, mediaUrl: p.media_url || '', thumbnail: p.thumbnail_url || '', permalink: p.permalink, timestamp: p.timestamp, username: p.username, source: 'api', syncedAt: F.serverTimestamp() }), { merge: true }]));
   const username = posts[0]?.username;
   await F.setDoc(C('config/app'), clean({ igLastSync: F.serverTimestamp(), igUsername: state.config.igUsername || username }), { merge: true });
+  logAudit('instagram', 'sinkron', `Sinkronisasi Instagram: ${posts.length} postingan${silent ? ' (otomatis)' : ''}`, { count: posts.length });
   if (!silent) toast(`${posts.length} postingan Instagram disinkronkan`, 'success');
   return posts.length;
 }
@@ -1473,14 +1663,15 @@ function viewInstagram(main) {
     try {
       await F.setDoc(C('config/app'), { igUsername: u }, { merge: true });
       if (t) await F.setDoc(C('private/instagram'), { token: t, tokenUpdatedAt: F.serverTimestamp() }, { merge: true });
+      logAudit('instagram', 'pengaturan', `Mengubah pengaturan Instagram${t ? ' (token baru)' : ''}`, { detail: `@${u}` });
       toast('Pengaturan Instagram disimpan', 'success');
       if (t) await syncInstagram();
     } catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };
   $('#ig-sync').onclick = async (e) => { const b = e.currentTarget; b.disabled = true; try { await syncInstagram(); } catch (err) { toast('Sinkronisasi gagal: ' + err.message, 'error'); } b.disabled = false; };
-  $$('[data-hide]', main).forEach((b) => b.onclick = () => { const p = state.ig.find((x) => x.id === b.dataset.hide); F.updateDoc(C(`instagram/${p.id}`), { hidden: !p.hidden }); });
-  $$('[data-pin]', main).forEach((b) => b.onclick = () => { const p = state.ig.find((x) => x.id === b.dataset.pin); F.updateDoc(C(`instagram/${p.id}`), { pinned: !p.pinned }); });
-  $$('[data-del]', main).forEach((b) => b.onclick = async () => { if (await confirmDialog('Hapus postingan ini dari situs? (Tidak menghapus di Instagram. Postingan dari API akan muncul lagi saat sinkronisasi; gunakan “sembunyikan” untuk menyembunyikan permanen.)', { danger: true, okText: 'Hapus' })) F.deleteDoc(C(`instagram/${b.dataset.del}`)); });
+  $$('[data-hide]', main).forEach((b) => b.onclick = () => { const p = state.ig.find((x) => x.id === b.dataset.hide); F.updateDoc(C(`instagram/${p.id}`), { hidden: !p.hidden }); logAudit('instagram', p.hidden ? 'tampilkan' : 'sembunyikan', `${p.hidden ? 'Menampilkan' : 'Menyembunyikan'} postingan Instagram`, { target: (p.caption || p.permalink || '').slice(0, 80) }); });
+  $$('[data-pin]', main).forEach((b) => b.onclick = () => { const p = state.ig.find((x) => x.id === b.dataset.pin); F.updateDoc(C(`instagram/${p.id}`), { pinned: !p.pinned }); logAudit('instagram', 'sematkan', `${p.pinned ? 'Melepas sematan' : 'Menyematkan'} postingan Instagram`, { target: (p.caption || '').slice(0, 80) }); });
+  $$('[data-del]', main).forEach((b) => b.onclick = async () => { if (await confirmDialog('Hapus postingan ini dari situs? (Tidak menghapus di Instagram. Postingan dari API akan muncul lagi saat sinkronisasi; gunakan “sembunyikan” untuk menyembunyikan permanen.)', { danger: true, okText: 'Hapus' })) { F.deleteDoc(C(`instagram/${b.dataset.del}`)); logAudit('instagram', 'hapus', 'Menghapus postingan Instagram dari situs'); } });
   $('#ig-manual').onclick = () => {
     let img = '';
     const m = modal({ title: 'Tambah Postingan Manual', body: `<div class="form-grid"><label class="field span-2"><span>Tautan postingan Instagram *</span><input id="mp-link" placeholder="https://www.instagram.com/p/…"></label><label class="field span-2"><span>Keterangan</span><textarea id="mp-cap" rows="3"></textarea></label><div class="field span-2"><span>Gambar *</span><div class="img-pick"><div id="mp-prev"></div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih gambar<input type="file" accept="image/*" id="mp-img" hidden></label></div></div></div>`, footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="mp-ok">Simpan</button>' });
@@ -1489,19 +1680,23 @@ function viewInstagram(main) {
       const link = $('#mp-link', m.el).value.trim();
       if (!/^https:\/\/(www\.)?instagram\.com\//.test(link) || !img) return toast('Isi tautan Instagram yang valid dan pilih gambar', 'error');
       await F.addDoc(F.collection(F.db, 'instagram'), { permalink: link, caption: $('#mp-cap', m.el).value.trim(), mediaUrl: img, mediaType: 'IMAGE', timestamp: new Date().toISOString(), source: 'manual' });
+      logAudit('instagram', 'tambah_manual', 'Menambah postingan Instagram manual', { target: link });
       m.close(); toast('Postingan ditambahkan', 'success');
     };
   };
 }
 
+
 // ---------------------------------------------------------------- Pengaturan
 function viewPengaturan(main) {
   state.view = 'form';
   const c = state.config; const w = c.wilayah || {};
+  const ig = c.infografis || {};
+  const igCats = ig.cats || DEFAULT_INFOGRAFIS;
   main.innerHTML = `
-  <div class="panel"><h3>${ic('home')} Profil Desa</h3>
+  ${can('pengaturan') ? `<div class="panel"><h3>${ic('home')} Profil ${esc(jenisLabel())}</h3>
     <form id="pf" class="form-grid">
-      <label class="field"><span>Sebutan</span><select name="jenisDesa">${['Desa', 'Gampong', 'Kelurahan', 'Nagari', 'Kampung', 'Pekon', 'Lembang', 'Negeri'].map((j) => `<option ${desaJenis() === j ? 'selected' : ''}>${j}</option>`).join('')}</select></label>
+      <label class="field"><span>Sebutan</span><select name="jenisDesa">${['Desa', 'Gampong', 'Kelurahan', 'Nagari', 'Kampung', 'Pekon', 'Lembang', 'Negeri'].map((j) => `<option ${jenisLabel() === j ? 'selected' : ''}>${j}</option>`).join('')}</select></label>
       <label class="field"><span>Nama Desa / Gampong *</span><input name="namaDesa" value="${esc(c.namaDesa || '')}" placeholder="mis. Lampineung"></label>
       <label class="field"><span>Provinsi</span><input id="pw_0" value="${esc(w.provinsi || '')}" data-id="${esc(w.provinsiId || '')}" placeholder="Ketik provinsi…"></label>
       <label class="field"><span>Kabupaten / Kota</span><input id="pw_1" value="${esc(w.kabupaten || '')}" data-id="${esc(w.kabupatenId || '')}" placeholder="Ketik kabupaten/kota…"></label>
@@ -1519,77 +1714,100 @@ function viewPengaturan(main) {
     <div class="row-gap"><button class="btn btn-primary" id="pf-save">${ic('check')} Simpan Profil</button></div>
   </div>
   <div class="panel-grid two">
-    <div class="panel"><h3>${ic('lock')} Ubah Password</h3>
+    <div class="panel"><h3>${ic('moon')} Jadwal Sholat (panel beranda)</h3><div id="sholat-settings"></div></div>
+    <div class="panel"><h3>${ic('chart')} Infografis Publik</h3>
+      <p class="muted small">Pilih kategori yang boleh ditampilkan di halaman publik <b>Infografis</b>. Hanya angka agregat yang dipublikasikan — tidak ada nama, NIK, atau data pribadi.</p>
+      <div class="chips" id="ig-cats">${categoryFields().map((f) => `<label class="chip-check"><input type="checkbox" value="${f.key}" ${igCats.includes(f.key) ? 'checked' : ''}><span>${esc(f.label)}</span></label>`).join('')}</div>
+      <label class="field"><span>Sembunyikan nilai dengan jumlah kurang dari (perlindungan privasi)</span><input type="number" id="ig-min" min="1" max="20" value="${esc(ig.min ?? 3)}"></label>
+      <p class="muted small">Kategori sensitif seperti penyakit, disabilitas, bansos, dan desil sebaiknya tidak dipublikasikan.</p>
+      <button class="btn btn-primary" id="ig-save">Simpan</button></div>
+  </div>` : ''}
+  <div class="panel-grid two">
+    <div class="panel"><h3>${ic('users')} Akun Saya</h3>
+      <dl class="detail"><dt>Nama</dt><dd>${esc(state.profile?.nama || '-')}</dd><dt>Email</dt><dd>${esc(state.user?.email || '')}</dd><dt>Peran</dt><dd>${esc(ROLE_LABEL[state.role] || state.role)}</dd></dl>
+      <form id="nmf" class="input-group"><input name="nama" value="${esc(state.profile?.nama || '')}" placeholder="Nama tampilan"><button class="btn btn-ghost">Simpan nama</button></form>
+      <h4 class="detail-h">Ubah Password</h4>
       <form id="pwf" class="form-stack">
         <label class="field"><span>Password saat ini</span><input type="password" name="cur" autocomplete="current-password" required></label>
-        <label class="field"><span>Password baru</span><input type="password" name="nw" autocomplete="new-password" minlength="8" required></label>
+        <label class="field"><span>Password baru (min. 8 karakter, kombinasi huruf & angka)</span><input type="password" name="nw" autocomplete="new-password" minlength="8" required></label>
         <label class="field"><span>Ulangi password baru</span><input type="password" name="nw2" autocomplete="new-password" required></label>
         <button class="btn btn-primary">Ubah Password</button>
       </form></div>
-    <div class="panel"><h3>${ic('send')} Ubah Email Admin</h3>
-      <p class="muted small">Email saat ini: <b>${esc(state.user?.email || '')}</b>. Tautan verifikasi akan dikirim ke email baru; setelah diklik, masuk kembali cukup dengan password yang sama.</p>
-      ${c.pendingEmail ? `<p class="callout small-callout">Menunggu verifikasi: <b>${esc(c.pendingEmail)}</b></p>` : ''}
+    <div class="panel"><h3>${ic('send')} Ubah Email Login</h3>
+      <p class="muted small">Tautan verifikasi dikirim ke email baru. Setelah diklik, login memakai email baru dengan password yang sama.${isSuper() ? ' Untuk Super Admin, login tetap cukup dengan password (klik 5× tulisan copyright).' : ''}</p>
+      ${isSuper() && state.authCfg.pendingEmail ? `<p class="callout small-callout">Menunggu verifikasi: <b>${esc(state.authCfg.pendingEmail)}</b></p>` : ''}
       <form id="emf" class="form-stack">
         <label class="field"><span>Email baru</span><input type="email" name="email" required></label>
         <label class="field"><span>Password saat ini</span><input type="password" name="cur" autocomplete="current-password" required></label>
         <button class="btn btn-primary">Kirim Verifikasi</button>
-      </form></div>
+      </form>
+      ${isSuper() ? `<h4 class="detail-h">${ic('shield')} Keamanan Sesi</h4>
+      <label class="field"><span>Logout otomatis setelah tidak aktif (menit, 0 = nonaktif)</span><div class="input-group"><input type="number" id="idle-min" min="0" max="480" value="${esc(c.idleMinutes ?? APP.idleMinutesDefault)}"><button class="btn btn-ghost" id="idle-save">Simpan</button></div></label>` : ''}
+    </div>
   </div>
-  <div class="panel-grid two">
-    <div class="panel"><h3>${ic('db')} Cadangan Data</h3>
-      <p class="muted small">Unduh seluruh data (warga, dusun, master, informasi) sebagai berkas JSON.</p>
-      <div class="row-gap"><button class="btn btn-ghost" id="bk">${ic('download')} Unduh Cadangan JSON</button><button class="btn btn-ghost" id="bk-xls">${ic('download')} Seluruh Warga (Excel)</button></div>
-      <h4 class="detail-h danger-text">Zona Berbahaya</h4>
-      <button class="btn btn-danger btn-ghost" id="wipe">${ic('trash')} Hapus semua data warga</button></div>
-    <div class="panel"><h3>Tentang Aplikasi</h3>
-      <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>v${APP.version} (build ${APP.build})</dd><dt>Database</dt><dd>Firebase Firestore • proyek digides-8423e</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd><dt>Hak cipta</dt><dd>${APP.copyright}</dd></dl>
-      <button class="btn btn-ghost btn-sm" id="chk-upd">${ic('refresh')} Periksa pembaruan</button></div>
-  </div>`;
-  const pf = $('#pf');
-  const wil = [0, 1, 2, 3].map((i) => $('#pw_' + i));
-  bindWilayahChain(wil);
-  let logo = c.logo || '';
-  $('#logo-in').onchange = async (e) => { try { logo = await compressImage(e.target.files[0], 256, 0.85); $('#logo-prev').innerHTML = `<img src="${logo}" alt="">`; } catch (err) { toast(err.message, 'error'); } };
-  $('#logo-rm').onclick = () => { logo = ''; $('#logo-prev').innerHTML = ''; };
-  $('#pf-save').onclick = async () => {
-    const d = Object.fromEntries(['jenisDesa', 'namaDesa', 'kepalaDesa', 'telepon', 'emailDesa', 'tagline', 'alamatKantor', 'deskripsi', 'waFooter'].map((k) => [k, pf.elements[k].value.trim()]));
-    if (!d.namaDesa) return toast('Nama desa wajib diisi', 'error');
-    d.telepon = normalizePhone(d.telepon);
-    d.wilayah = { provinsi: wil[0].value.trim(), provinsiId: wil[0].dataset.id || '', kabupaten: wil[1].value.trim(), kabupatenId: wil[1].dataset.id || '', kecamatan: wil[2].value.trim(), kecamatanId: wil[2].dataset.id || '', kelurahan: wil[3].value.trim(), kelurahanId: wil[3].dataset.id || '' };
-    d.logo = logo;
-    try { await F.setDoc(C('config/app'), d, { merge: true }); toast('Profil desa disimpan', 'success'); } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+  <div class="panel"><h3>Tentang Aplikasi</h3>
+    <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>v${APP.version} (build ${APP.build})</dd><dt>Database</dt><dd>Firebase Firestore${F.firebaseConfig?.projectId ? ' • ' + esc(F.firebaseConfig.projectId) : ''}</dd><dt>Perlindungan bot</dt><dd>${APP.appCheckSiteKey ? 'App Check (reCAPTCHA v3) aktif' : 'App Check belum diaktifkan — lihat README'}</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd><dt>Hak cipta</dt><dd>${APP.copyright}</dd></dl>
+    <button class="btn btn-ghost btn-sm" id="chk-upd">${ic('refresh')} Periksa pembaruan</button></div>`;
+
+  if (can('pengaturan')) {
+    const pf = $('#pf');
+    const wil = [0, 1, 2, 3].map((i) => $('#pw_' + i));
+    bindWilayahChain(wil);
+    let logo = c.logo || '';
+    $('#logo-in').onchange = async (e) => { try { logo = await compressImage(e.target.files[0], 256, 0.85); $('#logo-prev').innerHTML = `<img src="${logo}" alt="">`; } catch (err) { toast(err.message, 'error'); } };
+    $('#logo-rm').onclick = () => { logo = ''; $('#logo-prev').innerHTML = ''; };
+    $('#pf-save').onclick = async () => {
+      const d = Object.fromEntries(['jenisDesa', 'namaDesa', 'kepalaDesa', 'telepon', 'emailDesa', 'tagline', 'alamatKantor', 'deskripsi', 'waFooter'].map((k) => [k, pf.elements[k].value.trim()]));
+      if (!d.namaDesa) return toast('Nama desa wajib diisi', 'error');
+      d.telepon = normalizePhone(d.telepon);
+      d.wilayah = { provinsi: wil[0].value.trim(), provinsiId: wil[0].dataset.id || '', kabupaten: wil[1].value.trim(), kabupatenId: wil[1].dataset.id || '', kecamatan: wil[2].value.trim(), kecamatanId: wil[2].dataset.id || '', kelurahan: wil[3].value.trim(), kelurahanId: wil[3].dataset.id || '' };
+      d.logo = logo;
+      try {
+        const ch = diff(c, d);
+        await F.setDoc(C('config/app'), d, { merge: true });
+        logAudit('pengaturan', 'profil_desa', 'Mengubah profil desa', { changes: ch });
+        toast('Profil desa disimpan', 'success');
+      } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+    };
+    sholatSettingsForm($('#sholat-settings'));
+    $('#ig-save').onclick = async () => {
+      const cats = $$('#ig-cats input:checked').map((x) => x.value);
+      const min = Math.max(1, Number($('#ig-min').value) || 3);
+      await F.setDoc(C('config/app'), { infografis: { cats, min } }, { merge: true });
+      logAudit('pengaturan', 'infografis', 'Mengubah kategori infografis publik', { detail: cats.join(', ') + ` (min ${min})` });
+      toast('Pengaturan infografis disimpan', 'success');
+      setTimeout(() => updatePublicStats(), 500);
+    };
+  }
+  $('#nmf').onsubmit = async (e) => {
+    e.preventDefault(); const nama = e.target.elements.nama.value.trim(); if (!nama) return;
+    try { await F.updateDoc(C(`users/${state.user.uid}`), { nama }); logAudit('auth', 'ubah_nama', `Mengubah nama tampilan menjadi ${nama}`); toast('Nama disimpan', 'success'); }
+    catch (err) { toast(err.message, 'error'); }
   };
   const reauth = (pw) => F.reauthenticateWithCredential(F.auth.currentUser, F.EmailAuthProvider.credential(F.auth.currentUser.email, pw));
   $('#pwf').onsubmit = async (e) => {
-    e.preventDefault(); const f = e.target;
-    if (f.elements.nw.value.length < 8) return toast('Password baru minimal 8 karakter', 'error');
-    if (f.elements.nw.value !== f.elements.nw2.value) return toast('Konfirmasi password tidak sama', 'error');
-    try { await reauth(f.elements.cur.value); await F.updatePassword(F.auth.currentUser, f.elements.nw.value); f.reset(); toast('Password berhasil diubah', 'success'); }
-    catch (err) { toast(authErrorMessage(err), 'error'); }
+    e.preventDefault(); const f = e.target; const nw = f.elements.nw.value;
+    if (nw.length < 8 || !/[a-zA-Z]/.test(nw) || !/\d/.test(nw)) return toast('Password baru minimal 8 karakter dan mengandung huruf serta angka', 'error');
+    if (nw !== f.elements.nw2.value) return toast('Konfirmasi password tidak sama', 'error');
+    try { await reauth(f.elements.cur.value); await F.updatePassword(F.auth.currentUser, nw); f.reset(); logAudit('auth', 'ubah_password', 'Mengubah password'); toast('Password berhasil diubah', 'success'); }
+    catch (err) { logAudit('auth', 'ubah_password_gagal', 'Gagal mengubah password', { detail: err.code }); toast(authErrorMessage(err), 'error'); }
   };
   $('#emf').onsubmit = async (e) => {
     e.preventDefault(); const f = e.target; const em = f.elements.email.value.trim();
-    if (em === F.auth.currentUser.email) return toast('Email baru sama dengan email saat ini', 'error');
+    if (norm(em) === norm(F.auth.currentUser.email)) return toast('Email baru sama dengan email saat ini', 'error');
     try {
       await reauth(f.elements.cur.value);
       await F.verifyBeforeUpdateEmail(F.auth.currentUser, em);
-      await F.setDoc(C('config/app'), { pendingEmail: em }, { merge: true });
-      f.reset(); toast(`Tautan verifikasi dikirim ke ${em}. Buka email tersebut dan klik tautannya.`, 'success', { duration: 9000 });
+      if (isSuper()) await F.setDoc(C('config/auth'), { pendingEmail: em }, { merge: true });
+      logAudit('auth', 'ubah_email', `Meminta perubahan email ke ${em}`);
+      f.reset(); toast(`Tautan verifikasi dikirim ke ${em}.`, 'success', { duration: 9000 });
     } catch (err) { toast(authErrorMessage(err), 'error'); }
   };
-  $('#bk').onclick = async () => {
-    const dump = { app: APP.name, version: APP.version, exportedAt: new Date().toISOString() };
-    for (const col of ['warga', 'dusun', 'master', 'informasi', 'instagram', 'config']) {
-      const s = await F.getDocs(F.collection(F.db, col)); dump[col] = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-    }
-    downloadBlob(new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' }), `cadangan-digides-${todayISO()}.json`);
-  };
-  $('#bk-xls').onclick = () => exportWarga({ list: sortWarga(state.warga, 'dusun'), cols: allFields().map((f) => f.key), title: 'Data Lengkap Seluruh Warga', group: false, fmt: 'xls' }).catch((e) => toast(e.message, 'error'));
-  $('#wipe').onclick = async () => {
-    const t = await promptDialog('Hapus semua data warga', `Ketik HAPUS untuk menghapus ${state.warga.length} data warga secara permanen`, '', { okText: 'Hapus permanen' });
-    if (t !== 'HAPUS') return;
-    try { await batchWrite(state.warga.map((w) => ['delete', C(`warga/${w.id}`)])); toast('Semua data warga dihapus', 'success'); } catch (e) { toast(e.message, 'error'); }
-  };
+  $('#idle-save')?.addEventListener('click', async () => {
+    const v = Math.max(0, Number($('#idle-min').value) || 0);
+    await F.setDoc(C('config/app'), { idleMinutes: v }, { merge: true });
+    logAudit('pengaturan', 'idle', `Mengatur logout otomatis ${v} menit`); toast('Disimpan', 'success');
+  });
   $('#chk-upd').onclick = async () => { if (!state.swReg) return toast('Service worker belum aktif', 'error'); await state.swReg.update(); toast(state.swReg.waiting ? 'Pembaruan tersedia' : `Anda memakai versi terbaru (v${APP.version})`, 'info'); };
 }
 

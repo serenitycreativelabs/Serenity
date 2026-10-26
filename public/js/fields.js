@@ -92,10 +92,11 @@ export const DEFAULT_MASTER = {
   alat: ['Cangkul', 'Cangkul & Pompa Air', 'Hand Tractor, Cangkul', 'Kandang Semi Permanen', 'Perahu Motor Tempel & Jaring Insang', 'Kulkas Freezer & Kompor Gas', 'Etalase Gerobak, Timbangan Digital'],
   skala: ['Mikro', 'Kecil', 'Menengah', 'Besar'],
   peristiwa: ['Menetap Tetap', 'Kelahiran Baru', 'Pindah Masuk', 'Pindah Keluar', 'Kematian', 'Perubahan KK / Status Kawin'],
+  kategoriKegiatan: ['Pengajian', 'Wirid Yasin', 'Majelis Taklim', 'Gotong Royong', 'Posyandu', 'Olahraga', 'Rapat Gampong', 'Kesenian', 'Lainnya'],
   kategoriInfo: ['Pengumuman', 'Berita Kegiatan', 'Acara Desa', 'Gotong Royong', 'Kesehatan', 'Pembangunan', 'Lainnya'],
 };
 
-export const MASTER_EXTRA_LABELS = { kategoriInfo: 'Kategori Papan Informasi' };
+export const MASTER_EXTRA_LABELS = { kategoriInfo: 'Kategori Papan Informasi', kategoriKegiatan: 'Kategori Kegiatan Rutin' };
 
 // Kelompok umur (kategori turunan untuk rekap)
 export const AGE_GROUPS = [
