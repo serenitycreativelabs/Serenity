@@ -1,6 +1,6 @@
 {
   "name": "digides",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "DigiDes — Sistem Informasi Desa Digital (PWA + Firebase). © Serenity Creativa 2026",
   "private": true,
   "type": "module",

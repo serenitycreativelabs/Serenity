@@ -1,10 +1,12 @@
 # DigiDes — Sistem Informasi Desa Digital
 
-![versi](https://img.shields.io/badge/versi-1.0.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.0.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
 **© Serenity Creativa 2026**
+
+---
 
 ## Fitur
 
@@ -20,30 +22,159 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 | **Papan Informasi** | Pengumuman, berita kegiatan, acara desa (dengan tanggal, waktu, lokasi, gambar). Tampil di halaman publik & agenda. |
 | **Kirim WhatsApp** | Sebarkan informasi ke semua warga / KK / satu dusun / semua kadus / warga terpilih, dengan personalisasi `{nama}` `{dusun}`. |
 | **Instagram** | Postingan Instagram desa otomatis tampil di halaman **Highlight** (sinkron via API, bisa disembunyikan/disematkan, atau ditambah manual). |
-| **Akun admin** | Login **cukup password**. Ubah password & email dari dalam aplikasi. Lupa password via email. |
+| **Super Admin & Admin** | Super Admin (`serenityxcreative@gmail.com`) login **cukup password** dengan **klik 5× tulisan copyright**. Admin hanya didaftarkan oleh Super Admin dan memakai email + password, dengan **hak akses per fitur**. |
+| **Audit Log** | Khusus Super Admin. Mencatat semua aktivitas: login/logout/gagal, akses & lihat detail warga, tambah/ubah (sebelum→sesudah)/hapus, import, ekspor, WhatsApp, pengaturan, manajemen admin, cadangan. Permanen, bisa disaring & diekspor. |
+| **Cadangan & Pemulihan** | Unduh cadangan JSON dan **upload/pulihkan** kembali (gabungkan atau ganti total). |
+| **Profil Gampong (publik)** | Menu dropdown: Profil, Sejarah, Visi & Misi, Struktur Organisasi, Lembaga, Layanan Administrasi, Transparansi Anggaran, Potensi & UMKM, Kontak & Peta, Infografis — diisi dari admin. |
+| **Infografis & Insight** | Piramida penduduk, rasio jenis kelamin, usia produktif, rasio ketergantungan, dll. Admin mendapat insight tambahan (potensi salah sasaran bansos, BPJS, gizi) & **Kualitas Data**. |
+| **Jadwal Sholat** | Panel kiri beranda, perhitungan Kemenag RI secara lokal (offline), hitung mundur ke waktu sholat berikutnya, tanggal Hijriah. |
+| **Kegiatan Rutin** | Panel kanan beranda: pengajian, wirid yasin, posyandu, gotong royong, dll. Kegiatan hari ini disorot. |
+| **Keamanan** | Tanpa API key di kode sumber, App Check (anti-bot), konfirmasi password untuk import/restore/hapus massal, logout otomatis, cache dihapus saat logout. Lihat **SECURITY.md**. |
 | **PWA** | Bisa dipasang di HP/PC, bekerja offline (data Firestore di-cache), notifikasi versi baru. |
 
-**© 2026 Deah Glumpang Official Website. Seluruh Hak Cipta Dilindungi Undang-Undang.**
+## Di mana `index.html` dan halaman login?
 
-Seluruh kode sumber, desain, teks, grafis, dan aset digital pada situs web ini dilindungi oleh Undang-Undang Hak Cipta No. 28 Tahun 2014. Dilarang keras menggandakan, menyalin, mendistribusikan, memodifikasi, atau merekayasa balik (reverse engineering) tanpa izin tertulis.
+- **`public/index.html`** — halaman utama aplikasi (semua halaman ada di sini).
+- **Halaman login** = `public/index.html#/login` (atau `public/login.html`). Admin masuk dengan email + password. **Super Admin: klik 5× tulisan “© Serenity Creativa 2026”** di bagian bawah halaman mana pun, lalu masukkan password saja.
+- `index.html` di folder utama hanya meneruskan ke `public/index.html`.
+- ⚠️ Jangan membuka `index.html` dengan **dobel-klik** — browser memblokir JavaScript dari `file://`. Buka lewat alamat hosting (`https://digides-8423e.web.app/#/login`) atau jalankan `npx serve public` lalu buka `http://localhost:3000/#/login`.
 
-**TOS (Terms of Service / Ketentuan Layanan)**
+## Struktur Proyek
 
-**Hak Kekayaan Intelektual dan Perlindungan Konten Digital**
-Kepemilikan Konten:
+```
+digides/
+├─ index.html               ← meneruskan ke public/index.html
+├─ public/                  ← situs yang di-deploy ke Firebase Hosting
+│  ├─ index.html            ← HALAMAN UTAMA aplikasi (login: index.html#/login)
+│  ├─ login.html            ← jalan pintas ke halaman login
+│  ├─ manifest.webmanifest  ← PWA
+│  ├─ sw.js                 ← service worker (offline + cache)
+│  ├─ css/app.css
+│  ├─ icons/
+│  └─ js/
+│     ├─ config.js          ← VERSI, copyright, email Super Admin, site key App Check (tanpa API key)
+│     ├─ firebase.js        ← memuat konfigurasi Firebase saat runtime (/__/firebase/init.json)
+│     ├─ firebase-config.example.js ← contoh konfigurasi untuk uji lokal
+│     ├─ core.js            ← peran & hak akses, audit log, konfirmasi password
+│     ├─ security.js        ← login Super Admin, manajemen admin, audit log, cadangan & pemulihan
+│     ├─ cms.js             ← Profil Gampong, infografis, jadwal sholat, kegiatan rutin
+│     ├─ praytimes.js       ← perhitungan jadwal sholat (Kemenag)
+│     ├─ fields.js          ← skema data warga & nilai bawaan master
+│     ├─ wilayah.js         ← dropdown wilayah Indonesia
+│     ├─ exporter.js        ← ekspor PDF & Excel
+│     ├─ ui.js              ← autocomplete, modal, toast, WhatsApp
+│     └─ app.js             ← aplikasi utama
+├─ firestore.rules          ← aturan keamanan berbasis peran
+├─ SECURITY.md              ← panduan menangani kebocoran API key, App Check, biaya
+├─ firebase.json / .firebaserc
+├─ scripts/
+│  ├─ bump-version.mjs      ← naikkan versi di semua berkas
+│  └─ sync-instagram.mjs    ← sinkron Instagram (dipakai GitHub Actions)
+└─ .github/workflows/
+   ├─ deploy.yml            ← deploy otomatis setiap push ke main
+   └─ instagram-sync.yml    ← sinkron Instagram setiap jam
+```
 
-- Seluruh materi yang terdapat pada situs web ini—termasuk namun tidak terbatas pada kode sumber (source code), arsitektur basis data, algoritma, desain antarmuka (UI/UX), teks, citra digital, logo, dan dokumentasi—merupakan hak kekayaan intelektual milik [Nama Pengembang/Perusahaan] dan dilindungi oleh peraturan perundang-undangan Republik Indonesia serta konvensi internasional.
-• Larangan Penggunaan Tanpa Izin.
+Tanpa proses *build* — cukup HTML, CSS dan JavaScript modul.
 
-• Pengguna atau pihak ketiga dilarang keras untuk:
-Menyalin, mengkloning, atau menyebarluaskan seluruh atau sebagian kode dan aset digital untuk tujuan komersial maupun non-komersial tanpa persetujuan tertulis resmi.
+---
 
-- Melakukan tindakan scraping, ekstraksi data otomatis, dekompilasi, pembongkaran kode (decompiling/disassembling), atau rekayasa balik (reverse engineering) terhadap sistem ini.
+## Pemasangan (sekali saja, ±15 menit)
 
-- Menggunakan teknologi untuk melewati, merusak, atau menonaktifkan mekanisme pengamanan data dan otentikasi situs.
+### 1. Siapkan Firebase (console.firebase.google.com → proyek **digides-8423e**)
 
-• Konsekuensi Hukum:
+1. **Authentication → Sign-in method** → aktifkan **Email/Password**.
+2. **Authentication → Users → Add user** → email `serenityxcreative@gmail.com` dan password pilihan Anda. *(Ini password Super Admin.)* Profil Super Admin dibuat otomatis saat login pertama.
+3. **Authentication → Settings → User actions** → biarkan “Enable create (sign-up)” **aktif** agar Super Admin bisa mendaftarkan admin dari aplikasi (akun tanpa profil tetap tidak punya akses — dikunci Firestore Rules).
+4. **Authentication → Settings → Authorized domains** → pastikan domain hosting Anda ada (`digides-8423e.web.app` otomatis ada).
+5. **Firestore Database → Create database** → mode *production*, lokasi `asia-southeast2 (Jakarta)`.
+6. **Firestore → Rules** → tempel isi `firestore.rules` → **Publish** (atau otomatis via GitHub Actions di langkah 3).
 
-• Setiap pelanggaran atau pembajakan terhadap hak cipta dan sistem digital ini akan diproses secara hukum melalui jalur pidana maupun gugatan ganti rugi perdata sesuai ketentuan Undang-Undang Nomor 28 Tahun 2014 tentang Hak Cipta dan Undang-Undang Informasi dan Transaksi Elektronik (UU ITE).
+> Paket gratis (Spark) sudah cukup. Gambar informasi dikompres dan disimpan di Firestore, jadi **tidak perlu Firebase Storage**.
 
-**DigiDes v1.0.0** — © Serenity Creativa 2026. Hak cipta dilindungi.
+> **Penting (keamanan):** ikuti **SECURITY.md** untuk membatasi API key lama yang sempat ter-commit di v1.0.0 dan mengaktifkan App Check.
+
+### 2. Upload ke GitHub
+
+```bash
+cd digides
+git init
+git add .
+git commit -m "DigiDes v2.0.0"
+git branch -M main
+git remote add origin https://github.com/<akun-anda>/digides.git
+git push -u origin main
+```
+
+### 3. Deploy otomatis via GitHub Actions
+
+1. Firebase Console → ⚙ **Project settings → Service accounts → Generate new private key** → unduh berkas JSON.
+2. Di Google Cloud IAM (console.cloud.google.com/iam-admin), pastikan service account itu punya peran **Firebase Hosting Admin** dan **Firebase Rules Admin** (peran bawaan *Firebase Admin SDK Administrator Service Agent* biasanya sudah cukup untuk Firestore; tambahkan dua peran tadi bila deploy ditolak).
+3. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
+   - `FIREBASE_SERVICE_ACCOUNT` = seluruh isi berkas JSON tadi.
+4. Push ke `main` → buka tab **Actions** → workflow **Deploy ke Firebase** berjalan. Selesai, aplikasi ada di **https://digides-8423e.web.app**.
+5. Setiap deploy juga membuat **GitHub Release** sesuai versi di `package.json`.
+
+> Alternatif manual: `npm i -g firebase-tools && firebase login && firebase deploy`.
+
+### 4. Login pertama
+
+1. Buka `https://digides-8423e.web.app` → gulir ke bawah → **klik 5× tulisan “© Serenity Creativa 2026”** → masukkan password Super Admin.
+2. **Pengaturan** → isi Profil Gampong, koordinat **Jadwal Sholat**, dan kategori **Infografis** publik.
+3. **Profil Gampong** → isi Visi Misi, Struktur, Layanan, dll. **Kegiatan Rutin** → isi jadwal pengajian.
+4. **Import Excel** (wajib konfirmasi password).
+5. **Manajemen Admin** → daftarkan operator/humas dengan hak akses yang sesuai.
+
+---
+
+## Integrasi Instagram
+
+1. Jadikan akun Instagram desa akun **Profesional** (Bisnis/Kreator).
+2. Buka [developers.facebook.com/apps](https://developers.facebook.com/apps) → *Create app* → kasus penggunaan **Instagram** → **API setup with Instagram login** → tambahkan akun → **Generate token**.
+3. Tempel token di aplikasi: **Admin → Instagram → Access Token → Simpan**. Token (60 hari) diperpanjang otomatis.
+4. Sinkronisasi berjalan:
+   - otomatis saat admin membuka dasbor (maksimal tiap 3 jam), tombol **Sinkronkan sekarang**, dan
+   - **setiap jam** lewat workflow `instagram-sync.yml` (memakai secret `FIREBASE_SERVICE_ACCOUNT` yang sama) — postingan baru muncul di Highlight tanpa admin membuka aplikasi.
+
+Tanpa token pun Anda bisa **Tambah manual** (tautan postingan + gambar).
+
+## WhatsApp
+
+- Nomor `08…` otomatis diubah ke format internasional `628…` untuk tautan `wa.me`.
+- **Kirim WhatsApp**: pilih penerima, tekan **Buka pesan berikutnya** → WhatsApp terbuka dengan nomor & pesan terisi → tekan Kirim. Kemajuan tercatat.
+- WhatsApp tidak mengizinkan kirim massal otomatis kecuali melalui WhatsApp Business API (berbayar). Untuk ribuan warga, gunakan tombol **Kirim ke Grup / Kontak lain** ke grup WhatsApp desa.
+
+## Versi & Rilis
+
+Versi tampil di footer, sidebar, halaman Pengaturan, PDF/Excel hasil ekspor, dan nama cache service worker.
+
+```bash
+node scripts/bump-version.mjs patch "Perbaikan kecil"     # 2.0.0 → 2.0.1
+node scripts/bump-version.mjs minor "Fitur baru"          # 2.0.1 → 2.1.0
+git commit -am "v2.1.0" && git push                         # deploy + release otomatis
+```
+
+Pengguna PWA akan melihat notifikasi **“Versi baru tersedia → Muat ulang”**.
+
+## Keamanan
+
+Ringkas (lengkapnya di **SECURITY.md**):
+- **Tidak ada API key di repositori.** Konfigurasi dibaca dari `/__/firebase/init.json` milik Firebase Hosting.
+- Batasi API key di Google Cloud Console (domain & API) dan aktifkan **App Check** untuk mencegah bot & pencurian kuota.
+- Data warga hanya bisa dibaca akun dengan izin “Lihat data warga”; publik hanya melihat statistik agregat.
+- Audit log tidak dapat diubah/dihapus; token Instagram disimpan di koleksi `private`.
+
+### Hak akses admin
+`warga` (lihat), `wargaEdit`, `wargaDelete`, `import`, `export`, `dusun`, `master`, `informasi`, `broadcast`, `instagram`, `profil`, `kegiatan`, `pengaturan`. Template cepat: *Operator Data*, *Humas/Informasi*, *Hanya Lihat*, *Admin Penuh*. Manajemen Admin, Audit Log, dan Cadangan selalu khusus Super Admin.
+
+## Pengembangan lokal
+
+```bash
+cp public/js/firebase-config.example.js public/js/firebase-config.local.js   # isi nilainya (berkas ini di-.gitignore)
+npm run dev     # http://localhost:5173
+```
+Tambahkan `localhost` di *Authorized domains* Firebase Authentication bila ingin login dari lokal. Alternatif tanpa berkas lokal: `npx firebase-tools serve` (otomatis menyediakan `/__/firebase/init.json`).
+
+---
+
+**DigiDes v2.0.0** — © Serenity Creativa 2026. Hak cipta dilindungi.

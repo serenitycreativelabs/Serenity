@@ -1,47 +1,107 @@
 rules_version = '2';
-// DigiDes — Aturan keamanan Firestore. © Serenity Creativa 2026
-// Hanya akun yang terdaftar di koleksi /admins yang dapat membaca data warga.
+// =====================================================================
+//  DigiDes v2 — Aturan keamanan Firestore. © Serenity Creativa 2026
+//  Peran: Super Admin (semua akses) & Admin (hak akses per fitur dari Super Admin).
+//  Publik hanya bisa membaca profil desa, statistik agregat, informasi terbit,
+//  highlight Instagram, halaman profil, dan kegiatan rutin.
+// =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() { return request.auth != null; }
-    function isAdmin() {
-      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-    // Akun admin pertama (bootstrap). Setelah dokumen /admins/{uid} terbentuk,
-    // akses tetap berlaku walau email admin diganti dari dalam aplikasi.
-    function isBootstrap() {
-      return signedIn() && request.auth.token.email == 'serenityxcreative@gmail.com';
+    function userPath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function hasProfile() { return signedIn() && exists(userPath()); }
+    function me() { return get(userPath()).data; }
+    function isStaff() { return hasProfile() && me().active == true; }
+    function isSuper() { return isStaff() && me().role == 'superadmin'; }
+    function can(p) { return isSuper() || (isStaff() && me().perms.get(p, false) == true); }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // Super Admin utama dibuat otomatis saat login pertama dengan email ini
+    function bootstrapSuper(uid) {
+      return signedIn() && request.auth.uid == uid
+        && request.auth.token.email == 'serenityxcreative@gmail.com'
+        && request.resource.data.role == 'superadmin' && request.resource.data.active == true;
     }
 
-    match /admins/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow create, update: if signedIn() && request.auth.uid == uid && (isAdmin() || isBootstrap());
-      allow delete: if false;
+    // ---------------- Pengguna dashboard
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isSuper());
+      allow create: if (isSuper() && request.resource.data.role == 'admin') || (!exists(userPath()) && bootstrapSuper(uid));
+      allow update: if
+        // Super Admin mengatur admin lain (tidak bisa membuat Super Admin baru)
+        (isSuper() && uid != request.auth.uid && resource.data.role == 'admin' && request.resource.data.role == 'admin')
+        // Super Admin mengubah profilnya sendiri tanpa menurunkan peran/menonaktifkan diri
+        || (isSuper() && uid == request.auth.uid && request.resource.data.role == 'superadmin' && request.resource.data.active == true)
+        // Admin hanya boleh memperbarui data ringan miliknya sendiri
+        || (isStaff() && uid == request.auth.uid && changedOnly(['lastLogin', 'email', 'nama']));
+      allow delete: if isSuper() && uid != request.auth.uid && resource.data.role == 'admin';
     }
 
-    // Profil desa & statistik ringkas (publik, tanpa data pribadi)
+    // ---------------- Konfigurasi
     match /config/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if (docId == 'app' && can('pengaturan'))
+        || (docId == 'app' && can('instagram') && resource != null && changedOnly(['igLastSync', 'igUsername']))
+        || (docId == 'stats' && can('warga'))
+        || (docId == 'auth' && isSuper());
     }
 
-    // Papan informasi: publik hanya yang diterbitkan
+    // ---------------- Data pribadi warga
+    match /warga/{id} {
+      allow read: if can('warga');
+      allow create: if (can('wargaEdit') || can('import'))
+        && request.resource.data.nama is string && request.resource.data.nama.size() <= 200
+        && request.resource.data.size() <= 120;
+      allow update: if ((can('wargaEdit') || can('import')) && request.resource.data.size() <= 120)
+        || (can('dusun') && changedOnly(['dusun', 'updatedAt']));
+      allow delete: if can('wargaDelete');
+    }
+    match /dusun/{id} {
+      allow read: if isStaff();
+      allow create: if can('dusun') || can('wargaEdit') || can('import');
+      allow update, delete: if can('dusun');
+    }
+    match /master/{id} {
+      allow read: if isStaff();
+      allow write: if can('master');
+      // Nilai baru dari formulir/import/informasi otomatis ditambahkan ke daftar
+      allow create, update: if (can('wargaEdit') || can('import') || can('informasi') || can('kegiatan'))
+        && request.resource.data.keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom'])
+        && (resource == null || changedOnly(['items', 'label']));
+    }
+
+    // ---------------- Publikasi
     match /informasi/{id} {
-      allow read: if isAdmin() || resource.data.published == true;
-      allow write: if isAdmin();
+      allow read: if isStaff() || resource.data.published == true;
+      allow write: if can('informasi');
+      allow update: if can('broadcast') && changedOnly(['broadcastCount', 'lastBroadcast']);
     }
-
-    // Highlight Instagram (publik)
     match /instagram/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if can('instagram');
+    }
+    match /halaman/{id} {
+      allow read: if true;
+      allow write: if can('profil');
+    }
+    match /kegiatan/{id} {
+      allow read: if true;
+      allow write: if can('kegiatan');
+    }
+    match /private/{id} {
+      allow read, write: if can('instagram');
     }
 
-    // Data pribadi — hanya admin
-    match /warga/{id}   { allow read, write: if isAdmin(); }
-    match /dusun/{id}   { allow read, write: if isAdmin(); }
-    match /master/{id}  { allow read, write: if isAdmin(); }
-    match /private/{id} { allow read, write: if isAdmin(); }
+    // ---------------- Audit log: hanya bisa DITAMBAH, tidak bisa diubah/dihapus
+    match /audit/{id} {
+      allow create: if isStaff()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.at == request.time
+        && request.resource.data.size() <= 20;
+      allow read: if isSuper();
+      allow update, delete: if false;
+    }
 
     match /{document=**} { allow read, write: if false; }
   }
