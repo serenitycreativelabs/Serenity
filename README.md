@@ -1,6 +1,6 @@
 # DigiDes — Sistem Informasi Desa Digital
 
-![versi](https://img.shields.io/badge/versi-2.0.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.0.1-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -127,6 +127,19 @@ git push -u origin main
 
 ---
 
+## Mengatasi “Konfigurasi Firebase belum tersedia”
+
+API key tidak disimpan di repositori. Aplikasi mengambil konfigurasi secara berurutan dari:
+1. **Firebase Hosting** — `https://digides-8423e.web.app` (otomatis, cara yang disarankan).
+2. **`public/js/firebase-config.local.js`** — untuk uji lokal (di-`.gitignore`).
+3. **Situs Firebase Hosting proyek** — bila dibuka dari hosting lain, konfigurasi diambil dari `digides-8423e.web.app/__/firebase/init.js` (syarat: sudah pernah deploy ke Firebase Hosting minimal sekali).
+4. **Tempel konfigurasi** di layar bantuan — hanya tersimpan di browser tersebut.
+
+Jika layar itu muncul:
+- Pastikan workflow **Deploy ke Firebase** di tab GitHub **Actions** berhasil (centang hijau), lalu buka `https://digides-8423e.web.app`.
+- Pastikan Firebase Console → Project settings → **Your apps** sudah berisi aplikasi **Web**.
+- **GitHub Pages:** buat secret `FIREBASE_WEB_CONFIG` berisi objek config, mis. `{"apiKey":"…","authDomain":"digides-8423e.firebaseapp.com","projectId":"digides-8423e","appId":"…","messagingSenderId":"…","storageBucket":"digides-8423e.firebasestorage.app"}`, aktifkan *Settings → Pages → Source: GitHub Actions*, lalu jalankan workflow **Deploy ke GitHub Pages**. Tambahkan domain `*.github.io` ke *Authorized domains* (Authentication) dan ke pembatasan API key.
+
 ## Integrasi Instagram
 
 1. Jadikan akun Instagram desa akun **Profesional** (Bisnis/Kreator).
@@ -177,4 +190,4 @@ Tambahkan `localhost` di *Authorized domains* Firebase Authentication bila ingin
 
 ---
 
-**DigiDes v2.0.0** — © Serenity Creativa 2026. Hak cipta dilindungi.
+**DigiDes v2.0.1** — © Serenity Creativa 2026. Hak cipta dilindungi.
