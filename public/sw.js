@@ -1,16 +1,17 @@
 /* DigiDes Service Worker — © Serenity Creativa 2026 */
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 const SHELL = `digides-shell-v${VERSION}`;
 const RUNTIME = `digides-runtime-v${VERSION}`;
 const SHELL_FILES = [
   './', './index.html', './login.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/config.js', './js/firebase.js', './js/fields.js', './js/ui.js', './js/wilayah.js', './js/exporter.js',
+  './js/core.js', './js/cms.js', './js/security.js', './js/praytimes.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
 // Pustaka & data yang aman di-cache (Firebase SDK, SheetJS, jsPDF, font, data wilayah)
 const CACHEABLE_HOSTS = ['www.gstatic.com', 'cdn.sheetjs.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.emsifa.com', 'ibnux.github.io'];
 // Jangan pernah di-cache (API dinamis & autentikasi)
-const BYPASS = ['firestore.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'graph.instagram.com', 'firebaseinstallations.googleapis.com', 'wa.me'];
+const BYPASS = ['/__/auth/', 'firebase-config.local.js', 'firestore.googleapis.com', 'firebaseappcheck.googleapis.com', 'recaptcha', 'www.google.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'graph.instagram.com', 'firebaseinstallations.googleapis.com', 'wa.me'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)));
@@ -30,7 +31,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (BYPASS.some((h) => url.hostname.includes(h))) return;
+  if (BYPASS.some((h) => url.hostname.includes(h) || url.pathname.includes(h))) return;
 
   // Navigasi: network-first, fallback ke shell (offline)
   if (req.mode === 'navigate') {
