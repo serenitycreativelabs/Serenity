@@ -1,7 +1,8 @@
 // Halaman publik "Profil Gampong", Infografis, panel Jadwal Sholat & Kegiatan Rutin, serta editornya di panel admin
 import { APP } from './config.js';
 import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, can, logAudit, diff, insightsFromStats, pct } from './core.js';
-import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage } from './ui.js';
+import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage, parseNum, fmtThousand, bindThousands } from './ui.js';
+import { exportExcel } from './exporter.js';
 import { prayerTimes, PRAYER_NAMES, DEFAULT_SHOLAT, fmtMin, nowMinutes, dateInTz, hijriDate } from './praytimes.js';
 
 // ---------------------------------------------------------------- definisi halaman
@@ -99,6 +100,64 @@ export function renderInfografis() {
   </section>`;
 }
 
+// ---------------------------------------------------------------- PUBLIK: Portal Data (non-sensitif, agregat)
+const PALETTE = ['#0f766e', '#d97706', '#4f46e5', '#db2777', '#0284c7', '#65a30d', '#7c3aed', '#dc2626', '#0d9488', '#ca8a04', '#475569', '#9333ea'];
+const CAT_ICON = { kelompokUmur: 'users', jk: 'users', dusun: 'map', agama: 'moon', pendidikan: 'book', pekerjaan: 'file', statusKawin: 'home', sektor: 'chart', profesi: 'file', golDarah: 'shield' };
+// Diagram donat SVG
+export function donut(rows, { size = 160, center = '', sub = '', legend = true } = {}) {
+  const total = rows.reduce((a, r) => a + (r.n || 0), 0);
+  if (!total) return '<div class="empty">Belum ada data</div>';
+  const R = 15.915; let acc = 0;
+  const segs = rows.map((r, i) => { const v = (r.n / total) * 100; const seg = `<circle r="${R}" cx="21" cy="21" fill="none" stroke="${PALETTE[i % PALETTE.length]}" stroke-width="6" stroke-dasharray="${v} ${100 - v}" stroke-dashoffset="${25 - acc}"><title>${esc(r.v)}: ${r.n}</title></circle>`; acc += v; return seg; }).join('');
+  return `<div class="donut-wrap"><div class="donut" style="width:${size}px;height:${size}px"><svg viewBox="0 0 42 42" role="img" aria-label="Diagram donat"><circle r="${R}" cx="21" cy="21" fill="none" stroke="var(--surface-2)" stroke-width="6"></circle>${segs}</svg>${center ? `<div class="donut-c"><b>${esc(center)}</b><small>${esc(sub)}</small></div>` : ''}</div>
+    ${legend ? `<ul class="legend">${rows.slice(0, 8).map((r, i) => `<li><i style="background:${PALETTE[i % PALETTE.length]}"></i><span>${esc(r.v)}</span><b>${fmtNum(r.n)}</b><small>${String(pct(r.n, total)).replace('.', ',')}%</small></li>`).join('')}${rows.length > 8 ? `<li class="muted small">+${rows.length - 8} lainnya</li>` : ''}</ul>` : ''}</div>`;
+}
+const portalCats = () => Object.entries(state.stats?.breakdown || {}).filter(([, rows]) => rows.length);
+export function dataPortalCards() {
+  const s = state.stats || {}; const cats = portalCats();
+  if (!cats.length) return '<div class="empty">Data publik belum tersedia.</div>';
+  return `<div class="portal-grid">${cats.map(([k, rows]) => {
+    const top = rows.slice(0, 3); const peak = Math.max(1, ...top.map((r) => r.n));
+    return `<a class="portal-card" href="#/data/${k}"><div class="pc-head"><span class="pc-ic">${ic(CAT_ICON[k] || 'chart')}</span><div><b>${esc(CAT_LABEL[k] || k)}</b><small>${rows.length} kategori</small></div>${ic('chev', 'pc-go')}</div>
+      <ul class="pc-top">${top.map((r, i) => `<li><span>${esc(r.v)}</span><b>${fmtNum(r.n)}</b><i style="width:${(r.n / peak) * 100}%;background:${PALETTE[i]}"></i></li>`).join('')}</ul>
+      <small class="pc-foot">Dari ${fmtNum(s.penduduk)} penduduk aktif</small></a>`;
+  }).join('')}<a class="portal-card cta" href="#/infografis"><span class="pc-ic">${ic('chart')}</span><b>Infografis lengkap</b><small class="muted">Piramida penduduk, insight & seluruh kategori</small></a></div>`;
+}
+export function renderDataPortal(key) {
+  const s = state.stats || {}; const cats = portalCats();
+  if (!s.penduduk) return '<section class="section"><div class="empty">Data publik belum tersedia.</div></section>';
+  const head = `<span class="eyebrow">${ic('db')} Portal Data Publik • diperbarui ${esc(fmtDate(s.updatedAt, true))}</span>`;
+  const chips = `<div class="chips">${cats.map(([k]) => `<a class="chip ${k === key ? 'active' : ''}" href="#/data/${k}">${esc(CAT_LABEL[k] || k)}</a>`).join('')}<a class="chip" href="#/infografis">Infografis lengkap</a></div>`;
+  if (!key || !s.breakdown?.[key]) {
+    return `<section class="section">${head}<h1>Data Publik ${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
+      <p class="muted">Statistik agregat penduduk aktif yang dapat diakses semua warga. Data pribadi (nama, NIK, alamat) tidak pernah ditampilkan.</p>
+      <div class="stat-grid">${[['Penduduk', s.penduduk, 'jiwa'], ['Kepala Keluarga', s.kk, 'KK'], ['Laki-laki', s.laki, `${String(pct(s.laki, s.penduduk)).replace('.', ',')}%`], ['Perempuan', s.perempuan, `${String(pct(s.perempuan, s.penduduk)).replace('.', ',')}%`], ['Usia Produktif', s.produktif, '15–64 th'], ['Lansia', s.lansia, '60+ th'], ['Balita', s.balita, '0–5 th'], ['Dusun', s.dusun, 'wilayah']].map(([l, v, sub]) => `<div class="stat"><div><span class="stat-label">${l}</span><b class="stat-val">${fmtNum(v)}</b><small class="muted">${esc(sub)}</small></div></div>`).join('')}</div>
+      <h2 style="margin-top:8px">Pilih kategori data</h2>${dataPortalCards()}</section>`;
+  }
+  const rows = s.breakdown[key]; const total = rows.reduce((a, r) => a + r.n, 0);
+  const peak = Math.max(1, ...rows.map((r) => r.n));
+  return `<section class="section">${head}
+    <a href="#/data" class="link">← Semua data</a>
+    <h1>${esc(CAT_LABEL[key] || key)}</h1>${chips}
+    <div class="viz-grid">
+      <div class="panel viz"><h3>Komposisi</h3>${donut(rows, { size: 200, center: fmtNum(total), sub: 'jiwa' })}</div>
+      <div class="panel viz viz-wide"><h3>Rincian</h3>
+        <div class="table-wrap"><table class="table"><thead><tr><th>No</th><th>${esc(CAT_LABEL[key] || key)}</th><th style="text-align:right">Jumlah</th><th style="text-align:right">Persentase</th><th style="width:34%"></th></tr></thead>
+        <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td><i class="dot" style="background:${PALETTE[i % PALETTE.length]}"></i> ${esc(r.v)}</td><td style="text-align:right"><b>${fmtNum(r.n)}</b></td><td style="text-align:right">${String(pct(r.n, total)).replace('.', ',')}%</td><td><span class="bar-track"><span class="bar-fill" style="width:${(r.n / peak) * 100}%;background:${PALETTE[i % PALETTE.length]}"></span></span></td></tr>`).join('')}
+        <tr class="total-row"><td></td><td>Total</td><td style="text-align:right">${fmtNum(total)}</td><td style="text-align:right">100%</td><td></td></tr></tbody></table></div>
+        <div class="row-gap"><button class="btn btn-ghost btn-sm" data-dl-cat="${esc(key)}">${ic('download')} Unduh tabel (Excel)</button></div>
+      </div>
+    </div>
+    <p class="muted small">Sumber: data kependudukan ${esc(`${desaJenis()} ${desaName()}`.trim())}. Nilai dengan jumlah sangat kecil digabung menjadi “Lainnya” untuk melindungi privasi.</p>
+  </section>`;
+}
+export function bindDataPortal() {
+  $$('[data-dl-cat]').forEach((b) => b.onclick = () => {
+    const k = b.dataset.dlCat; const rows = state.stats?.breakdown?.[k] || []; const total = rows.reduce((a, r) => a + r.n, 0);
+    exportExcel(`Data_${CAT_LABEL[k] || k}_${desaName()}`, [{ name: CAT_LABEL[k] || k, title: `${CAT_LABEL[k] || k} — ${desaJenis()} ${desaName()}`, head: ['No', CAT_LABEL[k] || k, 'Jumlah', 'Persentase'], body: [...rows.map((r, i) => [i + 1, r.v, r.n, `${pct(r.n, total)}%`]), ['', 'Total', total, '100%']] }]).catch((e) => toast(e.message, 'error'));
+  });
+}
+
 // ---------------------------------------------------------------- PUBLIK: panel jadwal sholat
 const sholatCfg = () => ({ ...DEFAULT_SHOLAT, ...(state.config.sholat || {}) });
 export function sholatPanel() {
@@ -166,7 +225,8 @@ export function viewProfilAdmin(main) {
     const v = val ?? '';
     if (f.type === 'textarea' || f.type === 'lines') return `<label class="field span-2"><span>${esc(f.label)}</span><textarea name="${name}" rows="${f.rows || 3}">${esc(v)}</textarea></label>`;
     if (f.type === 'image') return `<div class="field span-2"><span>${esc(f.label)}</span><div class="img-pick"><div class="img-prev">${v ? `<img src="${esc(v)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih<input type="file" accept="image/*" data-img="${name}" hidden></label><button type="button" class="btn btn-ghost btn-sm" data-noimg="${name}">Hapus</button><input type="hidden" name="${name}" value="${esc(v)}"></div></div>`;
-    return `<label class="field"><span>${esc(f.label)}</span><input name="${name}" value="${esc(v)}" ${f.type === 'number' ? 'type="number"' : f.type === 'phone' ? 'type="tel"' : ''} ${f.suggest ? `data-suggest="${esc(JSON.stringify(f.suggest))}"` : ''}></label>`;
+    if (f.type === 'number') return `<label class="field"><span>${esc(f.label)}</span><input name="${name}" value="${esc(fmtThousand(v))}" data-num placeholder="0"></label>`;
+    return `<label class="field"><span>${esc(f.label)}</span><input name="${name}" value="${esc(v)}" ${f.type === 'phone' ? 'type="tel"' : ''} ${f.suggest ? `data-suggest="${esc(JSON.stringify(f.suggest))}"` : ''}></label>`;
   };
   main.innerHTML = `
   <div class="tabs">${PAGES.map((x) => `<button class="tab ${x.key === p.key ? 'active' : ''}" data-tab="${x.key}">${ic(x.icon)} ${esc(pageLabel(x))}</button>`).join('')}</div>
@@ -179,6 +239,7 @@ export function viewProfilAdmin(main) {
   </form>`;
   $$('[data-tab]', main).forEach((b) => b.onclick = () => { profilTab = b.dataset.tab; viewProfilAdmin(main); });
   const form = $('#pg-form');
+  bindThousands(form);
   $$('[data-suggest]', form).forEach((inp) => attachAutocomplete(inp, { source: JSON.parse(inp.dataset.suggest), smallList: 12 }));
   $$('[data-img]', form).forEach((inp) => inp.onchange = async () => {
     try {
@@ -190,8 +251,8 @@ export function viewProfilAdmin(main) {
   $$('[data-noimg]', form).forEach((b) => b.onclick = () => { form.elements[b.dataset.noimg].value = ''; b.closest('.img-pick').querySelector('.img-prev').innerHTML = ''; });
   const collect = () => {
     const out = {};
-    p.fields?.forEach((f) => { out[f.k] = form.elements[f.k].value.trim(); });
-    if (p.list) out.items = d.items.map((_, i) => Object.fromEntries(p.list.fields.map((f) => { let v = form.elements[`items.${i}.${f.k}`].value.trim(); if (f.type === 'number') v = v === '' ? '' : Number(v); if (f.type === 'phone') v = normalizePhone(v); return [f.k, v]; })));
+    p.fields?.forEach((f) => { out[f.k] = f.type === 'number' ? parseNum(form.elements[f.k].value) : form.elements[f.k].value.trim(); });
+    if (p.list) out.items = d.items.map((_, i) => Object.fromEntries(p.list.fields.map((f) => { let v = form.elements[`items.${i}.${f.k}`].value.trim(); if (f.type === 'number') v = parseNum(v); if (f.type === 'phone') v = normalizePhone(v); return [f.k, v]; })));
     return out;
   };
   const keep = () => { const c = collect(); Object.assign(d, c); state.halaman[p.key] = { ...(state.halaman[p.key] || {}), ...c, items: c.items || d.items }; };

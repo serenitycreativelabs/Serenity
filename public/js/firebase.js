@@ -36,7 +36,12 @@ function loadHostingInitScript(origin) {
   });
 }
 
+import EMBEDDED_CONFIG from './firebase-config.js';
+
 async function loadConfig() {
+  // Utama: konfigurasi bawaan aplikasi → langsung terhubung di semua browser & perangkat
+  if (validCfg(EMBEDDED_CONFIG)) { note('js/firebase-config.js', true); return EMBEDDED_CONFIG; }
+  note('js/firebase-config.js', false, 'belum diisi');
   // 0) Konfigurasi sementara yang ditempel admin di browser ini (hanya tersimpan di perangkat ini)
   try {
     const c = JSON.parse(localStorage.getItem('dd:fbcfg') || 'null');

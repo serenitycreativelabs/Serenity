@@ -10,15 +10,15 @@ import {
 import {
   esc, $, $$, norm, debounce, todayISO, toDate, fmtDate, fmtRp, fmtNum, waNumber, waLink, waShareLink,
   normalizePhone, waFormat, toast, modal, confirmDialog, promptDialog, attachAutocomplete,
-  downloadBlob, copyText, compressImage, authErrorMessage,
+  downloadBlob, copyText, compressImage, authErrorMessage, parseNum, fmtThousand, bindThousands,
 } from './ui.js';
 import { bindWilayahChain } from './wilayah.js';
 import { exportExcel, exportPdf, getXLSX } from './exporter.js';
 import {
   F, I, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
-  PERMS, isSuper, can, ROLE_LABEL, logAudit, diff, requirePassword, superEmail, insightsFromStats, pct, loginFailed,
+  PERMS, isSuper, isKadus, myDusun, avatar, penulisNow, KADUS_PERMS, can, ROLE_LABEL, logAudit, diff, requirePassword, superEmail, insightsFromStats, pct, loginFailed,
 } from './core.js';
-import { PAGES, pageLabel, renderPubPage, renderInfografis, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
+import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
 import { viewAdmins, viewAudit, viewCadangan, openSuperLogin } from './security.js';
 
 const root = document.getElementById('app');
@@ -59,13 +59,13 @@ function boot() {
   F.onSnapshot(C('config/app'), (s) => { state.config = s.data() || {}; applyBranding(); softRerender(['public', 'dash', 'shell']); }, (e) => console.warn('config', e));
   F.onSnapshot(C('config/auth'), (s) => { state.authCfg = s.data() || {}; }, () => {});
   F.onSnapshot(C('config/stats'), (s) => { state.stats = s.data() || {}; softRerender(['public']); }, () => {});
-  F.onSnapshot(F.collection(F.db, 'instagram'), (s) => {
+  F.onSnapshot(F.query(F.collection(F.db, 'instagram'), F.limit(150)), (s) => {
     state.ig = s.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
     softRerender(['public', 'instagram']);
   }, () => {});
-  F.onSnapshot(F.collection(F.db, 'halaman'), (s) => { const h = {}; s.docs.forEach((d) => { h[d.id] = d.data(); }); state.halaman = h; softRerender(['public']); }, () => {});
-  F.onSnapshot(F.collection(F.db, 'kegiatan'), (s) => {
+  F.onSnapshot(F.query(F.collection(F.db, 'halaman'), F.limit(50)), (s) => { const h = {}; s.docs.forEach((d) => { h[d.id] = d.data(); }); state.halaman = h; softRerender(['public']); }, () => {});
+  F.onSnapshot(F.query(F.collection(F.db, 'kegiatan'), F.limit(150)), (s) => {
     state.kegiatan = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
     softRerender(['public', 'kegiatan']);
   }, () => {});
@@ -173,7 +173,7 @@ function applyBranding() {
 
 function subscribeInfo(all) {
   state.infoUnsub?.();
-  const q = all ? F.collection(F.db, 'informasi') : F.query(F.collection(F.db, 'informasi'), F.where('published', '==', true));
+  const q = all ? F.collection(F.db, 'informasi') : F.query(F.collection(F.db, 'informasi'), F.where('published', '==', true), F.limit(150));
   state.infoUnsub = F.onSnapshot(q, (s) => {
     state.info = s.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
@@ -210,7 +210,9 @@ function startAdmin() {
   stopAdmin();
   const u = state.adminUnsubs;
   if (can('warga')) {
-    u.push(F.onSnapshot(F.collection(F.db, 'warga'), (s) => {
+    // Kepala Dusun hanya memuat warga dusunnya sendiri (juga dikunci oleh Firestore Rules)
+    const wq = isKadus() ? F.query(F.collection(F.db, 'warga'), F.where('dusun', '==', myDusun())) : F.collection(F.db, 'warga');
+    u.push(F.onSnapshot(wq, (s) => {
       state.warga = s.docs.map((d) => ({ id: d.id, ...d.data() }));
       state.wargaReady = true;
       softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
@@ -318,12 +320,12 @@ function computePublicStats() {
   };
 }
 const updatePublicStats = debounce(async () => {
-  if (!state.isAdmin || !can('warga') || !state.wargaReady) return;
+  if (!state.isAdmin || !can('warga') || !state.wargaReady || isKadus()) return;
   const s = computePublicStats();
   const prev = { ...state.stats }; delete prev.updatedAt;
   if (JSON.stringify(prev) === JSON.stringify(s)) return;
   try { await F.setDoc(C('config/stats'), { ...s, updatedAt: F.serverTimestamp() }); } catch (e) { console.warn(e); }
-}, 3000);
+}, 1200);
 
 // ---------------------------------------------------------------- router
 function parseRoute() {
@@ -340,8 +342,15 @@ function softRerender(tags) {
   if ($('.modal-backdrop')) return;
   render(true);
 }
+function routeBar() {
+  let b = document.getElementById('route-bar');
+  if (!b) { b = document.createElement('div'); b.id = 'route-bar'; b.className = 'route-bar'; document.body.appendChild(b); }
+  b.style.transition = 'none'; b.style.opacity = '1'; b.style.width = '0';
+  requestAnimationFrame(() => { b.style.transition = ''; b.style.width = '75%'; setTimeout(() => { b.style.width = '100%'; setTimeout(() => { b.style.opacity = '0'; }, 250); }, 180); });
+}
 function render(soft = false) {
   if (F.configError) return;
+  if (!soft) routeBar();
   const r = parseRoute(); state.route = r;
   document.body.classList.remove('nav-open', 'pubnav-open');
   state.timers.forEach(clearInterval); state.timers = [];
@@ -358,7 +367,7 @@ function render(soft = false) {
   }
   return renderPublic(r, soft);
 }
-const splash = () => `<div class="splash"><div class="logo-mark big">${logoImg()}</div><div class="spinner"></div></div>`;
+const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${logoImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : APP.name)}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
 const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="">` : `<img src="icons/icon-192.png" alt="">`;
 
 // ================================================================ PUBLIK
@@ -372,45 +381,55 @@ function renderPublic(r, soft) {
   else if (p0 === 'highlight') content = pubHighlight(true);
   else if (p0 === 'profil') content = renderPubPage(r.parts[1] || 'profil');
   else if (p0 === 'infografis') content = renderInfografis();
+  else if (p0 === 'data') content = renderDataPortal(r.parts[1] || '');
   else content = pubHome();
   root.dataset.shell = 'public';
-  const profilActive = p0 === 'profil' || p0 === 'infografis';
+  const profilActive = p0 === 'profil';
+  const rt = state.config.runningText || {};
+  const ticker = rt.aktif && String(rt.teks || '').trim();
+  document.body.classList.toggle('has-ticker', !!ticker);
   root.innerHTML = `
   <header class="pub-header">
     <div class="pub-header-inner">
-      <a class="brand" href="#/"><span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaJenis())} ${esc(desaName())}</b><small>${esc(state.config.tagline || 'Sistem Informasi Desa Digital')}</small></span></a>
+      <a class="brand" href="#/"><span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(`${desaJenis()} ${desaName()}`.trim())}</b><small>${esc(state.config.tagline || 'Portal Data & Informasi Publik')}</small></span></a>
       <button class="icon-btn pubnav-toggle" id="pubnav-toggle" aria-label="Menu">${ic('menu')}</button>
       <nav class="pub-nav" id="pub-nav">
         <a href="#/" class="${p0 === '' ? 'active' : ''}">Beranda</a>
+        <a href="#/data" class="${p0 === 'data' || p0 === 'infografis' ? 'active' : ''}">Data Publik</a>
         <div class="dropdown ${profilActive ? 'active' : ''}">
           <button class="dropdown-btn" aria-haspopup="true" aria-expanded="false">Profil ${esc(jenisLabel())} ${ic('chev')}</button>
           <div class="dropdown-menu">
             ${PAGES.map((p) => `<a href="#/profil/${p.key}" class="${p0 === 'profil' && (r.parts[1] || 'profil') === p.key ? 'active' : ''}">${ic(p.icon)} ${esc(pageLabel(p))}</a>`).join('')}
-            <a href="#/infografis" class="${p0 === 'infografis' ? 'active' : ''}">${ic('chart')} Infografis Penduduk</a>
+            <a href="#/infografis">${ic('chart')} Infografis Penduduk</a>
           </div>
         </div>
         <a href="#/informasi" class="${p0 === 'informasi' ? 'active' : ''}">Informasi</a>
-        <a href="#/highlight" class="${p0 === 'highlight' ? 'active' : ''}">Highlight</a>
-        <a href="${state.isAdmin ? '#/admin' : '#/login'}" class="btn btn-sm btn-primary">${ic('lock')} ${state.isAdmin ? 'Dasbor' : 'Admin'}</a>
+        <a href="#/highlight" class="${p0 === 'highlight' ? 'active' : ''}">Galeri</a>
+        <a href="${state.isAdmin ? '#/admin' : '#/login'}" class="btn btn-sm btn-primary">${ic('lock')} ${state.isAdmin ? 'Dasbor' : 'Masuk'}</a>
       </nav>
     </div>
   </header>
-  <main class="pub-main">${content}</main>
-  ${pubFooter()}`;
+  <div class="pub-frame ${p0 === '' ? 'is-home' : ''}">
+    <aside class="side side-left" aria-label="Jadwal sholat">${sholatPanel()}</aside>
+    <main class="pub-main">${content}</main>
+    <aside class="side side-right" aria-label="Kegiatan rutin">${kegiatanPanel()}</aside>
+  </div>
+  ${pubFooter(ticker, rt)}`;
   bindPublic();
   if (soft) window.scrollTo(0, y); else window.scrollTo(0, 0);
 }
 
-function pubFooter() {
-  const c = state.config;
-  return `<footer class="pub-footer"><div class="pub-footer-inner">
-    <div><b>${esc(desaJenis())} ${esc(desaName())}</b><p class="muted">${esc([c.alamatKantor, instansi()].filter(Boolean).join(' — '))}</p>
-      ${c.telepon ? `<p><a href="${esc(waLink(c.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(c.telepon)}</a></p>` : ''}
-      ${c.emailDesa ? `<p class="muted">${esc(c.emailDesa)}</p>` : ''}</div>
-    <div class="footer-links">${PAGES.slice(0, 5).map((p) => `<a href="#/profil/${p.key}">${esc(pageLabel(p))}</a>`).join('')}<a href="#/infografis">Infografis</a></div>
-    <div class="footer-right"><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang Aplikasi</button>
-      <p class="muted small"><span>${APP.name} v${APP.version}</span> • <span class="copyright" data-copyright title="${esc(APP.copyright)}">${APP.copyright}</span></p></div>
-  </div></footer>`;
+// Footer statis & minimalis (menempel di bawah layar) + running text
+function pubFooter(ticker, rt = {}) {
+  const items = ticker ? String(rt.teks).split('\n').map((t) => t.trim()).filter(Boolean) : [];
+  const dur = Math.max(18, Math.round(items.join(' ').length / ({ lambat: 4, cepat: 12 }[rt.kecepatan] || 7)));
+  return `<footer class="pub-foot">
+    ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" style="animation-duration:${dur}s">${[...items, ...items].map((t) => `<span>${esc(t)}</span>`).join('<i>•</i>')}</div></div></div>` : ''}
+    <div class="foot-line">
+      <span class="foot-left">${esc(`${desaJenis()} ${desaName()}`.trim())}${state.config.telepon ? ` · <a href="${esc(waLink(state.config.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(state.config.telepon)}</a>` : ''}</span>
+      <span class="foot-right"><button class="link-btn" data-install hidden>${ic('phone')} Pasang aplikasi</button><span>${APP.name} v${APP.version}</span><span class="copyright" data-copyright title="${esc(APP.copyright)}">${APP.copyright}</span></span>
+    </div>
+  </footer>`;
 }
 
 function pubHome() {
@@ -420,37 +439,53 @@ function pubHome() {
   const agenda = info.filter((i) => i.tanggalAcara && i.tanggalAcara >= now).sort((a, b) => a.tanggalAcara.localeCompare(b.tanggalAcara)).slice(0, 4);
   const latest = info.slice(0, 6);
   const w = state.config.wilayah || {};
-  const ins = insightsFromStats(s).slice(0, 3);
+  const ins = insightsFromStats(s).slice(0, 4);
+  const jk = [{ v: 'Laki-laki', n: s.laki || 0 }, { v: 'Perempuan', n: s.perempuan || 0 }];
+  const pyr = s.piramida || [];
+  const peak = Math.max(1, ...pyr.map((x) => Math.max(x.l, x.p)));
+  const tiles = [['Penduduk', s.penduduk, 'jiwa', 'users'], ['Kepala Keluarga', s.kk, s.rataKeluarga ? `${String(s.rataKeluarga).replace('.', ',')} jiwa/KK` : 'KK', 'home'], ['Laki-laki', s.laki, s.penduduk ? `${pct(s.laki, s.penduduk).toString().replace('.', ',')}%` : '', 'users'], ['Perempuan', s.perempuan, s.penduduk ? `${pct(s.perempuan, s.penduduk).toString().replace('.', ',')}%` : '', 'users'], ['Usia Produktif', s.produktif, '15–64 tahun', 'chart'], ['Dusun', s.dusun, 'wilayah', 'map']];
   return `
   <section class="hero">
     <div class="hero-text">
-      <span class="eyebrow">${esc([w.kecamatan && 'Kec. ' + w.kecamatan, w.kabupaten, w.provinsi].filter(Boolean).join(' · ') || 'Portal Resmi')}</span>
-      <h1>Selamat datang di ${esc(desaJenis())} ${esc(desaName())}</h1>
-      <p>${esc(state.config.deskripsi || 'Informasi kegiatan, pengumuman, dan layanan desa dalam satu genggaman. Pasang aplikasi ini di ponsel Anda untuk akses cepat.')}</p>
+      <span class="eyebrow">${ic('loc')} ${esc([w.kecamatan && 'Kec. ' + w.kecamatan, w.kabupaten, w.provinsi].filter(Boolean).join(' · ') || 'Portal Data Publik')}</span>
+      <h1>Portal Data & Informasi<br>${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
+      <p>${esc(state.config.deskripsi || 'Data kependudukan terbuka, informasi kegiatan, dan layanan gampong dalam satu tempat — mudah diakses warga kapan saja.')}</p>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="#/informasi">${ic('mega')} Papan Informasi</a>
+        <a class="btn btn-primary" href="#/data">${ic('chart')} Jelajahi Data</a>
+        <a class="btn btn-ghost" href="#/informasi">${ic('mega')} Informasi Terbaru</a>
         <a class="btn btn-ghost" href="#/profil/layanan">${ic('file')} Layanan Administrasi</a>
-        <button class="btn btn-ghost" data-install hidden>${ic('phone')} Pasang Aplikasi</button>
       </div>
     </div>
-    <div class="hero-stats">
-      ${[['Penduduk', s.penduduk], ['Kepala Keluarga', s.kk], ['Laki-laki', s.laki], ['Perempuan', s.perempuan], ['Dusun', s.dusun]].map(([l, v]) => `<div class="hstat"><b>${v != null ? fmtNum(v) : '–'}</b><span>${l}</span></div>`).join('')}
+    <div class="hero-tiles">${tiles.map(([l, v, sub, i]) => `<a class="tile" href="#/data"><span class="tile-ic">${ic(i)}</span><b>${v != null ? fmtNum(v) : '–'}</b><span>${esc(l)}</span><small>${esc(sub)}</small></a>`).join('')}</div>
+  </section>
+
+  ${s.penduduk ? `<section class="section">
+    <div class="section-head"><h2>${ic('chart')} Visualisasi Demografi</h2><a href="#/infografis" class="link">Infografis lengkap →</a></div>
+    <div class="viz-grid">
+      <div class="panel viz"><h3>Jenis Kelamin</h3>${donut(jk, { size: 170, center: fmtNum(s.penduduk), sub: 'jiwa' })}</div>
+      <div class="panel viz viz-wide"><h3>Piramida Penduduk</h3>${pyr.length ? `<div class="pyramid compact"><div class="pyr-head"><span>Laki-laki</span><span></span><span>Perempuan</span></div>${[...pyr].reverse().map((x) => `<div class="pyr-row"><span class="pyr-l"><i style="width:${(x.l / peak) * 100}%"></i><b>${x.l}</b></span><span class="pyr-g">${esc(x.g)}</span><span class="pyr-p"><i style="width:${(x.p / peak) * 100}%"></i><b>${x.p}</b></span></div>`).join('')}</div>` : emptyBox('Belum ada data')}</div>
+      ${(s.breakdown?.dusun || []).length ? `<div class="panel viz"><h3>Penduduk per Dusun</h3>${donut(s.breakdown.dusun, { size: 170, center: String(s.breakdown.dusun.length), sub: 'dusun' })}</div>` : ''}
     </div>
   </section>
-  <div class="home-grid">
-    <aside class="home-left">${sholatPanel()}</aside>
-    <div class="home-center">
-      ${ins.length ? `<section class="section"><div class="section-head"><h2>${ic('bulb')} Insight Penduduk</h2><a href="#/infografis" class="link">Infografis lengkap →</a></div>
-        <div class="insight-list">${ins.map((x) => `<div class="insight">${ic(x.icon)}<p>${esc(x.text)}</p></div>`).join('')}</div></section>` : ''}
-      ${pubHighlight(false)}
-      ${agenda.length ? `<section class="section"><div class="section-head"><h2>${ic('cal')} Agenda Terdekat</h2></div>
-        <div class="agenda">${agenda.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="agenda-item" href="#/informasi/${a.id}"><div class="agenda-date"><b>${d.getDate()}</b><span>${d.toLocaleString('id-ID', { month: 'short' })}</span></div><div><h4>${esc(a.judul)}</h4><p class="muted small">${esc([a.waktu, a.lokasi].filter(Boolean).join(' • '))}</p></div></a>`; }).join('')}</div></section>` : ''}
-      <section class="section"><div class="section-head"><h2>${ic('mega')} Papan Informasi</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
-        ${latest.length ? `<div class="cards">${latest.map(infoCard).join('')}</div>` : emptyBox('Belum ada informasi yang diterbitkan.')}
-      </section>
-    </div>
-    <aside class="home-right">${kegiatanPanel()}</aside>
-  </div>`;
+  <section class="section">
+    <div class="section-head"><h2>${ic('db')} Data Publik</h2><span class="muted small">Klik kartu untuk melihat rincian</span></div>
+    ${dataPortalCards()}
+  </section>` : ''}
+
+  ${ins.length ? `<section class="section"><div class="section-head"><h2>${ic('bulb')} Insight Penduduk</h2></div>
+    <div class="insight-list">${ins.map((x) => `<div class="insight">${ic(x.icon)}<p>${esc(x.text)}</p></div>`).join('')}</div></section>` : ''}
+
+  <div class="two-col">
+    <section class="section"><div class="section-head"><h2>${ic('mega')} Informasi Terbaru</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
+      ${latest.length ? `<div class="cards">${latest.map(infoCard).join('')}</div>` : emptyBox('Belum ada informasi yang diterbitkan.')}
+    </section>
+    <section class="section"><div class="section-head"><h2>${ic('cal')} Agenda</h2></div>
+      ${agenda.length ? `<div class="agenda">${agenda.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="agenda-item" href="#/informasi/${a.id}"><div class="agenda-date"><b>${d.getDate()}</b><span>${d.toLocaleString('id-ID', { month: 'short' })}</span></div><div><h4>${esc(a.judul)}</h4><p class="muted small">${esc([a.waktu, a.lokasi].filter(Boolean).join(' • '))}</p></div></a>`; }).join('')}</div>` : emptyBox('Belum ada agenda terdekat.')}
+      <div class="section-head" style="margin-top:22px"><h2>${ic('file')} Layanan Publik</h2></div>
+      <div class="quicklinks">${PAGES.filter((p) => ['layanan', 'struktur', 'visimisi', 'apbdes', 'potensi', 'kontak'].includes(p.key)).map((p) => `<a href="#/profil/${p.key}">${ic(p.icon)}<span>${esc(pageLabel(p))}</span></a>`).join('')}</div>
+    </section>
+  </div>
+  ${pubHighlight(false)}`;
 }
 
 function igPostCard(p) {
@@ -469,6 +504,13 @@ function pubHighlight(full) {
   return `<section class="section">${head}<div class="ig-grid">${list.map(igPostCard).join('')}</div></section>`;
 }
 
+// Tanda "Diterbitkan oleh …"
+function penulisSign(i, full = false) {
+  const p = i.penulis; if (!p || !p.nama) return '';
+  const role = ROLE_LABEL[p.role] || '';
+  const ttl = [role, p.nama].filter(Boolean).join(' ');
+  return `<div class="byline">${avatar(p, 'sm')}<span>Diterbitkan oleh <b>${esc(ttl)}</b>${full && p.jabatan ? ` <small class="muted">· ${esc(p.jabatan)}</small>` : ''}${full && i.diubahOleh?.nama && i.diubahOleh.nama !== p.nama ? `<br><small class="muted">Diperbarui oleh ${esc([ROLE_LABEL[i.diubahOleh.role], i.diubahOleh.nama].filter(Boolean).join(' '))}</small>` : ''}</span></div>`;
+}
 function infoCard(i) {
   return `<article class="info-card">
     ${i.gambar ? `<a href="#/informasi/${i.id}" class="info-img"><img loading="lazy" src="${esc(i.gambar)}" alt=""></a>` : ''}
@@ -477,6 +519,7 @@ function infoCard(i) {
       <h3><a href="#/informasi/${i.id}">${esc(i.judul)}</a></h3>
       <p class="muted small">${esc(fmtDate(i.createdAt))}${i.tanggalAcara ? ` • Acara: ${esc(fmtDate(i.tanggalAcara))}` : ''}</p>
       <p class="excerpt">${esc(String(i.isi || '').replace(/[*_~]/g, '').slice(0, 160))}${String(i.isi || '').length > 160 ? '…' : ''}</p>
+      ${penulisSign(i)}
       <div class="info-actions"><a class="btn btn-sm btn-ghost" href="#/informasi/${i.id}">Baca</a>
       <a class="btn btn-sm btn-wa" href="${esc(waShareLink(infoMessage(i)))}" target="_blank" rel="noopener">${ic('wa')} Bagikan</a></div>
     </div></article>`;
@@ -486,6 +529,7 @@ function infoMessage(i, withLink = true) {
   if (i.tanggalAcara) parts.push(`📅 ${fmtDate(i.tanggalAcara)}${i.waktu ? ' • ' + i.waktu : ''}`);
   if (i.lokasi) parts.push(`📍 ${i.lokasi}`);
   parts.push('', i.isi || '');
+  if (i.penulis?.nama) parts.push('', `_Diterbitkan oleh ${[ROLE_LABEL[i.penulis.role], i.penulis.nama].filter(Boolean).join(' ')}_`);
   if (withLink && i.id) parts.push('', `Selengkapnya: ${appLink('/informasi/' + i.id)}`);
   if (state.config.waFooter) parts.push('', state.config.waFooter);
   return parts.join('\n');
@@ -513,6 +557,7 @@ function pubInfoDetail(id) {
     <div class="info-meta"><span class="badge">${esc(i.kategori || 'Informasi')}</span></div>
     <h1>${esc(i.judul)}</h1>
     <p class="muted">Diterbitkan ${esc(fmtDate(i.createdAt, true))}</p>
+    ${penulisSign(i, true)}
     ${(i.tanggalAcara || i.lokasi) ? `<div class="event-box">${i.tanggalAcara ? `<span>${ic('cal')} ${esc(fmtDate(i.tanggalAcara))}${i.waktu ? ' • ' + esc(i.waktu) : ''}</span>` : ''}${i.lokasi ? `<span>${ic('loc')} ${esc(i.lokasi)}</span>` : ''}</div>` : ''}
     ${i.gambar ? `<img class="article-img" src="${esc(i.gambar)}" alt="">` : ''}
     <div class="article-body">${waFormat(i.isi)}</div>
@@ -532,6 +577,7 @@ function bindPublic() {
     btn.onclick = (e) => { e.stopPropagation(); const o = !dd.classList.contains('open'); $$('.dropdown.open').forEach((x) => x.classList.remove('open')); dd.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); };
   });
   document.addEventListener('click', closeDropdowns);
+  bindDataPortal();
   startPublicTickers();
 }
 function closeDropdowns(e) { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((x) => x.classList.remove('open')); }
@@ -590,9 +636,9 @@ const NAV = [
   ['informasi', 'Papan Informasi', 'mega', 'informasi'], ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast'], ['instagram', 'Instagram', 'ig', 'instagram'],
   ['profil', 'Profil Gampong', 'book', 'profil'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan'],
   ['pengaturan', 'Pengaturan', 'cog', null],
-  ['admin', 'Manajemen Admin', 'shield', 'super'], ['audit', 'Audit Log', 'log', 'super'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super'],
+  ['admin', 'Manajemen Akun', 'shield', 'akun'], ['audit', 'Audit Log', 'log', 'super'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super'],
 ];
-const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : can(p));
+const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : p === 'akun' ? (isSuper() || can('kelolaKadus')) : can(p));
 function updateShellBrand() {
   const b = $('#shell-brand'); if (b) b.innerHTML = `<span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaName())}</b><small>${APP.name} v${APP.version}</small></span>`;
 }
@@ -605,9 +651,9 @@ function renderAdmin(r, soft) {
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
         <a class="brand" id="shell-brand" href="#/admin"></a>
-        <div class="me"><span class="avatar">${esc((state.profile?.nama || state.user?.email || '?').slice(0, 1).toUpperCase())}</span><div><b>${esc(state.profile?.nama || '')}</b><small><span class="badge ${isSuper() ? 'badge-warn' : ''}">${esc(ROLE_LABEL[state.role] || state.role)}</span></small></div></div>
-        <nav class="side-nav">${nav(items.filter((n) => n[3] !== 'super'))}
-          ${isSuper() ? `<small class="nav-group">Super Admin</small>${nav(items.filter((n) => n[3] === 'super'))}` : ''}</nav>
+        <a class="me" href="#/admin/pengaturan" title="Profil saya">${avatar(state.profile)}<div><b>${esc(state.profile?.nama || '')}</b><small><span class="badge ${isSuper() ? 'badge-warn' : isKadus() ? 'badge-ok' : ''}">${esc(ROLE_LABEL[state.role] || state.role)}${isKadus() ? ' · ' + esc(myDusun()) : ''}</span></small></div></a>
+        <nav class="side-nav">${nav(items.filter((n) => !['super', 'akun'].includes(n[3])))}
+          ${items.some((n) => ['super', 'akun'].includes(n[3])) ? `<small class="nav-group">${isSuper() ? 'Super Admin' : 'Akun'}</small>${nav(items.filter((n) => ['super', 'akun'].includes(n[3])))}` : ''}</nav>
         <div class="side-foot">
           <a href="#/" target="_blank">${ic('ext')}<span>Lihat Situs Publik</span></a>
           <button id="logout">${ic('out')}<span>Keluar</span></button>
@@ -710,6 +756,7 @@ function viewDashboard(main) {
   }
   if (!state.wargaReady) { main.innerHTML = loadingBox(); return; }
   const all = state.warga; const aktif = all.filter(isAktif);
+  if (isKadus()) $('#page-title').textContent = `Dasbor Dusun ${myDusun()}`;
   const kk = aktif.filter((w) => norm(w.shdk) === 'kepala keluarga').length;
   const l = aktif.filter((w) => norm(w.jk).startsWith('l')).length;
   const p = aktif.filter((w) => norm(w.jk).startsWith('p')).length;
@@ -721,12 +768,13 @@ function viewDashboard(main) {
   main.innerHTML = `
   ${!all.length ? `<div class="callout">${ic('upload')}<div><b>Mulai isi data warga</b><p>Import dari Excel atau tambahkan secara manual.</p></div>${can('import') ? '<a class="btn btn-primary" href="#/admin/import">Import Excel</a>' : ''}${can('wargaEdit') ? '<a class="btn btn-ghost" href="#/admin/warga/baru">Input Manual</a>' : ''}</div>` : ''}
   <div class="stat-grid">
-    ${statCard('Penduduk Aktif', t, `${fmtNum(all.length)} total tercatat`, 'users')}
-    ${statCard('Kepala Keluarga', kk, kk ? `rata-rata ${(t / kk).toFixed(1).replace('.', ',')} jiwa/KK` : 'berdasarkan SHDK', 'home')}
-    ${statCard('Laki-laki / Perempuan', `${fmtNum(l)} / ${fmtNum(p)}`, t ? `${Math.round(l / t * 100)}% : ${Math.round(p / t * 100)}%` : '', 'users')}
-    ${statCard('Penerima Bansos', bansos, t ? `${Math.round(bansos / t * 100)}% penduduk aktif` : '', 'db')}
-    ${statCard('Dusun', state.dusun.length, `${state.dusun.filter((d) => d.kepalaNama).length} punya kepala dusun`, 'map')}
-    ${statCard('Terhubung WhatsApp', noHp, t ? `${Math.round(noHp / t * 100)}% punya nomor HP` : '', 'wa')}
+    ${statCard('Penduduk Aktif', t, `${fmtNum(all.length)} total tercatat`, 'users', '#/admin/warga?s=aktif')}
+    ${statCard('Kepala Keluarga', kk, kk ? `rata-rata ${(t / kk).toFixed(1).replace('.', ',')} jiwa/KK` : 'berdasarkan SHDK', 'home', '#/admin/warga?s=kk')}
+    ${statCard('Laki-laki', l, t ? `${Math.round(l / t * 100)}% penduduk aktif` : '', 'users', '#/admin/warga?s=laki')}
+    ${statCard('Perempuan', p, t ? `${Math.round(p / t * 100)}% penduduk aktif` : '', 'users', '#/admin/warga?s=perempuan')}
+    ${statCard('Penerima Bansos', bansos, t ? `${Math.round(bansos / t * 100)}% penduduk aktif` : '', 'db', '#/admin/warga?s=penerima')}
+    ${isKadus() ? '' : statCard('Dusun', state.dusun.length, `${state.dusun.filter((d) => d.kepalaNama).length} punya kepala dusun`, 'map', can('dusun') ? '#/admin/dusun' : '')}
+    ${statCard('Terhubung WhatsApp', noHp, t ? `${Math.round(noHp / t * 100)}% punya nomor HP` : '', 'wa', '#/admin/warga?s=adaHp')}
   </div>
   <div class="quick">
     ${can('wargaEdit') ? `<a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>` : ''}
@@ -750,10 +798,16 @@ function viewDashboard(main) {
   </div>`;
   $$('[data-link]', main).forEach((el) => el.onclick = () => { location.hash = el.dataset.link; });
 }
-const statCard = (label, value, sub, icon) => `<div class="stat"><span class="stat-ic">${ic(icon)}</span><div><span class="stat-label">${esc(label)}</span><b class="stat-val">${typeof value === 'number' ? fmtNum(value) : esc(value)}</b><small class="muted">${esc(sub)}</small></div></div>`;
+const statCard = (label, value, sub, icon, link) => `<${link ? `a href="${esc(link)}"` : 'div'} class="stat ${link ? 'stat-link' : ''}"><span class="stat-ic">${ic(icon)}</span><div><span class="stat-label">${esc(label)}</span><b class="stat-val">${typeof value === 'number' ? fmtNum(value) : esc(value)}</b><small class="muted">${esc(sub)}</small></div>${link ? `<span class="stat-go">${ic('chev')}</span>` : ''}</${link ? 'a' : 'div'}>`;
+const SPECIAL = { aktif: 'Penduduk aktif', kk: 'Kepala keluarga', laki: 'Laki-laki', perempuan: 'Perempuan', penerima: 'Penerima bansos', adaHp: 'Punya nomor WhatsApp', tanpaHp: 'Tanpa nomor HP' };
+const specialMatch = (w, k) => ({
+  aktif: () => isAktif(w), kk: () => isAktif(w) && norm(w.shdk) === 'kepala keluarga', laki: () => isAktif(w) && norm(w.jk).startsWith('l'), perempuan: () => isAktif(w) && norm(w.jk).startsWith('p'),
+  penerima: () => isAktif(w) && w.bansos && norm(w.bansos) !== 'tidak menerima', adaHp: () => isAktif(w) && !!waNumber(w.noHp), tanpaHp: () => !waNumber(w.noHp),
+}[k] || (() => true))();
 
 // ---------------------------------------------------------------- Data Warga
 function filterWarga(list, f) {
+  if (f.special) list = list.filter((w) => specialMatch(w, f.special));
   const q = norm(f.q);
   const fv = norm(f.value);
   const exact = !f.field || !f.value || f.value === '(Kosong)' || list.some((w) => norm(valueOf(w, f.field)) === fv);
@@ -778,6 +832,7 @@ function sortWarga(list, key) {
   });
 }
 function dusunOptions(sel, { all = true, none = true } = {}) {
+  if (isKadus()) return `<option value="${esc(myDusun())}" selected>${esc(myDusun())}</option>`;
   return `${all ? '<option value="">Semua dusun</option>' : ''}${state.dusun.map((d) => `<option ${sel === d.nama ? 'selected' : ''} value="${esc(d.nama)}">${esc(d.nama)}</option>`).join('')}${none ? `<option value="__none" ${sel === '__none' ? 'selected' : ''}>(Tanpa dusun)</option>` : ''}`;
 }
 
@@ -788,6 +843,7 @@ function viewWarga(main, r) {
   const f = state.filters;
   if (r.query.has('field')) { f.field = r.query.get('field'); f.value = r.query.get('value') ?? ''; f.page = 1; if (f.field === 'dusun') { f.dusun = f.value && f.value !== '(Kosong)' ? f.value : '__none'; f.field = ''; f.value = ''; } history.replaceState(null, '', '#/admin/warga'); }
   if (r.query.has('dusun')) { f.dusun = r.query.get('dusun'); f.page = 1; history.replaceState(null, '', '#/admin/warga'); }
+  if (r.query.has('s')) { Object.assign(f, { special: r.query.get('s'), q: '', field: '', value: '', jk: '', page: 1 }); history.replaceState(null, '', '#/admin/warga'); }
   if (!state.wargaReady) { main.innerHTML = loadingBox(); return; }
   const cats = categoryFields().filter((c) => c.key !== 'dusun');
   main.innerHTML = `
@@ -808,6 +864,7 @@ function viewWarga(main, r) {
     <select id="w-sort"><option value="nama">Urut: Nama</option><option value="dusun">Urut: Dusun</option><option value="umur">Urut: Umur</option><option value="terbaru">Urut: Terbaru</option></select>
     <select id="w-per"><option>25</option><option>50</option><option>100</option><option>250</option></select>
   </div>
+  ${f.special ? `<div class="filter-chip">Saringan: <b>${esc(SPECIAL[f.special] || f.special)}</b> <button class="icon-btn" id="w-special" title="Hapus saringan">✕</button></div>` : ''}
   <div id="w-bulk" class="bulk" hidden></div>
   <div id="w-table"></div>`;
   $('#w-sort').value = f.sort; $('#w-per').value = String(f.per);
@@ -831,7 +888,8 @@ function viewWarga(main, r) {
   vIn.addEventListener('input', debounce(() => { f.value = vIn.value; upd(); }, 300));
   $('#w-sort').onchange = (e) => { f.sort = e.target.value; drawTable(); };
   $('#w-per').onchange = (e) => { f.per = Number(e.target.value); upd(); };
-  $('#w-reset').onclick = () => { Object.assign(f, { q: '', dusun: '', field: '', value: '', jk: '', page: 1 }); render(); };
+  $('#w-reset').onclick = () => { Object.assign(f, { q: '', dusun: '', field: '', value: '', jk: '', special: '', page: 1 }); render(); };
+  $('#w-special')?.addEventListener('click', () => { f.special = ''; f.page = 1; render(); });
   $('#w-export')?.addEventListener('click', () => exportWargaDialog(currentList(), filterTitle()));
   $('#w-wa')?.addEventListener('click', () => { const ids = state.selected.size ? [...state.selected] : currentList().map((w) => w.id); sessionStorage.setItem('bc:ids', JSON.stringify(ids)); location.hash = '#/admin/broadcast?target=ids'; });
   drawTable();
@@ -843,6 +901,8 @@ function filterTitle() {
   if (f.jk) p.push(f.jk === 'l' ? 'Laki-laki' : 'Perempuan');
   if (f.field) p.push(`${categoryFields().find((c) => c.key === f.field)?.label}: ${f.value || '(kosong)'}`);
   if (f.q) p.push(`Pencarian "${f.q}"`);
+  if (f.special) p.unshift(SPECIAL[f.special] || f.special);
+  if (isKadus()) p.unshift(`Dusun ${myDusun()}`);
   return 'Data Warga' + (p.length ? ' — ' + p.join(', ') : '');
 }
 function drawTable() {
@@ -873,7 +933,7 @@ function drawTable() {
 function drawBulk() {
   const el = $('#w-bulk'); if (!el) return;
   const n = state.selected.size; el.hidden = !n;
-  el.innerHTML = `<b>${n} warga dipilih</b>${can('export') ? `<button class="btn btn-sm btn-ghost" id="b-export">${ic('download')} Ekspor</button>` : ''}${can('wargaEdit') ? `<button class="btn btn-sm btn-ghost" id="b-dusun">${ic('map')} Pindah dusun</button>` : ''}${can('wargaDelete') ? `<button class="btn btn-sm btn-danger" id="b-del">${ic('trash')} Hapus</button>` : ''}<button class="btn btn-sm btn-ghost" id="b-clear">Batal pilih</button>`;
+  el.innerHTML = `<b>${n} warga dipilih</b>${can('export') ? `<button class="btn btn-sm btn-ghost" id="b-export">${ic('download')} Ekspor</button>` : ''}${can('wargaEdit') && !isKadus() ? `<button class="btn btn-sm btn-ghost" id="b-dusun">${ic('map')} Pindah dusun</button>` : ''}${can('wargaDelete') ? `<button class="btn btn-sm btn-danger" id="b-del">${ic('trash')} Hapus</button>` : ''}<button class="btn btn-sm btn-ghost" id="b-clear">Batal pilih</button>`;
   if (!n) return;
   const sel = () => state.warga.filter((w) => state.selected.has(w.id));
   $('#b-export')?.addEventListener('click', () => exportWargaDialog(sortWarga(sel(), state.filters.sort), `Data Warga Terpilih (${n})`));
@@ -929,11 +989,11 @@ function fieldInput(f, rec) {
   switch (f.type) {
     case 'textarea': return `<textarea ${base} rows="2">${v}</textarea>`;
     case 'date': return `<input type="date" ${base} value="${v}">`;
-    case 'number': return `<input type="number" ${base} value="${v}" ${f.key === 'umur' ? 'placeholder="Otomatis dari tgl lahir" min="0" max="150"' : 'min="0"'}>`;
+    case 'number': return f.key === 'umur' ? `<input type="number" ${base} value="${v}" placeholder="Otomatis dari tgl lahir" min="0" max="150">` : `<input ${base} value="${esc(fmtThousand(rec?.[f.key]))}" data-num placeholder="0">`;
     case 'nik': return `<input ${base} value="${v}" inputmode="numeric" maxlength="16" placeholder="16 digit angka">`;
     case 'phone': return `<div class="input-group"><input type="tel" ${base} value="${v}" placeholder="08xxxxxxxxxx" inputmode="tel"><a class="btn btn-wa" id="wa-test" target="_blank" rel="noopener" title="Buka WhatsApp">${ic('wa')}</a></div>`;
     case 'wilayah': return `<input ${base} value="${v}" data-id="${esc(rec?.[f.key + 'Id'] || '')}" placeholder="Ketik nama ${esc(f.label.toLowerCase())}…">`;
-    case 'dusun': return `<input ${base} value="${v}" placeholder="Ketik nama dusun…">`;
+    case 'dusun': return isKadus() ? `<input ${base} value="${esc(myDusun())}" readonly title="Kepala Dusun hanya dapat mengelola warga dusunnya">` : `<input ${base} value="${v}" placeholder="Ketik nama dusun…">`;
     case 'select': return `<input ${base} value="${v}" data-master="${f.master}" placeholder="Ketik untuk mencari…">`;
     default: return `<input ${base} value="${v}">`;
   }
@@ -965,8 +1025,9 @@ function viewWargaForm(main, id) {
   // dropdown master
   $$('input[data-master]', form).forEach((inp) => attachAutocomplete(inp, { source: () => masterItems(inp.dataset.master) }));
   // dusun
+  bindThousands(form);
   const dIn = $('#f_dusun', form);
-  attachAutocomplete(dIn, { source: () => state.dusun.map((d) => ({ label: d.nama, sub: d.kepalaNama ? 'Kadus: ' + d.kepalaNama : '' })), smallList: 12 });
+  if (!isKadus()) attachAutocomplete(dIn, { source: () => state.dusun.map((d) => ({ label: d.nama, sub: d.kepalaNama ? 'Kadus: ' + d.kepalaNama : '' })), smallList: 12 });
   // wilayah
   bindWilayahChain(['provinsi', 'kabupaten', 'kecamatan', 'kelurahan'].map((k) => $('#f_' + k, form)));
   // umur otomatis
@@ -995,13 +1056,14 @@ function viewWargaForm(main, id) {
     for (const f of fields) {
       const el = form.elements[f.key]; if (!el) continue;
       let v = el.value.trim();
-      if (f.type === 'number') v = v === '' ? '' : Number(v);
+      if (f.type === 'number') v = parseNum(v);
       else if (f.type === 'phone') v = normalizePhone(v);
       else if (f.type === 'select') v = canonical(f.key, v, masterItems(f.master));
       data[f.key] = v;
       if (f.type === 'wilayah') data[f.key + 'Id'] = el.dataset.id || '';
     }
     if (data.tglLahir) { const a = ageFromDate(data.tglLahir); if (a !== '') data.umur = a; }
+    if (isKadus()) data.dusun = myDusun();
     const errs = [];
     if (!data.nama) errs.push(['nama', 'Nama wajib diisi']);
     if (data.nik && !/^\d{16}$/.test(data.nik)) errs.push(['nik', 'NIK harus 16 digit angka']);
@@ -1014,7 +1076,7 @@ function viewWargaForm(main, id) {
     }
     try {
       await addNewMasterValues([data]);
-      await ensureDusun([data.dusun]);
+      if (!isKadus()) await ensureDusun([data.dusun]);
       if (rec) {
         await F.updateDoc(C(`warga/${rec.id}`), { ...clean(data), updatedAt: F.serverTimestamp() });
         const ch = diff(rec, data, (k) => fieldByKey(k)?.label || k);
@@ -1289,7 +1351,7 @@ function viewDusun(main) {
       <div class="kadus">${d.kepalaNama ? `<span class="muted small">Kepala Dusun</span><b>${esc(d.kepalaNama)}</b>${waNumber(d.kepalaHp) ? `<a class="wa-link" target="_blank" rel="noopener" href="${esc(waLink(d.kepalaHp, `Assalamu'alaikum Bapak/Ibu ${d.kepalaNama}, `))}">${ic('wa')} ${esc(d.kepalaHp)}</a>` : ''}` : '<span class="muted">Kepala dusun belum diisi</span>'}</div>
       <div class="dusun-stats"><span><b>${ak.length}</b> jiwa</span><span><b>${ak.filter((w) => norm(w.shdk) === 'kepala keluarga').length}</b> KK</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('l')).length}</b> L</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('p')).length}</b> P</span></div>
       ${d.keterangan ? `<p class="muted small">${esc(d.keterangan)}</p>` : ''}
-      <div class="dusun-actions">${can('warga') ? `<a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a>` : ''}${can('export') ? `<button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button>` : ''}${can('broadcast') ? `<button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button>` : ''}</div>
+      <div class="dusun-actions">${can('warga') ? `<a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a>` : ''}${can('export') ? `<button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button>` : ''}${can('broadcast') ? `<button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button>` : ''}${isSuper() || can('kelolaKadus') ? `<a class="btn btn-sm btn-ghost" href="#/admin/admin?kadus=${encodeURIComponent(d.nama)}">${ic('lock')} Akun Kadus</a>` : ''}</div>
     </div>`;
   }).join('') || emptyBox('Belum ada dusun. Tambahkan dusun atau import data warga.')}</div>`;
   $('#d-add').onclick = () => dusunForm(null);
@@ -1505,7 +1567,7 @@ function viewInformasi(main, r) {
   <div class="info-admin">${state.info.map((i) => `<div class="info-row">
     ${i.gambar ? `<img src="${esc(i.gambar)}" alt="">` : `<div class="info-ph">${ic('mega')}</div>`}
     <div class="info-row-main"><div class="info-meta"><span class="badge">${esc(i.kategori || '-')}</span><span class="badge ${i.published ? 'badge-ok' : 'badge-muted'}">${i.published ? 'Terbit' : 'Draf'}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}${i.broadcastCount ? `<span class="badge">${ic('wa')} ${i.broadcastCount} terkirim</span>` : ''}</div>
-      <h4>${esc(i.judul)}</h4><p class="muted small">${esc(fmtDate(i.createdAt, true))}${i.tanggalAcara ? ' • Acara ' + esc(fmtDate(i.tanggalAcara)) : ''}</p></div>
+      <h4>${esc(i.judul)}</h4><p class="muted small">${esc(fmtDate(i.createdAt, true))}${i.tanggalAcara ? ' • Acara ' + esc(fmtDate(i.tanggalAcara)) : ''}${i.penulis?.nama ? ` • oleh ${esc([ROLE_LABEL[i.penulis.role], i.penulis.nama].filter(Boolean).join(' '))}` : ''}</p></div>
     <div class="info-row-actions">${can('broadcast') ? '' : '<!--'}<button class="btn btn-sm btn-wa" data-bc="${i.id}">${ic('wa')} Sebarkan</button>${can('broadcast') ? '' : '-->'}<button class="icon-btn" data-copy="${i.id}" title="Salin teks WA">${ic('copy')}</button><button class="icon-btn" data-pin="${i.id}" title="Sematkan">${ic('pin')}</button><button class="icon-btn" data-ed="${i.id}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-del="${i.id}" title="Hapus">${ic('trash')}</button></div>
   </div>`).join('') || emptyBox('Belum ada informasi. Tulis pengumuman, berita kegiatan, atau acara desa pertama Anda.')}</div>`;
   $('#i-new').onclick = () => infoForm(null);
@@ -1537,7 +1599,7 @@ function infoForm(i) {
   const form = $('#if', m.el);
   attachAutocomplete(form.elements.kategori, { source: () => masterItems('kategoriInfo'), smallList: 12 });
   const collect = () => ({ judul: form.elements.judul.value.trim(), kategori: form.elements.kategori.value.trim(), tanggalAcara: form.elements.tanggalAcara.value, waktu: form.elements.waktu.value.trim(), lokasi: form.elements.lokasi.value.trim(), isi: form.elements.isi.value.trim(), gambar, published: form.elements.published.checked, pinned: form.elements.pinned.checked });
-  const prev = () => { $('#if-wa', m.el).innerHTML = waFormat(infoMessage({ ...collect(), id: i?.id || 'ID' })); };
+  const prev = () => { $('#if-wa', m.el).innerHTML = waFormat(infoMessage({ ...collect(), penulis: i?.penulis || penulisNow(), id: i?.id || 'ID' })); };
   form.addEventListener('input', debounce(prev, 200)); prev();
   $('#if-img', m.el).onchange = async (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -1551,8 +1613,8 @@ function infoForm(i) {
     try {
       if (d.kategori && !masterItems('kategoriInfo').some((x) => norm(x) === norm(d.kategori))) await F.setDoc(C('master/kategoriInfo'), { items: F.arrayUnion(d.kategori), label: MASTER_EXTRA_LABELS.kategoriInfo }, { merge: true });
       let id = i?.id;
-      if (i) { await F.updateDoc(C(`informasi/${id}`), { ...d, updatedAt: F.serverTimestamp() }); logAudit('informasi', 'ubah', `Mengubah informasi “${d.judul}”`, { targetId: id, changes: diff(i, d, (k) => ({ judul: 'Judul', isi: 'Isi', kategori: 'Kategori', published: 'Terbit', pinned: 'Sematkan', tanggalAcara: 'Tanggal acara', waktu: 'Waktu', lokasi: 'Lokasi' }[k] || k)) }); }
-      else { const ref = await F.addDoc(F.collection(F.db, 'informasi'), { ...d, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), createdBy: state.user.email }); id = ref.id; logAudit('informasi', 'tambah', `${d.published ? 'Menerbitkan' : 'Membuat draf'} informasi “${d.judul}”`, { targetId: id }); }
+      if (i) { await F.updateDoc(C(`informasi/${id}`), { ...d, diubahOleh: penulisNow(), updatedAt: F.serverTimestamp() }); logAudit('informasi', 'ubah', `Mengubah informasi “${d.judul}”`, { targetId: id, changes: diff(i, d, (k) => ({ judul: 'Judul', isi: 'Isi', kategori: 'Kategori', published: 'Terbit', pinned: 'Sematkan', tanggalAcara: 'Tanggal acara', waktu: 'Waktu', lokasi: 'Lokasi' }[k] || k)) }); }
+      else { const ref = await F.addDoc(F.collection(F.db, 'informasi'), { ...d, penulis: penulisNow(), createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), createdBy: state.user.email }); id = ref.id; logAudit('informasi', 'tambah', `${d.published ? 'Menerbitkan' : 'Membuat draf'} informasi “${d.judul}”`, { targetId: id }); }
       m.close(); toast('Informasi tersimpan', 'success');
       if (thenBc) location.hash = `#/admin/broadcast?info=${id}`;
     } catch (err) { toast('Gagal menyimpan: ' + err.message, 'error'); }
@@ -1599,7 +1661,7 @@ function viewBroadcast(main, r) {
       <h3>Penerima</h3>
       <div class="form-grid">
         <label class="field"><span>Kirim ke</span><select id="bc-target">
-          <option value="all">Semua warga aktif</option><option value="kk">Kepala keluarga saja</option><option value="dusun">Warga satu dusun</option><option value="kadus">Semua kepala dusun</option>${ids ? `<option value="ids">Warga terpilih / hasil saringan (${ids.size})</option>` : ''}
+          <option value="all">${isKadus() ? `Semua warga Dusun ${esc(myDusun())}` : 'Semua warga aktif'}</option><option value="kk">Kepala keluarga saja</option>${isKadus() ? '' : '<option value="dusun">Warga satu dusun</option><option value="kadus">Semua kepala dusun</option>'}${ids ? `<option value="ids">Warga terpilih / hasil saringan (${ids.size})</option>` : ''}
         </select></label>
         <label class="field" id="bc-dusun-wrap" ${bcState.target === 'dusun' ? '' : 'hidden'}><span>Dusun</span><select id="bc-dusun">${dusunOptions(bcState.dusun, { all: false, none: false })}</select></label>
       </div>
@@ -1750,10 +1812,20 @@ function viewPengaturan(main) {
       <label class="field"><span>Sembunyikan nilai dengan jumlah kurang dari (perlindungan privasi)</span><input type="number" id="ig-min" min="1" max="20" value="${esc(ig.min ?? 3)}"></label>
       <p class="muted small">Kategori sensitif seperti penyakit, disabilitas, bansos, dan desil sebaiknya tidak dipublikasikan.</p>
       <button class="btn btn-primary" id="ig-save">Simpan</button></div>
+  </div>
+  <div class="panel"><h3>${ic('mega')} Running Text (footer halaman publik)</h3>
+    <div class="form-grid">
+      <label class="check"><input type="checkbox" id="rt-on" ${c.runningText?.aktif ? 'checked' : ''}> Tampilkan running text</label>
+      <label class="field"><span>Label</span><input id="rt-label" value="${esc(c.runningText?.label || 'Info')}" maxlength="20"></label>
+      <label class="field"><span>Kecepatan</span><select id="rt-speed">${[['lambat', 'Lambat'], ['normal', 'Normal'], ['cepat', 'Cepat']].map(([v, l]) => `<option value="${v}" ${(c.runningText?.kecepatan || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field span-2"><span>Teks (satu pengumuman per baris)</span><textarea id="rt-text" rows="4" maxlength="1500" placeholder="Pembayaran PBB dibuka setiap Senin–Kamis di kantor Keuchik.&#10;Posyandu balita setiap tanggal 10.">${esc(c.runningText?.teks || '')}</textarea></label>
+    </div>
+    <button class="btn btn-primary" id="rt-save">Simpan Running Text</button>
   </div>` : ''}
   <div class="panel-grid two">
     <div class="panel"><h3>${ic('users')} Akun Saya</h3>
-      <dl class="detail"><dt>Nama</dt><dd>${esc(state.profile?.nama || '-')}</dd><dt>Email</dt><dd>${esc(state.user?.email || '')}</dd><dt>Peran</dt><dd>${esc(ROLE_LABEL[state.role] || state.role)}</dd></dl>
+      <div class="profile-card">${avatar(state.profile, 'xl')}<div><b>${esc(state.profile?.nama || '-')}</b><small class="muted">${esc(state.user?.email || '')}</small><span class="badge ${isSuper() ? 'badge-warn' : isKadus() ? 'badge-ok' : ''}">${esc(ROLE_LABEL[state.role] || state.role)}${isKadus() ? ' · Dusun ' + esc(myDusun()) : ''}</span>
+        <div class="row-gap"><label class="btn btn-ghost btn-sm">${ic('upload')} Ganti foto profil<input type="file" accept="image/*" id="av-in" hidden></label>${state.profile?.foto ? '<button class="btn btn-ghost btn-sm" id="av-rm">Hapus foto</button>' : ''}</div></div></div>
       <form id="nmf" class="input-group"><input name="nama" value="${esc(state.profile?.nama || '')}" placeholder="Nama tampilan"><button class="btn btn-ghost">Simpan nama</button></form>
       <h4 class="detail-h">Ubah Password</h4>
       <form id="pwf" class="form-stack">
@@ -1775,7 +1847,7 @@ function viewPengaturan(main) {
     </div>
   </div>
   <div class="panel"><h3>Tentang Aplikasi</h3>
-    <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>v${APP.version} (build ${APP.build})</dd><dt>Database</dt><dd>Firebase Firestore${F.firebaseConfig?.projectId ? ' • ' + esc(F.firebaseConfig.projectId) : ''}</dd><dt>Perlindungan bot</dt><dd>${APP.appCheckSiteKey ? 'App Check (reCAPTCHA v3) aktif' : 'App Check belum diaktifkan — lihat README'}</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd><dt>Hak cipta</dt><dd>${APP.copyright}</dd></dl>
+    <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>v${APP.version} (build ${APP.build})</dd>${isSuper() ? `<dt>Database</dt><dd>Firebase Firestore${F.firebaseConfig?.projectId ? ' • ' + esc(F.firebaseConfig.projectId) : ''}</dd><dt>Perlindungan bot</dt><dd>${APP.appCheckSiteKey ? 'App Check (reCAPTCHA v3) aktif' : 'App Check belum diaktifkan — lihat SECURITY.md'}</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd>` : ''}<dt>Hak cipta</dt><dd>${APP.copyright}</dd></dl>
     <button class="btn btn-ghost btn-sm" id="chk-upd">${ic('refresh')} Periksa pembaruan</button></div>`;
 
   if (can('pengaturan')) {
@@ -1799,6 +1871,12 @@ function viewPengaturan(main) {
       } catch (e) { toast('Gagal: ' + e.message, 'error'); }
     };
     sholatSettingsForm($('#sholat-settings'));
+    $('#rt-save').onclick = async () => {
+      const rt = { aktif: $('#rt-on').checked, label: $('#rt-label').value.trim() || 'Info', kecepatan: $('#rt-speed').value, teks: $('#rt-text').value.trim().slice(0, 1500) };
+      await F.setDoc(C('config/app'), { runningText: rt }, { merge: true });
+      logAudit('pengaturan', 'running_text', `${rt.aktif ? 'Mengaktifkan' : 'Menonaktifkan'} running text`, { detail: rt.teks.slice(0, 300) });
+      toast('Running text disimpan', 'success');
+    };
     $('#ig-save').onclick = async () => {
       const cats = $$('#ig-cats input:checked').map((x) => x.value);
       const min = Math.max(1, Number($('#ig-min').value) || 3);
@@ -1808,6 +1886,16 @@ function viewPengaturan(main) {
       setTimeout(() => updatePublicStats(), 500);
     };
   }
+  $('#av-in').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const foto = await compressImage(f, 192, 0.8);
+      await F.updateDoc(C(`users/${state.user.uid}`), { foto });
+      state.profile = { ...state.profile, foto }; logAudit('auth', 'ubah_foto', 'Mengganti foto profil');
+      toast('Foto profil diperbarui', 'success'); root.dataset.shell = ''; render();
+    } catch (err) { toast('Gagal: ' + err.message, 'error'); }
+  };
+  $('#av-rm')?.addEventListener('click', async () => { await F.updateDoc(C(`users/${state.user.uid}`), { foto: '' }); state.profile = { ...state.profile, foto: '' }; logAudit('auth', 'hapus_foto', 'Menghapus foto profil'); root.dataset.shell = ''; render(); });
   $('#nmf').onsubmit = async (e) => {
     e.preventDefault(); const nama = e.target.elements.nama.value.trim(); if (!nama) return;
     try { await F.updateDoc(C(`users/${state.user.uid}`), { nama }); logAudit('auth', 'ubah_nama', `Mengubah nama tampilan menjadi ${nama}`); toast('Nama disimpan', 'success'); }

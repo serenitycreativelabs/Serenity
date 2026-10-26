@@ -68,7 +68,7 @@ export const instansi = () => {
 };
 export const appLink = (hash = '') => location.origin + location.pathname + (hash ? '#' + hash : '');
 export const emptyBox = (t) => `<div class="empty">${esc(t)}</div>`;
-export const loadingBox = () => '<div class="empty"><span class="spinner"></span> Memuat data…</div>';
+export const loadingBox = () => '<div class="skeleton" aria-busy="true" aria-label="Memuat data"><div class="sk-row"><div class="sk tall"></div><div class="sk tall"></div><div class="sk tall"></div><div class="sk tall"></div></div><div class="sk w60"></div><div class="sk"></div><div class="sk"></div><div class="sk w40"></div><div class="sk"></div></div>';
 export const superEmail = () => (state.authCfg.superEmail || APP.superAdminEmail).toLowerCase();
 
 export async function batchWrite(ops, onProgress) {
@@ -94,8 +94,18 @@ export const PERMS = [
   ['instagram', 'Kelola highlight Instagram', 'Publikasi'],
   ['profil', 'Kelola halaman Profil Gampong', 'Publikasi'],
   ['kegiatan', 'Kelola kegiatan rutin', 'Publikasi'],
-  ['pengaturan', 'Ubah pengaturan desa & jadwal sholat', 'Sistem'],
+  ['pengaturan', 'Ubah pengaturan desa, jadwal sholat & running text', 'Sistem'],
+  ['kelolaKadus', 'Buat & kelola akun login Kepala Dusun', 'Sistem'],
 ];
+// Hak akses yang boleh diberikan kepada akun Kepala Dusun (hanya untuk dusunnya sendiri)
+export const KADUS_PERMS = [
+  ['warga', 'Lihat data warga dusunnya'],
+  ['wargaEdit', 'Tambah & ubah warga dusunnya'],
+  ['wargaDelete', 'Hapus warga dusunnya'],
+  ['export', 'Ekspor PDF / Excel data dusunnya'],
+  ['broadcast', 'Kirim WhatsApp ke warga dusunnya'],
+];
+export const KADUS_DEFAULT = ['warga', 'wargaEdit', 'export', 'broadcast'];
 export const PERM_PRESETS = {
   operator: { label: 'Operator Data', perms: ['warga', 'wargaEdit', 'import', 'export', 'dusun', 'master'] },
   humas: { label: 'Humas / Informasi', perms: ['informasi', 'broadcast', 'instagram', 'profil', 'kegiatan'] },
@@ -103,8 +113,21 @@ export const PERM_PRESETS = {
   penuh: { label: 'Admin Penuh', perms: PERMS.map((p) => p[0]) },
 };
 export const isSuper = () => state.role === 'superadmin';
-export const can = (p) => isSuper() || !!state.perms?.[p];
-export const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin' };
+export const isKadus = () => state.role === 'kadus';
+export const myDusun = () => (isKadus() ? state.profile?.dusun || '' : '');
+export const can = (p) => {
+  if (isSuper()) return true;
+  if (isKadus() && !KADUS_PERMS.some(([k]) => k === p)) return false;
+  return !!state.perms?.[p];
+};
+export const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin', kadus: 'Kepala Dusun' };
+// Avatar: foto profil atau inisial nama
+export function avatar(u, size = '') {
+  const nama = u?.nama || u?.email || '?';
+  return u?.foto ? `<span class="avatar ${size}"><img src="${esc(u.foto)}" alt=""></span>` : `<span class="avatar ${size}">${esc(String(nama).trim().slice(0, 1).toUpperCase())}</span>`;
+}
+// Label penulis untuk tanda "Diterbitkan oleh"
+export const penulisNow = () => clean({ uid: state.user?.uid, nama: state.profile?.nama || state.user?.email || '', role: state.role, jabatan: state.profile?.jabatan || (isKadus() ? `Kepala Dusun ${myDusun()}` : ''), foto: state.profile?.foto || '' });
 
 // ---------------------------------------------------------------- audit log
 const SESSION_ID = Math.random().toString(36).slice(2, 10);
@@ -118,7 +141,7 @@ function deviceInfo() {
 export const AUDIT_CATS = {
   auth: 'Login & Akun', warga: 'Data Warga', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Data Master',
   informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil Gampong', kegiatan: 'Kegiatan Rutin',
-  pengaturan: 'Pengaturan', admin: 'Manajemen Admin', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
+  pengaturan: 'Pengaturan', admin: 'Manajemen Akun', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
 };
 // Catat aktivitas. cat = kategori; action = kode singkat; label = kalimat yang mudah dibaca
 export function logAudit(cat, action, label, extra = {}) {

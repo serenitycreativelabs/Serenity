@@ -294,3 +294,37 @@ export function authErrorMessage(e) {
   };
   return map[c] || (e?.message || 'Terjadi kesalahan.');
 }
+
+// ---------- Angka dengan pemisah ribuan otomatis (1.250.000) ----------
+export const parseNum = (v) => {
+  const s = String(v ?? '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+  return s === '' || s === '-' ? '' : Number(s);
+};
+export const fmtThousand = (v) => {
+  if (v === '' || v == null) return '';
+  const n = typeof v === 'number' ? v : parseNum(v);
+  if (n === '' || Number.isNaN(n)) return '';
+  const [i, d] = String(Math.abs(n)).split('.');
+  return (n < 0 ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + d : '');
+};
+// Memasang format otomatis pada <input>; posisi kursor dijaga saat mengetik
+export function attachThousands(input) {
+  if (input._thousands) return;
+  input._thousands = true;
+  input.setAttribute('inputmode', 'numeric');
+  input.setAttribute('autocomplete', 'off');
+  if (input.value) input.value = fmtThousand(input.value);
+  input.addEventListener('input', () => {
+    const pos = input.selectionStart ?? input.value.length;
+    const digitsBefore = input.value.slice(0, pos).replace(/\D/g, '').length;
+    const raw = input.value.replace(/[^\d,]/g, '');
+    const [i, d] = raw.split(',');
+    const formatted = (i || '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d !== undefined ? ',' + d.slice(0, 2) : '');
+    input.value = formatted;
+    let p = 0, seen = 0;
+    while (p < formatted.length && seen < digitsBefore) { if (/\d/.test(formatted[p])) seen++; p++; }
+    try { input.setSelectionRange(p, p); } catch { /* */ }
+  });
+}
+// Pasang ke semua input bertanda data-num di dalam elemen
+export const bindThousands = (rootEl) => rootEl.querySelectorAll('input[data-num]').forEach(attachThousands);

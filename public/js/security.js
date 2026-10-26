@@ -1,6 +1,6 @@
 // Super Admin: login khusus, manajemen admin, audit log, cadangan & pemulihan (restore JSON)
 import { APP } from './config.js';
-import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, isSuper, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
+import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, KADUS_PERMS, KADUS_DEFAULT, isSuper, can, avatar, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
 import { esc, $, $$, norm, debounce, toDate, fmtDate, fmtNum, todayISO, toast, modal, confirmDialog, promptDialog, downloadBlob, authErrorMessage } from './ui.js';
 import { exportExcel, exportPdf } from './exporter.js';
 
@@ -36,29 +36,46 @@ export function openSuperLogin() {
   $('#sa-f', m.el).onsubmit = go;
 }
 
-// ---------------------------------------------------------------- Manajemen Admin
+// ---------------------------------------------------------------- Manajemen Akun (Admin & Kepala Dusun)
 let usersCache = [];
-export function viewAdmins(main) {
+const canKadusMgmt = () => isSuper() || can('kelolaKadus');
+export function viewAdmins(main, r) {
   state.view = 'form';
   main.innerHTML = loadingBox();
-  F.getDocs(F.collection(F.db, 'users')).then((s) => {
-    usersCache = s.docs.map((d) => ({ uid: d.id, ...d.data() })).sort((a, b) => (a.role === 'superadmin' ? -1 : 1) - (b.role === 'superadmin' ? -1 : 1) || String(a.nama).localeCompare(String(b.nama)));
+  const q = isSuper() ? F.collection(F.db, 'users') : F.query(F.collection(F.db, 'users'), F.where('role', '==', 'kadus'));
+  F.getDocs(q).then((s) => {
+    const order = { superadmin: 0, admin: 1, kadus: 2 };
+    usersCache = s.docs.map((d) => ({ uid: d.id, ...d.data() })).sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9) || String(a.dusun || '').localeCompare(String(b.dusun || '')) || String(a.nama).localeCompare(String(b.nama)));
     drawAdmins(main);
-  }).catch((e) => { main.innerHTML = emptyBox('Gagal memuat daftar admin: ' + e.message); });
+    const pre = r?.query?.get('kadus');
+    if (pre) { history.replaceState(null, '', '#/admin/admin'); adminForm(null, main, { role: 'kadus', dusun: pre }); }
+  }).catch((e) => { main.innerHTML = emptyBox('Gagal memuat daftar akun: ' + e.message); });
 }
 function drawAdmins(main) {
-  const permLabel = (u) => u.role === 'superadmin' ? 'Semua akses' : PERMS.filter(([k]) => u.perms?.[k]).map((p) => p[1]).join(', ') || 'Belum ada akses';
-  main.innerHTML = `<div class="callout">${ic('shield')}<div><b>Hanya Super Admin</b><p>Akun admin dashboard hanya bisa didaftarkan di sini. Atur fitur apa saja yang boleh diakses tiap admin. Semua perubahan tercatat di Audit Log.</p></div><button class="btn btn-primary" id="ad-new">${ic('plus')} Daftarkan Admin</button></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Nama</th><th>Email</th><th>Peran</th><th>Hak akses</th><th>Status</th><th>Login terakhir</th><th class="actions-col">Aksi</th></tr></thead>
+  const permLabel = (u) => {
+    if (u.role === 'superadmin') return 'Semua akses';
+    const list = u.role === 'kadus' ? KADUS_PERMS : PERMS;
+    return list.filter(([k]) => u.perms?.[k]).map((p) => p[1]).join(', ') || 'Belum ada akses';
+  };
+  const editable = (u) => u.uid !== state.user.uid && u.role !== 'superadmin' && (isSuper() || u.role === 'kadus');
+  const nAdmin = usersCache.filter((u) => u.role === 'admin').length, nKadus = usersCache.filter((u) => u.role === 'kadus').length;
+  main.innerHTML = `<div class="callout">${ic('shield')}<div><b>${isSuper() ? 'Akun Admin & Kepala Dusun' : 'Akun Kepala Dusun'}</b><p>${isSuper() ? 'Hanya Super Admin yang dapat mendaftarkan Admin. Admin yang diberi izin “Kelola akun Kepala Dusun” dapat membuat akun Kadus.' : 'Buat akun login untuk Kepala Dusun. Kadus hanya dapat mengakses data warga di dusunnya sendiri.'} Semua perubahan tercatat di Audit Log.</p></div></div>
+  <div class="toolbar toolbar-actions">
+    ${isSuper() ? `<button class="btn btn-primary" id="usr-new">${ic('plus')} Tambah Admin</button>` : ''}
+    <button class="btn ${isSuper() ? 'btn-ghost' : 'btn-primary'}" id="usr-kadus">${ic('map')} Tambah Akun Kepala Dusun</button>
+    <span class="muted small">${isSuper() ? `${nAdmin} admin · ` : ''}${nKadus} kepala dusun</span>
+  </div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Pengguna</th><th>Peran</th><th>Hak akses</th><th>Status</th><th>Login terakhir</th><th class="actions-col">Aksi</th></tr></thead>
   <tbody>${usersCache.map((u) => `<tr>
-    <td><b>${esc(u.nama || '-')}</b>${u.uid === state.user.uid ? ' <span class="badge">Anda</span>' : ''}</td><td>${esc(u.email)}</td>
-    <td><span class="badge ${u.role === 'superadmin' ? 'badge-warn' : ''}">${esc(ROLE_LABEL[u.role] || u.role)}</span></td>
-    <td class="small" style="max-width:320px;white-space:normal">${esc(permLabel(u))}</td>
+    <td><div class="user-cell">${avatar(u)}<div><b>${esc(u.nama || '-')}</b>${u.uid === state.user.uid ? ' <span class="badge">Anda</span>' : ''}<br><small class="muted">${esc(u.email)}</small></div></div></td>
+    <td><span class="badge ${u.role === 'superadmin' ? 'badge-warn' : u.role === 'kadus' ? 'badge-ok' : ''}">${esc(ROLE_LABEL[u.role] || u.role)}</span>${u.role === 'kadus' ? `<br><small class="muted">Dusun ${esc(u.dusun || '-')}</small>` : ''}</td>
+    <td class="small" style="max-width:340px;white-space:normal">${esc(permLabel(u))}</td>
     <td><span class="badge ${u.active === false ? 'badge-muted' : 'badge-ok'}">${u.active === false ? 'Nonaktif' : 'Aktif'}</span></td>
     <td class="small">${esc(fmtDate(u.lastLogin, true) || '-')}</td>
-    <td class="actions-col">${u.uid === state.user.uid || u.role === 'superadmin' ? '' : `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>`}</td>
-  </tr>`).join('')}</tbody></table></div>`;
-  $('#ad-new').onclick = () => adminForm(null, main);
+    <td class="actions-col">${editable(u) ? `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>` : ''}</td>
+  </tr>`).join('')}${usersCache.some((u) => u.role !== 'superadmin') ? '' : `<tr><td colspan="6"><div class="empty">Belum ada akun. Klik <b>Tambah Admin</b> atau <b>Tambah Akun Kepala Dusun</b>.</div></td></tr>`}</tbody></table></div>`;
+  $('#usr-new')?.addEventListener('click', () => adminForm(null, main, { role: 'admin' }));
+  $('#usr-kadus').onclick = () => adminForm(null, main, { role: 'kadus' });
   $$('[data-ed]', main).forEach((b) => b.onclick = () => adminForm(usersCache.find((u) => u.uid === b.dataset.ed), main));
   $$('[data-rs]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.rs);
@@ -67,66 +84,78 @@ function drawAdmins(main) {
   });
   $$('[data-tg]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.tg); const act = u.active === false;
-    if (!await confirmDialog(`${act ? 'Aktifkan' : 'Nonaktifkan'} akun ${u.email}?${act ? '' : ' Admin akan langsung dikeluarkan dari dashboard.'}`, { danger: !act, okText: act ? 'Aktifkan' : 'Nonaktifkan' })) return;
+    if (!await confirmDialog(`${act ? 'Aktifkan' : 'Nonaktifkan'} akun ${u.email}?${act ? '' : ' Pengguna akan langsung dikeluarkan dari dashboard.'}`, { danger: !act, okText: act ? 'Aktifkan' : 'Nonaktifkan' })) return;
     await F.updateDoc(C(`users/${u.uid}`), { active: act, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
-    logAudit('admin', act ? 'aktifkan' : 'nonaktifkan', `${act ? 'Mengaktifkan' : 'Menonaktifkan'} admin ${u.email}`, { target: u.email, targetId: u.uid });
+    logAudit('admin', act ? 'aktifkan' : 'nonaktifkan', `${act ? 'Mengaktifkan' : 'Menonaktifkan'} ${ROLE_LABEL[u.role]} ${u.email}`, { target: u.email, targetId: u.uid });
     viewAdmins(main);
   });
   $$('[data-rm]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.rm);
-    if (!await confirmDialog(`Hapus akses dashboard untuk ${u.email}? Akun login tetap ada di Firebase Authentication namun tidak bisa masuk dashboard. (Hapus total lewat Firebase Console → Authentication.)`, { danger: true, okText: 'Hapus akses' })) return;
-    if (!await requirePassword(`Menghapus akses admin ${u.email}.`)) return;
+    if (!await confirmDialog(`Hapus akses dashboard untuk ${u.email}? Akun login tetap ada di Firebase Authentication namun tidak bisa masuk dashboard.`, { danger: true, okText: 'Hapus akses' })) return;
+    if (!await requirePassword(`Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}.`)) return;
     await F.deleteDoc(C(`users/${u.uid}`));
-    logAudit('admin', 'hapus', `Menghapus akses admin ${u.email}`, { target: u.email, targetId: u.uid });
+    logAudit('admin', 'hapus', `Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}`, { target: u.email, targetId: u.uid });
     toast('Akses dihapus', 'success'); viewAdmins(main);
   });
 }
-function adminForm(u, main) {
-  const perms = u?.perms || {};
-  const groups = [...new Set(PERMS.map((p) => p[2]))];
+function adminForm(u, main, preset = {}) {
+  const role = u?.role || preset.role || 'admin';
+  if (role === 'admin' && !isSuper()) return toast('Hanya Super Admin yang dapat mengelola akun Admin', 'error');
+  const isK = role === 'kadus';
+  const list = isK ? KADUS_PERMS.map(([k, l]) => [k, l, 'Kepala Dusun']) : PERMS;
+  const perms = u?.perms || (isK ? Object.fromEntries(KADUS_DEFAULT.map((k) => [k, true])) : {});
+  const groups = [...new Set(list.map((p) => p[2]))];
+  const dsn = u?.dusun || preset.dusun || '';
+  const dRec = state.dusun.find((d) => d.nama === dsn);
   const m = modal({
-    title: u ? `Hak Akses — ${u.email}` : 'Daftarkan Admin Baru', size: 'lg',
-    body: `<form id="adf" class="form-grid">
-      <label class="field"><span>Nama lengkap *</span><input name="nama" required value="${esc(u?.nama || '')}"></label>
-      <label class="field"><span>Jabatan</span><input name="jabatan" value="${esc(u?.jabatan || '')}" placeholder="mis. Operator Gampong"></label>
+    title: u ? `Hak Akses — ${u.email}` : isK ? 'Buat Akun Kepala Dusun' : 'Daftarkan Admin Baru', size: 'lg',
+    body: `<form id="usr-form" class="form-grid">
+      ${isK ? `<label class="field span-2"><span>Dusun yang dikelola *</span><select name="dusun" required><option value="">— pilih dusun —</option>${state.dusun.map((d) => `<option ${d.nama === dsn ? 'selected' : ''}>${esc(d.nama)}</option>`).join('')}</select></label>` : ''}
+      <label class="field"><span>Nama lengkap *</span><input name="nama" required value="${esc(u?.nama || (isK ? dRec?.kepalaNama || '' : ''))}"></label>
+      ${isK ? `<label class="field"><span>No. HP / WhatsApp</span><input name="hp" type="tel" value="${esc(u?.hp || dRec?.kepalaHp || '')}" placeholder="08…"></label>` : `<label class="field"><span>Jabatan</span><input name="jabatan" value="${esc(u?.jabatan || '')}" placeholder="mis. Operator Gampong"></label>`}
       ${u ? '' : `<label class="field"><span>Email login *</span><input name="email" type="email" required></label>
-      <label class="field"><span>Password awal * (min. 8, huruf & angka)</span><div class="input-group"><input name="pw" type="text" required minlength="8"><button type="button" class="btn btn-ghost" id="ad-gen">Acak</button></div></label>`}
-      <div class="field span-2"><span>Template hak akses</span><div class="chips">${Object.entries(PERM_PRESETS).map(([k, p]) => `<button type="button" class="chip" data-preset="${k}">${esc(p.label)}</button>`).join('')}<button type="button" class="chip" data-preset="none">Kosongkan</button></div></div>
-      <div class="span-2 col-picker">${groups.map((g) => `<div><b>${esc(g)}</b>${PERMS.filter((p) => p[2] === g).map(([k, l]) => `<label class="check"><input type="checkbox" name="perm" value="${k}" ${perms[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>`).join('')}</div>
-      <p class="muted small span-2">Fitur khusus Super Admin (Manajemen Admin, Audit Log, Cadangan & Pemulihan) tidak dapat diberikan ke admin.</p>
+      <label class="field"><span>Password awal * (min. 8, huruf & angka)</span><div class="input-group"><input name="pw" type="text" required minlength="8"><button type="button" class="btn btn-ghost" id="usr-gen">Acak</button></div></label>`}
+      ${isK ? '' : `<div class="field span-2"><span>Template hak akses</span><div class="chips">${Object.entries(PERM_PRESETS).map(([k, p]) => `<button type="button" class="chip" data-preset="${k}">${esc(p.label)}</button>`).join('')}<button type="button" class="chip" data-preset="none">Kosongkan</button></div></div>`}
+      <div class="span-2 col-picker">${groups.map((g) => `<div><b>${esc(g)}</b>${list.filter((p) => p[2] === g).map(([k, l]) => `<label class="check"><input type="checkbox" name="perm" value="${k}" ${perms[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>`).join('')}</div>
+      <p class="muted small span-2">${isK ? 'Kepala Dusun hanya dapat melihat & mengelola warga di dusunnya sendiri. Batasan ini dikunci oleh Firestore Rules.' : 'Fitur khusus Super Admin (Audit Log, Cadangan & Pemulihan, akun Admin) tidak dapat diberikan ke admin.'}</p>
     </form>`,
-    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="ad-ok">${u ? 'Simpan' : 'Daftarkan'}</button>`,
+    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="usr-ok">${u ? 'Simpan' : 'Daftarkan'}</button>`,
   });
-  const f = $('#adf', m.el);
+  const f = $('#usr-form', m.el);
+  f.elements.dusun?.addEventListener('change', () => { const d = state.dusun.find((x) => x.nama === f.elements.dusun.value); if (d && !f.elements.nama.value) f.elements.nama.value = d.kepalaNama || ''; if (d && !f.elements.hp.value) f.elements.hp.value = d.kepalaHp || ''; });
   $$('[data-preset]', m.el).forEach((b) => b.onclick = () => { const p = PERM_PRESETS[b.dataset.preset]?.perms || []; $$('input[name=perm]', f).forEach((c) => c.checked = p.includes(c.value)); });
-  $('#ad-gen', m.el)?.addEventListener('click', () => { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const arr = crypto.getRandomValues(new Uint32Array(12)); f.elements.pw.value = Array.from(arr, (n) => a[n % a.length]).join('') + '7'; });
-  $('#ad-ok', m.el).onclick = async () => {
+  $('#usr-gen', m.el)?.addEventListener('click', () => { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const arr = crypto.getRandomValues(new Uint32Array(12)); f.elements.pw.value = Array.from(arr, (n) => a[n % a.length]).join('') + '7'; });
+  $('#usr-ok', m.el).onclick = async () => {
     const nama = f.elements.nama.value.trim();
-    const newPerms = Object.fromEntries(PERMS.map(([k]) => [k, $$('input[name=perm]', f).some((c) => c.checked && c.value === k)]));
+    const dusun = isK ? f.elements.dusun.value : '';
+    const newPerms = Object.fromEntries(list.map(([k]) => [k, $$('input[name=perm]', f).some((c) => c.checked && c.value === k)]));
     if (!nama) return toast('Nama wajib diisi', 'error');
-    const btn = $('#ad-ok', m.el);
+    if (isK && !dusun) return toast('Pilih dusun yang dikelola', 'error');
+    const btn = $('#usr-ok', m.el);
+    const base = { nama, perms: newPerms, ...(isK ? { dusun, dusunId: state.dusun.find((d) => d.nama === dusun)?.id || '', hp: f.elements.hp.value.trim(), jabatan: `Kepala Dusun ${dusun}` } : { jabatan: f.elements.jabatan.value.trim() }) };
     try {
       if (u) {
         btn.disabled = true;
-        await F.updateDoc(C(`users/${u.uid}`), { nama, jabatan: f.elements.jabatan.value.trim(), perms: newPerms, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
-        const changes = {}; PERMS.forEach(([k, l]) => { if (!!perms[k] !== newPerms[k]) changes[l] = [perms[k] ? 'Ya' : 'Tidak', newPerms[k] ? 'Ya' : 'Tidak']; });
-        logAudit('admin', 'ubah_akses', `Mengubah hak akses ${u.email}`, { target: u.email, targetId: u.uid, changes });
+        await F.updateDoc(C(`users/${u.uid}`), { ...base, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+        const changes = {}; list.forEach(([k, l]) => { if (!!perms[k] !== newPerms[k]) changes[l] = [perms[k] ? 'Ya' : 'Tidak', newPerms[k] ? 'Ya' : 'Tidak']; });
+        if (isK && u.dusun !== dusun) changes.Dusun = [u.dusun || '', dusun];
+        logAudit('admin', 'ubah_akses', `Mengubah hak akses ${ROLE_LABEL[role]} ${u.email}`, { target: u.email, targetId: u.uid, changes });
       } else {
         const email = f.elements.email.value.trim().toLowerCase(), pw = f.elements.pw.value;
         if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Email tidak valid', 'error');
         if (pw.length < 8 || !/[a-zA-Z]/.test(pw) || !/\d/.test(pw)) return toast('Password minimal 8 karakter, berisi huruf & angka', 'error');
         if (norm(email) === norm(superEmail())) return toast('Email ini milik Super Admin', 'error');
-        if (!await requirePassword(`Mendaftarkan admin baru ${email}.`)) return;
+        if (!await requirePassword(`Mendaftarkan ${ROLE_LABEL[role]} baru ${email}.`)) return;
         btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Mendaftarkan…';
         const uid = await F.createAuthUser(email, pw);
-        await F.setDoc(C(`users/${uid}`), { email, nama, jabatan: f.elements.jabatan.value.trim(), role: 'admin', active: true, perms: newPerms, createdAt: F.serverTimestamp(), createdBy: state.user.email });
-        logAudit('admin', 'daftar', `Mendaftarkan admin baru ${email}`, { target: email, targetId: uid, detail: 'Hak akses: ' + PERMS.filter(([k]) => newPerms[k]).map((p) => p[1]).join(', ') });
-        modal({ title: 'Admin terdaftar', size: 'sm', body: `<p>Sampaikan data login ini kepada <b>${esc(nama)}</b> secara pribadi:</p><dl class="detail"><dt>Alamat</dt><dd>${esc(location.origin)}/#/login</dd><dt>Email</dt><dd>${esc(email)}</dd><dt>Password</dt><dd><code>${esc(pw)}</code></dd></dl><p class="muted small">Minta admin segera mengganti password di menu Pengaturan → Akun Saya.</p>`, footer: '<button class="btn btn-primary" data-close>Selesai</button>' });
+        await F.setDoc(C(`users/${uid}`), { email, ...base, role, active: true, createdAt: F.serverTimestamp(), createdBy: state.user.email });
+        logAudit('admin', 'daftar', `Mendaftarkan ${ROLE_LABEL[role]} baru ${email}${isK ? ` (Dusun ${dusun})` : ''}`, { target: email, targetId: uid, detail: 'Hak akses: ' + list.filter(([k]) => newPerms[k]).map((p) => p[1]).join(', ') });
+        modal({ title: `${ROLE_LABEL[role]} terdaftar`, size: 'sm', body: `<p>Sampaikan data login ini kepada <b>${esc(nama)}</b> secara pribadi:</p><dl class="detail"><dt>Alamat</dt><dd>${esc(location.origin + location.pathname)}#/login</dd><dt>Email</dt><dd>${esc(email)}</dd><dt>Password</dt><dd><code>${esc(pw)}</code></dd>${isK ? `<dt>Dusun</dt><dd>${esc(dusun)}</dd>` : ''}</dl><p class="muted small">Minta pengguna segera mengganti password di menu Pengaturan → Akun Saya.</p>`, footer: '<button class="btn btn-primary" data-close>Selesai</button>' });
       }
       m.close(); viewAdmins(main);
     } catch (e) {
       btn.disabled = false; btn.textContent = u ? 'Simpan' : 'Daftarkan';
-      toast(e.code === 'auth/email-already-in-use' ? 'Email sudah terdaftar di Firebase Authentication. Gunakan email lain, atau hapus akunnya di Firebase Console lalu daftarkan ulang.' : e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed' ? 'Pendaftaran akun dimatikan di Firebase Console (Authentication → Settings → User actions → Enable create). Aktifkan sementara saat mendaftarkan admin.' : 'Gagal: ' + (e.message || e), 'error', { duration: 10000 });
+      toast(e.code === 'auth/email-already-in-use' ? 'Email sudah terdaftar di Firebase Authentication. Gunakan email lain, atau hapus akunnya di Firebase Console lalu daftarkan ulang.' : e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed' ? 'Pendaftaran akun dimatikan di Firebase Console (Authentication → Settings → User actions → Enable create). Aktifkan agar bisa mendaftarkan akun.' : 'Gagal: ' + (e.message || e), 'error', { duration: 10000 });
     }
   };
 }

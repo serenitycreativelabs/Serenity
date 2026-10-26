@@ -12,7 +12,7 @@
 export const APP = {
   name: 'DigiDes',
   fullName: 'DigiDes — Sistem Informasi Desa Digital',
-  version: '2.0.1',
+  version: '2.1.0',
   build: '2026.10.27',
   copyright: '© Serenity Creativa 2026',
 
