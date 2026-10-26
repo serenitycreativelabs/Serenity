@@ -23,20 +23,27 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 | **Akun admin** | Login **cukup password**. Ubah password & email dari dalam aplikasi. Lupa password via email. |
 | **PWA** | Bisa dipasang di HP/PC, bekerja offline (data Firestore di-cache), notifikasi versi baru. |
 
-**© 2026 Deah Glumpang Official Website. Seluruh Hak Cipta Dilindungi Undang-Undang.
+**© 2026 Deah Glumpang Official Website. Seluruh Hak Cipta Dilindungi Undang-Undang.**
 
 Seluruh kode sumber, desain, teks, grafis, dan aset digital pada situs web ini dilindungi oleh Undang-Undang Hak Cipta No. 28 Tahun 2014. Dilarang keras menggandakan, menyalin, mendistribusikan, memodifikasi, atau merekayasa balik (reverse engineering) tanpa izin tertulis.
 
-**TOS (Terms of Service / Ketentuan Layanan)
-• Hak Kekayaan Intelektual dan Perlindungan Konten Digital
+**TOS (Terms of Service / Ketentuan Layanan)**
+
+**Hak Kekayaan Intelektual dan Perlindungan Konten Digital**
 Kepemilikan Konten:
+
 - Seluruh materi yang terdapat pada situs web ini—termasuk namun tidak terbatas pada kode sumber (source code), arsitektur basis data, algoritma, desain antarmuka (UI/UX), teks, citra digital, logo, dan dokumentasi—merupakan hak kekayaan intelektual milik [Nama Pengembang/Perusahaan] dan dilindungi oleh peraturan perundang-undangan Republik Indonesia serta konvensi internasional.
 • Larangan Penggunaan Tanpa Izin.
+
 • Pengguna atau pihak ketiga dilarang keras untuk:
 Menyalin, mengkloning, atau menyebarluaskan seluruh atau sebagian kode dan aset digital untuk tujuan komersial maupun non-komersial tanpa persetujuan tertulis resmi.
+
 - Melakukan tindakan scraping, ekstraksi data otomatis, dekompilasi, pembongkaran kode (decompiling/disassembling), atau rekayasa balik (reverse engineering) terhadap sistem ini.
+
 - Menggunakan teknologi untuk melewati, merusak, atau menonaktifkan mekanisme pengamanan data dan otentikasi situs.
+
 • Konsekuensi Hukum:
+
 • Setiap pelanggaran atau pembajakan terhadap hak cipta dan sistem digital ini akan diproses secara hukum melalui jalur pidana maupun gugatan ganti rugi perdata sesuai ketentuan Undang-Undang Nomor 28 Tahun 2014 tentang Hak Cipta dan Undang-Undang Informasi dan Transaksi Elektronik (UU ITE).
 
 **DigiDes v1.0.0** — © Serenity Creativa 2026. Hak cipta dilindungi.
