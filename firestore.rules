@@ -1,108 +1,167 @@
 rules_version = '2';
 // =====================================================================
-//  DigiDes v2 — Aturan keamanan Firestore. © Serenity Creativa 2026
-//  Peran: Super Admin (semua akses) & Admin (hak akses per fitur dari Super Admin).
-//  Publik hanya bisa membaca profil desa, statistik agregat, informasi terbit,
-//  highlight Instagram, halaman profil, dan kegiatan rutin.
+//  DigiDes v2.1 — Firestore Security Rules (diperketat)
+//  © Serenity Creativa 2026
+//
+//  Prinsip:
+//   • Default TOLAK semua. Hanya jalur yang didefinisikan di bawah yang dibuka.
+//   • Publik (tanpa login) hanya BACA data non-pribadi, dengan batas jumlah dokumen per query
+//     (mencegah bot menyedot data & membengkakkan kuota).
+//   • Semua TULIS wajib login + profil aktif di /users + hak akses yang sesuai.
+//   • Validasi skema: field yang diizinkan, tipe data, dan ukuran maksimum (anti spam/abuse).
+//   • Kepala Dusun (kadus) DIKUNCI hanya pada warga dusunnya sendiri.
+//   • Audit log hanya bisa DITAMBAH — tidak bisa diubah/dihapus siapa pun.
 // =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- Identitas & peran
     function signedIn() { return request.auth != null; }
     function userPath() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function hasProfile() { return signedIn() && exists(userPath()); }
     function me() { return get(userPath()).data; }
     function isStaff() { return hasProfile() && me().active == true; }
     function isSuper() { return isStaff() && me().role == 'superadmin'; }
-    function can(p) { return isSuper() || (isStaff() && me().perms.get(p, false) == true); }
-    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function isKadus() { return isStaff() && me().role == 'kadus'; }
+    function kadusPerm(p) { return p in ['warga', 'wargaEdit', 'wargaDelete', 'export', 'broadcast']; }
+    function can(p) {
+      return isSuper() || (isStaff() && me().perms.get(p, false) == true && (me().role != 'kadus' || kadusPerm(p)));
+    }
+    function sameDusun(d) { return !isKadus() || d.dusun == me().dusun; }
+
+    // ---------- Helper validasi
+    function data() { return request.resource.data; }
+    function changedOnly(keys) { return data().diff(resource.data).affectedKeys().hasOnly(keys); }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function optStr(k, max) { return !(k in data()) || str(data()[k], max); }
+    function smallList() { return request.query.limit != null && request.query.limit <= 200; }
 
     // Super Admin utama dibuat otomatis saat login pertama dengan email ini
     function bootstrapSuper(uid) {
       return signedIn() && request.auth.uid == uid
         && request.auth.token.email == 'serenityxcreative@gmail.com'
-        && request.resource.data.role == 'superadmin' && request.resource.data.active == true;
+        && data().role == 'superadmin' && data().active == true;
     }
 
-    // ---------------- Pengguna dashboard
+    // ================================================= /users
+    function userKeysOk() {
+      return data().keys().hasOnly(['email', 'nama', 'jabatan', 'hp', 'role', 'active', 'perms', 'dusun', 'dusunId',
+        'foto', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'lastLogin'])
+        && optStr('nama', 120) && optStr('jabatan', 120) && optStr('hp', 20) && optStr('foto', 200000)
+        && optStr('dusun', 100) && (!('perms' in data()) || data().perms is map);
+    }
+    function kadusDocOk() {
+      return data().role == 'kadus' && str(data().dusun, 100) && data().dusun.size() > 0
+        && data().perms.keys().hasOnly(['warga', 'wargaEdit', 'wargaDelete', 'export', 'broadcast']);
+    }
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isSuper());
-      allow create: if (isSuper() && request.resource.data.role == 'admin') || (!exists(userPath()) && bootstrapSuper(uid));
-      allow update: if
-        // Super Admin mengatur admin lain (tidak bisa membuat Super Admin baru)
-        (isSuper() && uid != request.auth.uid && resource.data.role == 'admin' && request.resource.data.role == 'admin')
-        // Super Admin mengubah profilnya sendiri tanpa menurunkan peran/menonaktifkan diri
-        || (isSuper() && uid == request.auth.uid && request.resource.data.role == 'superadmin' && request.resource.data.active == true)
-        // Admin hanya boleh memperbarui data ringan miliknya sendiri
-        || (isStaff() && uid == request.auth.uid && changedOnly(['lastLogin', 'email', 'nama']));
-      allow delete: if isSuper() && uid != request.auth.uid && resource.data.role == 'admin';
+      allow get: if signedIn() && (request.auth.uid == uid || isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus'));
+      // Admin pengelola Kadus hanya boleh query dengan filter where('role','==','kadus')
+      allow list: if isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus');
+      allow create: if userKeysOk() && (
+        (isSuper() && data().role in ['admin', 'kadus'] && (data().role != 'kadus' || kadusDocOk()))
+        || (can('kelolaKadus') && kadusDocOk())
+        || (!exists(userPath()) && bootstrapSuper(uid)));
+      allow update: if userKeysOk() && (
+        (isSuper() && uid != request.auth.uid && resource.data.role in ['admin', 'kadus'] && data().role == resource.data.role && (data().role != 'kadus' || kadusDocOk()))
+        || (can('kelolaKadus') && !isSuper() && uid != request.auth.uid && resource.data.role == 'kadus' && kadusDocOk())
+        || (isSuper() && uid == request.auth.uid && data().role == 'superadmin' && data().active == true)
+        || (isStaff() && uid == request.auth.uid && changedOnly(['lastLogin', 'email', 'nama', 'foto'])));
+      allow delete: if uid != request.auth.uid && (
+        (isSuper() && resource.data.role in ['admin', 'kadus'])
+        || (can('kelolaKadus') && resource.data.role == 'kadus'));
     }
 
-    // ---------------- Konfigurasi
+    // ================================================= /config
     match /config/{docId} {
-      allow read: if true;
-      allow write: if (docId == 'app' && can('pengaturan'))
+      allow get: if docId in ['app', 'stats', 'auth'];
+      allow list: if false;
+      allow write: if (docId == 'app' && can('pengaturan') && data().size() <= 60 && optStr('logo', 300000)
+                        && (!('runningText' in data()) || data().runningText is map))
         || (docId == 'app' && can('instagram') && resource != null && changedOnly(['igLastSync', 'igUsername']))
-        || (docId == 'stats' && can('warga'))
+        || (docId == 'stats' && can('warga') && !isKadus() && data().size() <= 40)
         || (docId == 'auth' && isSuper());
     }
 
-    // ---------------- Data pribadi warga
-    match /warga/{id} {
-      allow read: if can('warga');
-      allow create: if (can('wargaEdit') || can('import'))
-        && request.resource.data.nama is string && request.resource.data.nama.size() <= 200
-        && request.resource.data.size() <= 120;
-      allow update: if ((can('wargaEdit') || can('import')) && request.resource.data.size() <= 120)
-        || (can('dusun') && changedOnly(['dusun', 'updatedAt']));
-      allow delete: if can('wargaDelete');
+    // ================================================= /warga (data pribadi)
+    function wargaOk() {
+      return data().size() <= 120
+        && str(data().nama, 200) && data().nama.size() > 0
+        && (!('nik' in data()) || (data().nik is string && data().nik.matches('^[0-9]{0,16}$')))
+        && (!('noKk' in data()) || (data().noKk is string && data().noKk.matches('^[0-9]{0,16}$')))
+        && optStr('noHp', 20) && optStr('alamat', 300) && optStr('dusun', 100) && optStr('ketPeristiwa', 1000);
     }
+    match /warga/{id} {
+      allow read: if can('warga') && sameDusun(resource.data);
+      allow create: if (can('wargaEdit') || can('import')) && wargaOk() && sameDusun(data());
+      allow update: if (((can('wargaEdit') || can('import')) && wargaOk() && sameDusun(resource.data) && sameDusun(data()))
+        || (can('dusun') && !isKadus() && changedOnly(['dusun', 'updatedAt'])));
+      allow delete: if can('wargaDelete') && sameDusun(resource.data);
+    }
+
+    // ================================================= /dusun
     match /dusun/{id} {
       allow read: if isStaff();
-      allow create: if can('dusun') || can('wargaEdit') || can('import');
-      allow update, delete: if can('dusun');
+      allow create: if (can('dusun') || ((can('wargaEdit') || can('import')) && !isKadus())) && str(data().nama, 100) && data().size() <= 20;
+      allow update: if can('dusun') && str(data().nama, 100) && data().size() <= 20;
+      allow delete: if can('dusun');
     }
+
+    // ================================================= /master (pilihan dropdown)
     match /master/{id} {
       allow read: if isStaff();
-      allow write: if can('master');
-      // Nilai baru dari formulir/import/informasi otomatis ditambahkan ke daftar
+      allow write: if can('master') && (!('items' in data()) || (data().items is list && data().items.size() <= 1000));
       allow create, update: if (can('wargaEdit') || can('import') || can('informasi') || can('kegiatan'))
-        && request.resource.data.keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom'])
+        && data().keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom'])
+        && data().items is list && data().items.size() <= 1000
         && (resource == null || changedOnly(['items', 'label']));
     }
 
-    // ---------------- Publikasi
+    // ================================================= Publikasi (dibaca publik, dibatasi per query)
+    function infoOk() {
+      return data().size() <= 30 && str(data().judul, 200) && str(data().isi, 20000)
+        && data().published is bool && optStr('gambar', 900000) && optStr('kategori', 80) && optStr('lokasi', 200);
+    }
     match /informasi/{id} {
-      allow read: if isStaff() || resource.data.published == true;
-      allow write: if can('informasi');
+      allow get: if isStaff() || resource.data.published == true;
+      allow list: if isStaff() || (resource.data.published == true && smallList());
+      allow create, update: if can('informasi') && infoOk();
+      allow delete: if can('informasi');
       allow update: if can('broadcast') && changedOnly(['broadcastCount', 'lastBroadcast']);
     }
     match /instagram/{id} {
-      allow read: if true;
-      allow write: if can('instagram');
+      allow get: if true;
+      allow list: if isStaff() || smallList();
+      allow write: if can('instagram') && (request.resource == null || (data().size() <= 20 && optStr('caption', 3000) && optStr('mediaUrl', 900000)));
     }
     match /halaman/{id} {
-      allow read: if true;
-      allow write: if can('profil');
+      allow get: if true;
+      allow list: if isStaff() || smallList();
+      allow write: if can('profil') && id in ['profil', 'sejarah', 'visimisi', 'struktur', 'lembaga', 'layanan', 'apbdes', 'potensi', 'kontak'];
     }
     match /kegiatan/{id} {
-      allow read: if true;
-      allow write: if can('kegiatan');
+      allow get: if true;
+      allow list: if isStaff() || smallList();
+      allow create, update: if can('kegiatan') && data().size() <= 20 && str(data().nama, 150) && optStr('keterangan', 1000);
+      allow delete: if can('kegiatan');
     }
     match /private/{id} {
       allow read, write: if can('instagram');
     }
 
-    // ---------------- Audit log: hanya bisa DITAMBAH, tidak bisa diubah/dihapus
+    // ================================================= /audit — hanya tambah, tidak bisa diubah/dihapus
     match /audit/{id} {
       allow create: if isStaff()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.at == request.time
-        && request.resource.data.size() <= 20;
+        && data().uid == request.auth.uid
+        && data().at == request.time
+        && data().size() <= 20
+        && str(data().label, 300) && str(data().cat, 30) && str(data().action, 60)
+        && optStr('detail', 1000) && optStr('target', 200);
       allow read: if isSuper();
       allow update, delete: if false;
     }
 
+    // ================================================= Selain di atas: TOLAK
     match /{document=**} { allow read, write: if false; }
   }
 }

@@ -1,6 +1,6 @@
 # DigiDes — Sistem Informasi Desa Digital
 
-![versi](https://img.shields.io/badge/versi-2.0.1-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.1.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -28,6 +28,8 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 | **Profil Gampong (publik)** | Menu dropdown: Profil, Sejarah, Visi & Misi, Struktur Organisasi, Lembaga, Layanan Administrasi, Transparansi Anggaran, Potensi & UMKM, Kontak & Peta, Infografis — diisi dari admin. |
 | **Infografis & Insight** | Piramida penduduk, rasio jenis kelamin, usia produktif, rasio ketergantungan, dll. Admin mendapat insight tambahan (potensi salah sasaran bansos, BPJS, gizi) & **Kualitas Data**. |
 | **Jadwal Sholat** | Panel kiri beranda, perhitungan Kemenag RI secara lokal (offline), hitung mundur ke waktu sholat berikutnya, tanggal Hijriah. |
+| **Portal Data Publik** | Halaman `#/data`: kartu kategori non-sensitif (dusun, agama, pendidikan, pekerjaan, umur, status kawin…) yang bisa diklik → donat, tabel, unduh Excel. |
+| **Running text** | Teks berjalan di footer publik, diatur di Pengaturan. |
 | **Kegiatan Rutin** | Panel kanan beranda: pengajian, wirid yasin, posyandu, gotong royong, dll. Kegiatan hari ini disorot. |
 | **Keamanan** | Tanpa API key di kode sumber, App Check (anti-bot), konfirmasi password untuk import/restore/hapus massal, logout otomatis, cache dihapus saat logout. Lihat **SECURITY.md**. |
 | **PWA** | Bisa dipasang di HP/PC, bekerja offline (data Firestore di-cache), notifikasi versi baru. |
@@ -127,6 +129,20 @@ git push -u origin main
 
 ---
 
+## Koneksi Firebase
+
+Mulai v2.1.0 konfigurasi Firebase tertanam di `public/js/firebase-config.js`, sehingga aplikasi **langsung terhubung** di semua browser & perangkat. Keamanan dijaga Firestore Rules yang diperketat, pembatasan API key, dan App Check — **wajib ikuti SECURITY.md bagian 1 & 2**.
+
+## Peran pengguna
+
+| Peran | Dibuat oleh | Login | Akses |
+|---|---|---|---|
+| **Super Admin** | otomatis (`serenityxcreative@gmail.com`) | klik 5× “© Serenity Creativa 2026”, password saja | Semua fitur, akun Admin & Kadus, Audit Log, Cadangan |
+| **Admin** | Super Admin | `#/login` email + password | Sesuai hak akses yang dicentang |
+| **Kepala Dusun** | Super Admin / Admin berizin *Kelola akun Kepala Dusun* (tombol **Akun Kadus** di kartu dusun) | `#/login` email + password | Hanya warga dusunnya: dasbor, data warga, laporan, WhatsApp |
+
+Semua peran dapat mengganti **foto profil** di *Pengaturan → Akun Saya*. Informasi yang diterbitkan otomatis memuat tanda **“Diterbitkan oleh [Peran] [Nama]”**.
+
 ## Mengatasi “Konfigurasi Firebase belum tersedia”
 
 API key tidak disimpan di repositori. Aplikasi mengambil konfigurasi secara berurutan dari:
@@ -190,4 +206,4 @@ Tambahkan `localhost` di *Authorized domains* Firebase Authentication bila ingin
 
 ---
 
-**DigiDes v2.0.1** — © Serenity Creativa 2026. Hak cipta dilindungi.
+**DigiDes v2.1.0** — © Serenity Creativa 2026. Hak cipta dilindungi.

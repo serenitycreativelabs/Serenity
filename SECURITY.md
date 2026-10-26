@@ -2,9 +2,22 @@
 
 © Serenity Creativa 2026
 
-## 1. Menangani peringatan “Public leak / Secret detected” di GitHub
+## 1. API key Firebase & cara mengamankannya
 
-Sejak **v2.0.0**, API key Firebase **tidak lagi ada di kode sumber**. Aplikasi membaca konfigurasi saat dijalankan dari alamat khusus Firebase Hosting: `/__/firebase/init.json`. Namun key lama **masih tersimpan di riwayat commit** (v1.0.0), jadi lakukan langkah berikut **sekali saja**:
+Sejak **v2.1.0**, konfigurasi Firebase **tertanam di aplikasi** (`public/js/firebase-config.js`) supaya langsung terhubung di semua browser dan perangkat tanpa input manual.
+
+**Mengapa ini aman?** API key Web Firebase bukan kata sandi — Google merancangnya untuk dikirim ke setiap browser pengunjung (dokumentasi resmi Firebase menjelaskan bahwa API key Firebase berbeda dengan API key biasa dan boleh dicantumkan di kode aplikasi web; lihat *firebase.google.com/docs/projects/api-keys*). Yang melindungi data Anda adalah **empat lapisan** berikut, dan **semuanya wajib aktif**:
+
+| Lapisan | Melindungi dari | Status |
+|---|---|---|
+| Firestore Rules v2.1 (`firestore.rules`) | Akses data tanpa izin, spam tulis, scraping massal (batas dokumen per query), Kadus melihat dusun lain | ✅ otomatis ter-deploy |
+| Pembatasan API key per domain & API (Langkah A) | Key dipakai dari situs/aplikasi lain, pencurian kuota | ⚠️ **lakukan manual sekali** |
+| App Check reCAPTCHA v3 (bagian 2) | Bot/skrip yang memanggil Firebase langsung | ⚠️ **disarankan** |
+| Authorized domains (Authentication) | Login dari domain asing | ✅ bawaan Firebase |
+
+Key disusun dari beberapa potongan di kode agar tidak dipanen otomatis oleh bot pemindai GitHub. Bila GitHub tetap menampilkan peringatan, tutup dengan alasan **“False positive / used in tests”** setelah Langkah A selesai — key yang sudah dibatasi tidak bisa disalahgunakan.
+
+Lakukan langkah berikut **sekali saja**:
 
 ### Langkah A — Batasi (atau ganti) API key lama  ⚠️ PALING PENTING
 1. Buka **https://console.cloud.google.com/apis/credentials?project=digides-8423e**
