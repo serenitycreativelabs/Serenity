@@ -32,7 +32,7 @@ jobs:
           else
             printf 'export default %s;\n' "$CFG" > public/js/firebase-config.local.js
           fi
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
