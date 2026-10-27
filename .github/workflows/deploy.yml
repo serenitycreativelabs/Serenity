@@ -4,6 +4,14 @@ name: Deploy ke Firebase
 on:
   push:
     branches: [main]
+    # Mengubah dokumentasi saja (README, CHANGELOG, dll.) TIDAK memicu deploy
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'scripts/**'
+      - '.github/workflows/instagram-sync.yml'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 jobs:
@@ -19,12 +27,18 @@ jobs:
       - name: Siapkan kredensial
         env:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+        run: |
+          if [ -z "$SA" ]; then echo "::error::Secret FIREBASE_SERVICE_ACCOUNT belum diisi (Settings → Secrets and variables → Actions)"; exit 1; fi
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
 
       - name: Deploy Hosting & Firestore Rules
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project digides-8423e --non-interactive
+
+      - name: Hapus berkas kredensial sementara
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
 
       - name: Buat GitHub Release untuk versi baru
         if: success()
@@ -33,5 +47,5 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           if ! gh release view "v$VER" >/dev/null 2>&1; then
-            gh release create "v$VER" --title "DigiDes v$VER" --notes "Rilis otomatis. Lihat CHANGELOG.md. © Serenity Creativa 2026" || true
+            gh release create "v$VER" --title "Serenity v$VER" --notes "Rilis otomatis. Lihat CHANGELOG.md. Powered by Serenity Creativa Labs. © 2026 All Rights Reserved" || true
           fi
