@@ -1,11 +1,11 @@
 /* DigiDes Service Worker — © Serenity Creativa 2026 */
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const SHELL = `digides-shell-v${VERSION}`;
 const RUNTIME = `digides-runtime-v${VERSION}`;
 const SHELL_FILES = [
   './', './index.html', './login.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/config.js', './js/firebase.js', './js/fields.js', './js/ui.js', './js/wilayah.js', './js/exporter.js',
-  './js/core.js', './js/cms.js', './js/security.js', './js/praytimes.js', './js/firebase-config.js',
+  './js/core.js', './js/cms.js', './js/security.js', './js/praytimes.js', './js/firebase-config.js', './js/rich.js', './js/layout.js', './js/lembaga.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
 // Pustaka & data yang aman di-cache (Firebase SDK, SheetJS, jsPDF, font, data wilayah)
