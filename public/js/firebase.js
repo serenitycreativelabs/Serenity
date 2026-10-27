@@ -84,8 +84,9 @@ async function attachAppCheck(a) {
   if (!APP.appCheckSiteKey) return;
   try {
     if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-    const { initializeAppCheck, ReCaptchaV3Provider } = await import(`${SDK}/firebase-app-check.js`);
-    initializeAppCheck(a, { provider: new ReCaptchaV3Provider(APP.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+    const { initializeAppCheck, ReCaptchaV3Provider, ReCaptchaEnterpriseProvider } = await import(`${SDK}/firebase-app-check.js`);
+       const Provider = APP.appCheckProvider === 'v3' ? ReCaptchaV3Provider : ReCaptchaEnterpriseProvider;
+       initializeAppCheck(a, { provider: new Provider(APP.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
   } catch (e) { console.warn('App Check gagal dimuat', e); }
 }
 
