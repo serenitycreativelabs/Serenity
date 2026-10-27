@@ -1,5 +1,28 @@
 # Catatan Perubahan
 
+## v2.2.0 — 2026.10.27
+### Fitur baru
+- **Kelembagaan Gampong** (`#/lembaga`): 5 kategori — Pemerintahan (Pemerintah Gampong: Keuchik, Sekretariat, Kasi/Kaur, Kepala Dusun/Ulee Jurong; Tuha Peuet), Adat & Keagamaan (BKM, TPA/TPQ, Imeum Gampong, Tuha Lapan, Remaja Masjid), Kemasyarakatan/LKG (PKK, Posyandu, Karang Taruna, LPMG), Ekonomi (BUMG, Koperasi), Pendidikan (PAUD). Tiap lembaga punya profil, pengurus & jabatan (foto), anggota, murid / santriwan-santriwati, berita, galeri foto/video (URL & YouTube), dokumen unduhan, serta ekspor Excel/PDF. Daftar anggota & murid bersifat privat (publik hanya melihat jumlah).
+- **Dokumen Publik** (`#/dokumen`): RPJMG, RKPG, APBG, RAPBG, Reusam, peraturan, laporan — dengan pencarian, filter jenis & tahun, tombol Lihat/Unduh.
+- Hak akses baru **Kelembagaan** & **Dokumen Publik**, hanya diberikan Super Admin kepada admin terpilih.
+- **Ekspor mengikuti filter aktif** (dusun, jenis kelamin, bansos/jenis bansos, dll.) — judul, nama file, dan kop Excel/PDF mencantumkan filter.
+- **Kata sandi wajib** setiap kali menghapus data.
+- **Editor teks kaya** di semua kolom deskripsi: jenis font, ukuran, warna, tebal, miring, garis bawah, daftar.
+- Papan Informasi mendukung **foto/video via URL** (YouTube, Google Drive, gambar, video).
+- **Tata letak bisa digeser (drag & drop)** — panel beranda, panel samping, dan kartu dasbor — khusus Super Admin.
+- Menu **Tampilan** (Super Admin): 7 tema warna + warna kustom, 4 model tata letak, 3 pasangan font, sudut kartu, mode default.
+- Tombol **Mode Gelap/Terang** untuk pengunjung.
+- Konfirmasi **“Perubahan belum disimpan”** saat kembali/menutup form, dan konfirmasi **keluar aplikasi** saat menekan tombol kembali di halaman utama.
+- Running text dengan pilihan font, ukuran, warna, latar, tebal, miring, dan kecepatan.
+### Tampilan
+- Beranda: Berita & Agenda di atas; Insight, Demografi, dan Data Publik di bawah.
+- Navigasi publik baru dengan menu Lembaga; navigasi admin dikelompokkan.
+- Informasi footer rata kiri.
+### Perbaikan bug
+- Running text tidak bergerak di desktop (kini animasi JavaScript, tidak terpengaruh pengaturan “kurangi gerakan”).
+- Nama ganda “Super Admin Super Admin” pada tanda penerbit.
+- Warna grafik mengikuti tema.
+
 ## v2.1.0 — 2026.10.27
 ### Koneksi & keamanan
 - Konfigurasi Firebase **tertanam kembali** (`public/js/firebase-config.js`) — aplikasi langsung terhubung di semua browser/perangkat tanpa input manual.

@@ -76,8 +76,11 @@ service cloud.firestore {
     match /config/{docId} {
       allow get: if docId in ['app', 'stats', 'auth'];
       allow list: if false;
+      // Tema & tata letak hanya boleh diubah Super Admin
       allow write: if (docId == 'app' && can('pengaturan') && data().size() <= 60 && optStr('logo', 300000)
-                        && (!('runningText' in data()) || data().runningText is map))
+                        && (!('runningText' in data()) || data().runningText is map)
+                        && (isSuper() || resource == null || !data().diff(resource.data).affectedKeys().hasAny(['tema', 'layout'])))
+        || (docId == 'app' && isSuper() && data().size() <= 60)
         || (docId == 'app' && can('instagram') && resource != null && changedOnly(['igLastSync', 'igUsername']))
         || (docId == 'stats' && can('warga') && !isKadus() && data().size() <= 40)
         || (docId == 'auth' && isSuper());
@@ -111,7 +114,7 @@ service cloud.firestore {
     match /master/{id} {
       allow read: if isStaff();
       allow write: if can('master') && (!('items' in data()) || (data().items is list && data().items.size() <= 1000));
-      allow create, update: if (can('wargaEdit') || can('import') || can('informasi') || can('kegiatan'))
+      allow create, update: if (can('wargaEdit') || can('import') || can('informasi') || can('kegiatan') || can('dokumen') || can('lembaga'))
         && data().keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom'])
         && data().items is list && data().items.size() <= 1000
         && (resource == null || changedOnly(['items', 'label']));
@@ -119,7 +122,8 @@ service cloud.firestore {
 
     // ================================================= Publikasi (dibaca publik, dibatasi per query)
     function infoOk() {
-      return data().size() <= 30 && str(data().judul, 200) && str(data().isi, 20000)
+      return data().size() <= 30 && str(data().judul, 200) && str(data().isi, 40000)
+        && (!('media' in data()) || (data().media is list && data().media.size() <= 30))
         && data().published is bool && optStr('gambar', 900000) && optStr('kategori', 80) && optStr('lokasi', 200);
     }
     match /informasi/{id} {
@@ -145,6 +149,34 @@ service cloud.firestore {
       allow create, update: if can('kegiatan') && data().size() <= 20 && str(data().nama, 150) && optStr('keterangan', 1000);
       allow delete: if can('kegiatan');
     }
+    // ---------- Lembaga Gampong (profil, pengurus, berita, galeri, dokumen = publik)
+    match /lembaga/{id} {
+      allow get: if isStaff() || resource.data.published != false;
+      allow list: if isStaff() || (resource.data.published == true && smallList());
+      allow create, update: if can('lembaga') && data().size() <= 40 && str(data().nama, 200) && data().nama.size() > 0
+        && data().kategori in ['pemerintahan', 'adat', 'lkg', 'ekonomi', 'pendidikan']
+        && optStr('deskripsi', 30000) && optStr('logo', 300000)
+        && (!('pengurus' in data()) || (data().pengurus is list && data().pengurus.size() <= 300))
+        && (!('berita' in data()) || (data().berita is list && data().berita.size() <= 200))
+        && (!('media' in data()) || (data().media is list && data().media.size() <= 100));
+      allow delete: if can('lembaga');
+    }
+    // Anggota & murid/santri lembaga = data pribadi (hanya admin berizin)
+    match /lembagaPrivate/{id} {
+      allow read: if can('lembaga');
+      allow write: if can('lembaga') && (request.resource == null || (data().size() <= 5
+        && (!('anggota' in data()) || data().anggota.size() <= 2000)
+        && (!('peserta' in data()) || data().peserta.size() <= 2000)));
+    }
+    // ---------- Dokumen publik gampong (RPJMG, APBG, Reusam, dll.)
+    match /dokumen/{id} {
+      allow get: if isStaff() || resource.data.published != false;
+      allow list: if isStaff() || (resource.data.published == true && smallList());
+      allow create, update: if can('dokumen') && data().size() <= 25 && str(data().judul, 300) && str(data().jenis, 100)
+        && str(data().url, 2000) && data().url.matches('^https://.*') && optStr('deskripsi', 10000);
+      allow delete: if can('dokumen');
+    }
+
     match /private/{id} {
       allow read, write: if can('instagram');
     }

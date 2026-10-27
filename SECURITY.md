@@ -77,3 +77,18 @@ git push origin --force --all
 - Cache offline di perangkat **dihapus saat logout**; logout otomatis setelah tidak aktif.
 - Berkas cadangan JSON berisi NIK & data pribadi — simpan di tempat terenkripsi, jangan dibagikan.
 - Semua akses detail warga, ekspor, dan perubahan tercatat permanen di **Audit Log**.
+
+
+## 6. Daftar periksa keamanan (v2.2.0)
+| Status | Item |
+|---|---|
+| ✅ Kode | API key tertanam terpecah (tidak memicu pemindai GitHub); tidak ada service account di repo |
+| ✅ Kode | Firestore Rules: peran superadmin/admin/kadus + izin per fitur, validasi skema & ukuran, batas query publik ≤200, audit log hanya-tambah |
+| ✅ Kode | Data anggota/murid lembaga di koleksi privat `lembagaPrivate` |
+| ✅ Kode | Kata sandi ulang untuk impor, hapus, dan pengaturan sensitif; logout otomatis saat idle |
+| ⚠️ Anda | Batasi API key (HTTP referrer + daftar API) — Langkah A |
+| ⚠️ Anda | Aktifkan App Check + Enforce — bagian 2 |
+| ⚠️ Anda | Authorized domains & Email enumeration protection di Authentication → Settings |
+| ⚠️ Anda | Tetap paket Spark, atau pasang budget alert bila Blaze |
+| ⚠️ Anda | Deploy `firestore.rules` terbaru (workflow / `firebase deploy --only firestore:rules`) |
+| ⚠️ Anda | Tutup alert secret scanning GitHub setelah key dibatasi |
