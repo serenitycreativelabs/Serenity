@@ -34,8 +34,8 @@ export const APP = {
 
   // Firebase App Check (reCAPTCHA v3) — melindungi dari bot & pencurian kuota.
   // Isi dengan SITE KEY reCAPTCHA v3 (berawalan 6L…, bukan rahasia). Kosongkan untuk menonaktifkan.
-  appCheckSiteKey: '',
-
+  appCheckSiteKey: '6Ld6VwIuAAAAADcRZAOAPvDjoFu1nUQgjaZ3mpCv',
+     appCheckProvider: 'enterprise',
   // Logout otomatis bila tidak ada aktivitas (menit). Bisa diubah Super Admin di Pengaturan.
   idleMinutesDefault: 30,
 };
