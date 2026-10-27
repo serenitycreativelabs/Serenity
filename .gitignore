@@ -1,0 +1,15 @@
+   node_modules/
+   .firebase/
+   *.log
+   .DS_Store
+   # Kunci service account Firebase/Google (JANGAN PERNAH di-commit)
+   service-account*.json
+   *firebase-adminsdk*.json
+   *adminsdk*.json
+   sa.json
+   gha-creds-*.json
+   .env
+   # Konfigurasi Firebase lokal (JANGAN di-commit)
+   public/js/firebase-config.local.js
+   *.local.js
+   cadangan-serenity-*.json
