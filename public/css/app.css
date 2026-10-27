@@ -1,8 +1,8 @@
-/* DigiDes — © Serenity Creativa 2026 */
+/* Serenity — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
 :root {
   /* Token warna diturunkan dari --brand / --brand-accent (diatur Super Admin di Tampilan & Tema) */
   --brand: #0f766e; --brand-accent: #b45309;
-  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f1f3f6; --line: #e5e7eb; --line-2: #eef0f3;
+  --bg: var(--bg-light, #f5f6f8); --surface: var(--surface-light, #ffffff); --surface-2: color-mix(in srgb, var(--surface) 94%, var(--ink)); --line: var(--line-light, #e5e7eb); --line-2: color-mix(in srgb, var(--line) 60%, var(--surface));
   --ink: #111827; --ink-2: #374151; --muted: #6b7280;
   --primary: var(--brand); --primary-ink: #ffffff;
   --primary-soft: color-mix(in srgb, var(--brand) 10%, #ffffff);
@@ -18,12 +18,13 @@
   --hero-grad: linear-gradient(135deg, var(--surface) 0%, color-mix(in srgb, var(--brand) 7%, var(--surface)) 100%);
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-head: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-mono: var(--font-head);
   --header-h: 62px; --foot-h: 40px; --ticker-h: 0px;
   color-scheme: light;
 }
 /* Mode gelap */
 :root[data-theme="dark"] {
-  --bg: #0d1117; --surface: #151b23; --surface-2: #1d2530; --line: #2a3441; --line-2: #222b36;
+  --bg: var(--bg-dark, #0d1117); --surface: var(--surface-dark, #151b23); --surface-2: color-mix(in srgb, var(--surface) 88%, #ffffff); --line: color-mix(in srgb, var(--surface) 78%, #ffffff); --line-2: color-mix(in srgb, var(--surface) 86%, #ffffff);
   --ink: #e6edf3; --ink-2: #c3ccd6; --muted: #8b97a5;
   --primary: color-mix(in srgb, var(--brand) 62%, #ffffff); --primary-ink: #0b1210;
   --primary-soft: color-mix(in srgb, var(--brand) 24%, #151b23);
@@ -374,7 +375,8 @@ input[readonly] { background: var(--surface-2); }
 .dropdown.active .dropdown-btn, .dropdown-btn:hover { background: var(--surface-2); color: var(--ink); }
 .dropdown-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 250px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px; display: none; z-index: 40; }
 .dropdown.open .dropdown-menu { display: grid; }
-@media (hover: hover) and (min-width: 861px) { .dropdown:hover .dropdown-menu { display: grid; } .dropdown:hover .dropdown-btn .ic { transform: rotate(180deg); } }
+/* jembatan tak terlihat di celah tombol ↔ submenu agar menu tidak tertutup saat kursor berpindah */
+@media (hover: hover) and (min-width: 861px) { .dropdown-menu::before { content: ''; position: absolute; left: -8px; right: -8px; top: -14px; height: 14px; } .dropdown.open .dropdown-btn .ic { transform: rotate(180deg); } }
 .dropdown-menu a { display: flex; gap: 10px; align-items: center; padding: .55em .7em; border-radius: 9px; color: var(--ink-2); font-weight: 600; font-size: .9rem; }
 .dropdown-menu a:hover, .dropdown-menu a.active { background: var(--primary-soft); color: var(--primary-dark); }
 .pubnav-toggle { display: none; }
@@ -664,6 +666,9 @@ input[data-num] { text-align: right; font-variant-numeric: tabular-nums; letter-
 
 /* Footer: semua informasi di kiri */
 .foot-line { justify-content: flex-start !important; gap: 16px; overflow-x: auto; scrollbar-width: none; }
+/* v2.3: semua info footer rata kanan (margin-left:auto aman saat konten melebihi layar) */
+.foot-line::before { content: ''; margin-left: auto; }
+.foot-line .copyright { color: var(--ink-2); font-weight: 500; }
 .foot-line::-webkit-scrollbar { display: none; }
 .foot-line > * { flex: none; white-space: nowrap; }
 .foot-line b { color: var(--ink-2); font-weight: 600; }
@@ -852,3 +857,148 @@ body.is-dragging { user-select: none; cursor: grabbing; }
 :root[data-model="majalah"] .section-head h2 { text-transform: uppercase; letter-spacing: .06em; font-size: .95rem; border-left: 4px solid var(--accent); padding-left: 10px; }
 input[type="color"] { width: 56px; min-width: 56px; height: 38px; padding: 3px; cursor: pointer; flex: none; }
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; } input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 6px; }
+
+
+/* =====================================================================
+   v2.3.0 — Efek kaca (glassmorphism), aurora, latar media, zoom kartu, badge, huruf mono
+   Ringan: backdrop-filter hanya di header, footer, panel samping, menu & dialog.
+   ===================================================================== */
+/* Huruf mono (JetBrains Mono / Space Grotesk set) untuk angka & label */
+:root[data-mono="1"] .stat-val, :root[data-mono="1"] .tile b, :root[data-mono="1"] .eyebrow, :root[data-mono="1"] .donut-c b,
+:root[data-mono="1"] .agenda-date b, :root[data-mono="1"] .lg-stats b, :root[data-mono="1"] code, :root[data-mono="1"] .foot-ver { font-family: var(--font-mono); letter-spacing: -.01em; }
+:root[data-mono="1"] .eyebrow { text-transform: uppercase; font-size: .72rem; letter-spacing: .08em; }
+
+/* Zoom halus pada kartu berita, agenda & informasi saat kursor diarahkan */
+.info-card, .agenda-item, .lg-news-item, .doc-card, .mini-doc, .svc, .lg-card { transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s, border-color .28s; }
+.info-card .info-img { overflow: hidden; }
+.info-card .info-img img { transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+@media (hover: hover) and (pointer: fine) {
+  .info-card:hover { transform: translateY(-4px) scale(1.012); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); z-index: 1; }
+  .info-card:hover .info-img img { transform: scale(1.07); }
+  .agenda-item:hover, .doc-card:hover, .mini-doc:hover, .lg-news-item:hover { transform: translateY(-3px) scale(1.015); box-shadow: var(--shadow-lg); }
+  .svc:hover, .lg-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+}
+@media (prefers-reduced-motion: reduce) { .info-card, .info-card .info-img img, .agenda-item, .doc-card, .svc, .lg-card { transition: none !important; transform: none !important; } }
+
+/* ---------- Efek Glassy & Aurora ---------- */
+:root[data-efek="glass"], :root[data-efek="aurora"] {
+  --glass-bg: color-mix(in srgb, var(--surface) 66%, transparent);
+  --glass-card: color-mix(in srgb, var(--surface) 74%, transparent);
+  --glass-line: color-mix(in srgb, #ffffff 55%, transparent);
+  --glass-shadow: 0 8px 32px color-mix(in srgb, var(--brand) 10%, rgba(15, 23, 42, .08));
+}
+:root[data-efek="glass"][data-theme="dark"], :root[data-efek="aurora"][data-theme="dark"] {
+  --glass-bg: color-mix(in srgb, var(--surface) 58%, transparent);
+  --glass-card: color-mix(in srgb, var(--surface) 62%, transparent);
+  --glass-line: rgba(255, 255, 255, .09);
+  --glass-shadow: 0 10px 36px rgba(0, 0, 0, .35);
+}
+/* lapisan latar: gradien lembut (glass) / blob bergerak (aurora) — satu elemen tetap, dianimasikan via transform (GPU) */
+:root[data-efek="glass"] body::before, :root[data-efek="aurora"] body::before {
+  content: ''; position: fixed; inset: -20vmax; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(38vmax 38vmax at 18% 22%, color-mix(in srgb, var(--brand) 26%, transparent), transparent 70%),
+    radial-gradient(34vmax 34vmax at 82% 18%, color-mix(in srgb, var(--brand-accent) 20%, transparent), transparent 70%),
+    radial-gradient(42vmax 42vmax at 60% 88%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%);
+}
+:root[data-efek="aurora"] body::before { filter: blur(30px) saturate(1.25); animation: aurora 26s ease-in-out infinite alternate; will-change: transform; }
+:root[data-efek="aurora"][data-theme="dark"] body::before { opacity: .85; }
+@keyframes aurora { 0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); } 50% { transform: translate3d(4vmax, -3vmax, 0) rotate(8deg) scale(1.08); } 100% { transform: translate3d(-3vmax, 3vmax, 0) rotate(-6deg) scale(1.04); } }
+@media (prefers-reduced-motion: reduce) { :root[data-efek="aurora"] body::before { animation: none; } }
+body.has-bg::before { display: none !important; }
+
+:root[data-efek="glass"] .pub-header, :root[data-efek="aurora"] .pub-header,
+:root[data-efek="glass"] .pub-foot, :root[data-efek="aurora"] .pub-foot,
+:root[data-efek="glass"] .topbar, :root[data-efek="aurora"] .topbar,
+:root[data-efek="glass"] .dropdown-menu, :root[data-efek="aurora"] .dropdown-menu,
+:root[data-efek="glass"] .side, :root[data-efek="aurora"] .side,
+:root[data-efek="glass"] .sidebar, :root[data-efek="aurora"] .sidebar {
+  background: var(--glass-bg) !important; -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+  border-color: var(--glass-line) !important;
+}
+:root[data-efek="glass"] .modal, :root[data-efek="aurora"] .modal { background: color-mix(in srgb, var(--surface) 86%, transparent); -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); border: 1px solid var(--glass-line); }
+:root[data-efek="glass"] :is(.panel, .info-card, .portal-card, .svc, .lg-card, .stat, .hero, .tile, .doc-card, .agenda-item, .mini-doc, .insight, .dash-block > .panel, .page-nav, .page-body, .card, .table-wrap, .callout, .lg-news-item, .person),
+:root[data-efek="aurora"] :is(.panel, .info-card, .portal-card, .svc, .lg-card, .stat, .hero, .tile, .doc-card, .agenda-item, .mini-doc, .insight, .dash-block > .panel, .page-nav, .page-body, .card, .table-wrap, .callout, .lg-news-item, .person) {
+  background: var(--glass-card); border-color: var(--glass-line); box-shadow: var(--glass-shadow);
+}
+:root[data-efek="glass"] body, :root[data-efek="aurora"] body { background: var(--bg); }
+:root[data-efek="glass"] .table th, :root[data-efek="aurora"] .table th { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+:root[data-efek="glass"] .admin-main input, :root[data-efek="glass"] .admin-main select, :root[data-efek="glass"] .admin-main textarea,
+:root[data-efek="aurora"] .admin-main input, :root[data-efek="aurora"] .admin-main select, :root[data-efek="aurora"] .admin-main textarea { background: color-mix(in srgb, var(--surface) 88%, transparent); }
+/* Perangkat lemah / hemat data: matikan blur */
+@media (max-width: 640px) { :root[data-efek="aurora"] body::before { filter: blur(20px); animation-duration: 40s; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-efek] .pub-header, :root[data-efek] .pub-foot, :root[data-efek] .topbar, :root[data-efek] .side { background: var(--surface) !important; }
+}
+
+/* ---------- Latar belakang foto / video dari URL ---------- */
+#bg-layer { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--bg); }
+#bg-layer img, #bg-layer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#bg-layer iframe { position: absolute; top: 50%; left: 50%; width: max(100vw, 177.78vh); height: max(100vh, 56.25vw); transform: translate(-50%, -50%); border: 0; }
+#bg-layer .bg-ov { position: absolute; inset: 0; background: var(--bg); }
+body.has-bg { background: transparent; }
+body.has-bg .pub-frame, body.has-bg .admin { background: transparent; }
+body.has-bg .hero { background: color-mix(in srgb, var(--surface) 80%, transparent); }
+
+/* ---------- Badge pengguna ---------- */
+.ubadges { display: inline-flex; gap: 3px; align-items: center; vertical-align: -0.15em; margin-left: 4px; flex-wrap: wrap; }
+.ubadge { display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; border-radius: 50%; color: #fff; background: var(--bc, var(--brand)); font-size: .95em; line-height: 1; flex: none; text-decoration: none; }
+.ubadge svg { width: .82em; height: .82em; }
+.ubadge.seal { background: none; color: var(--bc); width: 1.2em; height: 1.2em; }
+.ubadge.seal svg { width: 1.2em; height: 1.2em; }
+a.ubadge:hover { filter: brightness(1.1); transform: scale(1.12); }
+.ubadge-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ubadge-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+.badge-picker { display: grid; gap: 14px; }
+.badge-picker fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 0; }
+.badge-picker legend { font-weight: 700; padding: 0 6px; font-size: .9rem; }
+.bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.bp-item { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; font-size: .86rem; }
+.bp-item:hover { background: var(--surface-2); }
+.bp-item:has(input:checked) { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); background: var(--primary-soft); }
+.bp-item input[type=url] { grid-column: 1 / -1; font-size: .8rem; padding: .35em .6em; }
+.bp-item:not(:has(input[type=checkbox]:checked)) input[type=url] { display: none; }
+
+/* ---------- Tampilan (Super Admin) ---------- */
+.choices.colors .choice small { display: block; color: var(--muted); font-size: .72rem; }
+.style-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.style-preset { text-align: left; padding: 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); cursor: pointer; font: inherit; color: var(--ink); display: grid; gap: 4px; transition: transform .15s, box-shadow .15s; }
+.style-preset:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.style-preset .sp-sw { height: 42px; border-radius: calc(var(--radius) - 4px); margin-bottom: 6px; }
+.style-preset small { color: var(--muted); font-size: .76rem; }
+.fx-prev { height: 46px; border-radius: 10px; margin-bottom: 6px; border: 1px solid var(--line); }
+.fx-solid { background: var(--surface-2); }
+.fx-glass { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 35%, transparent), color-mix(in srgb, var(--brand-accent) 30%, transparent)); position: relative; overflow: hidden; }
+.fx-glass::after { content: ''; position: absolute; inset: 8px 14px; border-radius: 8px; background: rgba(255, 255, 255, .35); border: 1px solid rgba(255, 255, 255, .6); backdrop-filter: blur(6px); }
+.fx-aurora { background: radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--brand) 60%, transparent), transparent 60%), radial-gradient(circle at 80% 60%, color-mix(in srgb, var(--brand-accent) 55%, transparent), transparent 60%), var(--surface-2); filter: saturate(1.2); }
+.font-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.font-choices .choice { align-items: flex-start; text-align: left; }
+.font-choices .choice b { font-size: 1.5rem; line-height: 1.1; }
+.icon-prev { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
+.icon-prev figure { margin: 0; display: grid; gap: 4px; justify-items: center; font-size: .72rem; color: var(--muted); }
+.icon-prev img { border-radius: 22%; box-shadow: var(--shadow); background: #fff; }
+.tab-mock { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px 10px 0 0; background: var(--surface); border: 1px solid var(--line); border-bottom: 0; font-size: .8rem; max-width: 240px; }
+.tab-mock img { width: 16px; height: 16px; border-radius: 3px; box-shadow: none; }
+.bg-prev { position: relative; height: 180px; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); border: 1px solid var(--line); }
+.bg-prev img, .bg-prev video, .bg-prev iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
+.bg-prev .bg-ov { position: absolute; inset: 0; background: var(--bg); }
+.bg-prev .bg-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 16px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-lg); font-weight: 700; font-size: .9rem; }
+input[type=range] { width: 100%; accent-color: var(--brand); }
+
+/* Footer kanan */
+.foot-ver { color: var(--muted); }
+/* menu di dalam header berkaca: header menjadi "backdrop root", jadi menu dibuat hampir pekat agar teks tetap terbaca */
+:root[data-efek="glass"] .dropdown-menu, :root[data-efek="aurora"] .dropdown-menu { background: color-mix(in srgb, var(--surface) 94%, transparent) !important; }
+@media (max-width: 860px) { :root[data-efek] .pub-nav { background: color-mix(in srgb, var(--surface) 96%, transparent); } }
+:root[data-theme="dark"] .ubadge:not(.seal) { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .22); }
+.me .ubadges { margin-left: 0; display: flex; margin: 2px 0; }
+/* kartu utama (berwarna brand) tetap pekat pada efek kaca */
+:root[data-efek] .tile:first-child { background: color-mix(in srgb, var(--brand) 88%, transparent); border-color: color-mix(in srgb, var(--brand) 60%, #fff 0%); }
+:root[data-efek="solid"] .tile:first-child { background: var(--brand); }
+.choice .fx-prev { display: block; width: 100%; min-width: 120px; height: 46px; }
+@media (max-width: 860px) { :root[data-efek] .pub-nav { background: var(--surface) !important; } }
+@media (max-width: 640px) {
+  .foot-line .foot-ver, .foot-line > a[href*="wa.me"] { display: none; }
+  .foot-line .copyright { font-size: .66rem; letter-spacing: -.01em; }
+  .foot-line > .copyright::before { display: none; }
+}

@@ -95,7 +95,7 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   document.body.classList.add('no-scroll');
   let dirty = false, closed = false;
   if (guard) {
-    const mark = (e) => { if (!e.target.closest('[data-noguard]') && e.isTrusted !== false) dirty = true; };
+    const mark = (e) => { if (!e.target.closest('[data-noguard]') && e.isTrusted !== false) { dirty = true; el.dataset.dirty = '1'; } };
     el.addEventListener('input', mark); el.addEventListener('change', mark);
   }
   // Tutup paksa (dipanggil kode setelah simpan berhasil)
@@ -117,7 +117,7 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   el.addEventListener('mousedown', (e) => { if (e.target === el) requestClose(); });
   el.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) requestClose(); });
   requestAnimationFrame(() => el.classList.add('show'));
-  return { el, close, requestClose, isDirty: () => dirty, markClean: () => { dirty = false; } };
+  return { el, close, requestClose, isDirty: () => dirty, markClean: () => { dirty = false; delete el.dataset.dirty; } };
 }
 
 export function confirmDialog(message, { title = 'Konfirmasi', okText = 'Ya, lanjutkan', danger = false } = {}) {

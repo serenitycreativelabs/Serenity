@@ -1,6 +1,6 @@
 // =============================================================
-//  Konfigurasi Web Firebase — DigiDes
-//  © Serenity Creativa 2026
+//  Konfigurasi Web Firebase — Serenity
+//  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 // =============================================================
 //  Menurut desain Firebase, konfigurasi Web (termasuk apiKey) memang dikirim ke setiap browser
 //  pengunjung dan BUKAN kata sandi. Keamanan data dijamin oleh lapisan berikut:

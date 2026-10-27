@@ -3,6 +3,9 @@ import { APP } from './config.js';
 import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, KADUS_PERMS, KADUS_DEFAULT, isSuper, can, avatar, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
 import { esc, $, $$, norm, debounce, toDate, fmtDate, fmtNum, todayISO, toast, modal, confirmDialog, promptDialog, downloadBlob, authErrorMessage } from './ui.js';
 import { exportExcel, exportPdf } from './exporter.js';
+import { badgeRow, badgeDialog, normBadges, BADGES } from './badges.js';
+import { KATEGORI } from './lembaga.js';
+import { LEMBAGA_DELEGASI } from './core.js';
 
 // ---------------------------------------------------------------- login Super Admin (cukup password)
 export function openSuperLogin() {
@@ -38,7 +41,6 @@ export function openSuperLogin() {
 
 // ---------------------------------------------------------------- Manajemen Akun (Admin & Kepala Dusun)
 let usersCache = [];
-const canKadusMgmt = () => isSuper() || can('kelolaKadus');
 export function viewAdmins(main, r) {
   state.view = 'form';
   main.innerHTML = loadingBox();
@@ -55,7 +57,8 @@ function drawAdmins(main) {
   const permLabel = (u) => {
     if (u.role === 'superadmin') return 'Semua akses';
     const list = u.role === 'kadus' ? KADUS_PERMS : PERMS;
-    return list.filter(([k]) => u.perms?.[k]).map((p) => p[1]).join(', ') || 'Belum ada akses';
+    const lg = (u.lembagaIds || []).map((id) => state.lembaga.find((l) => l.id === id)).filter(Boolean).map((l) => `Pengelola ${l.singkatan || l.nama}`);
+    return [...list.filter(([k]) => u.perms?.[k]).map((p) => p[1]), ...lg].join(', ') || 'Belum ada akses';
   };
   const editable = (u) => u.uid !== state.user.uid && u.role !== 'superadmin' && (isSuper() || u.role === 'kadus');
   const nAdmin = usersCache.filter((u) => u.role === 'admin').length, nKadus = usersCache.filter((u) => u.role === 'kadus').length;
@@ -67,16 +70,27 @@ function drawAdmins(main) {
   </div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Pengguna</th><th>Peran</th><th>Hak akses</th><th>Status</th><th>Login terakhir</th><th class="actions-col">Aksi</th></tr></thead>
   <tbody>${usersCache.map((u) => `<tr>
-    <td><div class="user-cell">${avatar(u)}<div><b>${esc(u.nama || '-')}</b>${u.uid === state.user.uid ? ' <span class="badge">Anda</span>' : ''}<br><small class="muted">${esc(u.email)}</small></div></div></td>
+    <td><div class="user-cell">${avatar(u)}<div><b>${esc(u.nama || '-')}</b>${badgeRow(u.badges, 6)}${u.uid === state.user.uid ? ' <span class="badge">Anda</span>' : ''}<br><small class="muted">${esc(u.email)}</small></div></div></td>
     <td><span class="badge ${u.role === 'superadmin' ? 'badge-warn' : u.role === 'kadus' ? 'badge-ok' : ''}">${esc(ROLE_LABEL[u.role] || u.role)}</span>${u.role === 'kadus' ? `<br><small class="muted">Dusun ${esc(u.dusun || '-')}</small>` : ''}</td>
     <td class="small" style="max-width:340px;white-space:normal">${esc(permLabel(u))}</td>
     <td><span class="badge ${u.active === false ? 'badge-muted' : 'badge-ok'}">${u.active === false ? 'Nonaktif' : 'Aktif'}</span></td>
     <td class="small">${esc(fmtDate(u.lastLogin, true) || '-')}</td>
-    <td class="actions-col">${editable(u) ? `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>` : ''}</td>
+    <td class="actions-col">${isSuper() ? `<button class="icon-btn" data-bdg="${u.uid}" title="Atur badge">${ic('star')}</button>` : ''}${editable(u) ? `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>` : ''}</td>
   </tr>`).join('')}${usersCache.some((u) => u.role !== 'superadmin') ? '' : `<tr><td colspan="6"><div class="empty">Belum ada akun. Klik <b>Tambah Admin</b> atau <b>Tambah Akun Kepala Dusun</b>.</div></td></tr>`}</tbody></table></div>`;
   $('#usr-new')?.addEventListener('click', () => adminForm(null, main, { role: 'admin' }));
   $('#usr-kadus').onclick = () => adminForm(null, main, { role: 'kadus' });
   $$('[data-ed]', main).forEach((b) => b.onclick = () => adminForm(usersCache.find((u) => u.uid === b.dataset.ed), main));
+  $$('[data-bdg]', main).forEach((b) => b.onclick = async () => {
+    const u = usersCache.find((x) => x.uid === b.dataset.bdg);
+    const next = await badgeDialog(u); if (!next) return;
+    try {
+      await F.updateDoc(C(`users/${u.uid}`), { badges: next, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+      const before = normBadges(u.badges).map((x) => x.id), after = next.map((x) => x.id);
+      const added = after.filter((x) => !before.includes(x)).map((x) => BADGES[x].label), removed = before.filter((x) => !after.includes(x)).map((x) => BADGES[x].label);
+      logAudit('admin', 'badge', `Mengubah badge ${u.email}`, { target: u.email, targetId: u.uid, detail: [added.length && `Ditambah: ${added.join(', ')}`, removed.length && `Dicabut: ${removed.join(', ')}`].filter(Boolean).join(' • ') });
+      toast('Badge disimpan', 'success'); viewAdmins(main);
+    } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+  });
   $$('[data-rs]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.rs);
     try { await F.sendPasswordResetEmail(F.auth, u.email); logAudit('admin', 'reset_password', `Mengirim tautan reset password ke ${u.email}`, { target: u.email, targetId: u.uid }); toast(`Tautan reset password dikirim ke ${u.email}`, 'success'); }
@@ -116,6 +130,7 @@ function adminForm(u, main, preset = {}) {
       ${u ? '' : `<label class="field"><span>Email login *</span><input name="email" type="email" required></label>
       <label class="field"><span>Password awal * (min. 8, huruf & angka)</span><div class="input-group"><input name="pw" type="text" required minlength="8"><button type="button" class="btn btn-ghost" id="usr-gen">Acak</button></div></label>`}
       ${isK ? '' : `<div class="field span-2"><span>Template hak akses</span><div class="chips">${Object.entries(PERM_PRESETS).map(([k, p]) => `<button type="button" class="chip" data-preset="${k}">${esc(p.label)}</button>`).join('')}<button type="button" class="chip" data-preset="none">Kosongkan</button></div></div>`}
+      ${!isK && isSuper() ? `<div class="field span-2"><span>Pengelola lembaga (opsional) — admin hanya dapat mengubah lembaga yang dicentang, tanpa hak akses lain</span><div class="col-picker">${KATEGORI.filter((k) => LEMBAGA_DELEGASI.includes(k.key)).map((k) => `<div><b>${esc(k.short)}</b>${state.lembaga.filter((l) => l.kategori === k.key).map((l) => `<label class="check"><input type="checkbox" name="lg" value="${esc(l.id)}" ${(u?.lembagaIds || preset.lembagaIds || []).includes(l.id) ? 'checked' : ''}> ${esc(l.singkatan || l.nama)}</label>`).join('') || '<small class="muted">Belum ada lembaga</small>'}</div>`).join('')}</div></div>` : ''}
       <div class="span-2 col-picker">${groups.map((g) => `<div><b>${esc(g)}</b>${list.filter((p) => p[2] === g).map(([k, l]) => `<label class="check"><input type="checkbox" name="perm" value="${k}" ${perms[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>`).join('')}</div>
       <p class="muted small span-2">${isK ? 'Kepala Dusun hanya dapat melihat & mengelola warga di dusunnya sendiri. Batasan ini dikunci oleh Firestore Rules.' : 'Fitur khusus Super Admin (Audit Log, Cadangan & Pemulihan, akun Admin) tidak dapat diberikan ke admin.'}</p>
     </form>`,
@@ -132,7 +147,8 @@ function adminForm(u, main, preset = {}) {
     if (!nama) return toast('Nama wajib diisi', 'error');
     if (isK && !dusun) return toast('Pilih dusun yang dikelola', 'error');
     const btn = $('#usr-ok', m.el);
-    const base = { nama, perms: newPerms, ...(isK ? { dusun, dusunId: state.dusun.find((d) => d.nama === dusun)?.id || '', hp: f.elements.hp.value.trim(), jabatan: `Kepala Dusun ${dusun}` } : { jabatan: f.elements.jabatan.value.trim() }) };
+    const lembagaIds = !isK && isSuper() ? $$('input[name=lg]:checked', f).map((c) => c.value) : undefined;
+    const base = { nama, perms: newPerms, ...(lembagaIds ? { lembagaIds } : {}), ...(isK ? { dusun, dusunId: state.dusun.find((d) => d.nama === dusun)?.id || '', hp: f.elements.hp.value.trim(), jabatan: `Kepala Dusun ${dusun}` } : { jabatan: f.elements.jabatan.value.trim() }) };
     try {
       if (u) {
         btn.disabled = true;
@@ -269,12 +285,12 @@ export function viewCadangan(main) {
   $('#bk').onclick = async (e) => {
     const b = e.currentTarget; b.disabled = true;
     try {
-      const dump = { app: APP.name, version: APP.version, format: 'digides-backup-v2', exportedAt: new Date().toISOString(), exportedBy: state.user.email };
+      const dump = { app: APP.name, version: APP.version, format: 'serenity-backup-v2', exportedAt: new Date().toISOString(), exportedBy: state.user.email };
       for (const col of [...BACKUP_COLS, 'config']) {
         const s = await F.getDocs(F.collection(F.db, col));
         dump[col] = s.docs.filter((d) => col !== 'config' || ['app'].includes(d.id)).map((d) => ({ id: d.id, ...d.data() }));
       }
-      downloadBlob(new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' }), `cadangan-digides-${todayISO()}.json`);
+      downloadBlob(new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' }), `cadangan-serenity-${todayISO()}.json`);
       logAudit('cadangan', 'unduh', 'Mengunduh cadangan data lengkap (JSON)', { count: dump.warga.length, detail: BACKUP_COLS.map((c) => `${c}: ${dump[c].length}`).join(', ') });
     } catch (err) { toast('Gagal membuat cadangan: ' + err.message, 'error'); }
     b.disabled = false;
@@ -311,7 +327,7 @@ async function readBackup(file) {
   let data;
   try { data = JSON.parse(await file.text()); } catch { step.innerHTML = `<p class="err">Berkas bukan JSON yang valid.</p>`; return; }
   const cols = [...BACKUP_COLS, 'config'].filter((c) => Array.isArray(data[c]));
-  if (!cols.length) { step.innerHTML = `<p class="err">Berkas ini bukan cadangan DigiDes (tidak ada koleksi yang dikenali).</p>`; return; }
+  if (!cols.length) { step.innerHTML = `<p class="err">Berkas ini bukan cadangan Serenity (tidak ada koleksi yang dikenali).</p>`; return; }
   const bad = cols.flatMap((c) => data[c].filter((d) => !d || typeof d.id !== 'string' || !d.id || d.id.includes('/')).map(() => c));
   step.innerHTML = `<div class="callout small-callout">${ic('file')}<div><b>${esc(file.name)}</b><p class="small">Dibuat ${esc(data.exportedAt ? fmtDate(data.exportedAt, true) : '-')} • ${esc(data.app || '')} v${esc(data.version || '?')}${data.exportedBy ? ' • oleh ' + esc(data.exportedBy) : ''}</p></div></div>
     ${bad.length ? `<p class="err">${bad.length} dokumen tanpa ID yang valid akan dilewati.</p>` : ''}

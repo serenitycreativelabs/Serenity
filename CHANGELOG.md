@@ -1,5 +1,35 @@
 # Catatan Perubahan
 
+## v2.3.0 “Aurora” — 2026.10.27 (Build 2026.10.27 · R7 · Stable)
+### Identitas baru
+- Nama aplikasi berganti dari **DigiDes** menjadi **Serenity** di semua tempat (judul, PWA, ekspor PDF/Excel, cadangan, service worker).
+- **Ikon baru** untuk tab browser (desktop & mobile), layar utama, dan PWA.
+- Kredit baru: “Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved”. Login Super Admin tetap lewat 5× klik pada kredit.
+- Penomoran rilis yang lebih rapi: versi, nama kode, build, revisi (R7), dan kanal (Stable).
+### Fitur baru
+- **Pengubah ikon aplikasi** (khusus Super Admin) di Tampilan & Tema: unggah gambar atau URL, opsi sudut membulat, latar warna, dan jarak tepi, dengan pratinjau 16/32/60/96 px. Manifest PWA ikut diperbarui.
+- **Latar belakang website dari URL** (YouTube, MP4/WebM, gambar, Google Drive), dengan lapisan warna, blur, cakupan (semua halaman / beranda), poster, dan mode hemat untuk ponsel. Bisa diubah Super Admin atau admin berizin baru **Latar Belakang**.
+- **Badge pengguna** (hanya diberikan Super Admin): centang biru/emas/hijau/abu/ungu, peran (Developer, Gamer, Moderator, Kreator, dll.), media sosial & komunitas (GitHub, Stack Overflow, LinkedIn, dll., dengan tautan profil), dan sertifikasi digital (Credly, Coursera, Google Cloud, AWS, Microsoft, Dicoding, BNSP, dll., dengan tautan verifikasi). Ikonnya generik, bukan logo merek. Badge tampil di sidebar, daftar akun, dan tanda “Diterbitkan oleh”.
+- **Linmas (Perlindungan Masyarakat)** ditambahkan di Lembaga Kemasyarakatan, dengan fitur sama seperti lembaga lain. Data lama mendapat tombol “Tambahkan”.
+- **Pengelola lembaga**: untuk Adat & Keagamaan, Kemasyarakatan, Ekonomi, dan Pendidikan, Super Admin dapat mengangkat admin yang sudah ada atau membuat akun pengelola baru dari daftar pengurus/anggota. Pengelola hanya bisa mengubah lembaga yang ditugaskan (dikunci Firestore Rules).
+- **Tema & tipografi**:
+  - Efek Glassy dan Blurry Aurora yang ringan.
+  - Gaya siap pakai: Dark Glass Modern (Inter + JetBrains Mono), Glassy Terang, Aurora Dinamis, Terracotta Hangat, Golden Hour.
+  - Palet baru: Earthy & Terracotta, Warm Neutral / Creamy, Warm Autumn / Golden Hour, Sage & Olive Warm, Soft Calm, Lavender Mist.
+  - 14 pasangan huruf: Inter, JetBrains Mono, Space Grotesk, Poppins, Manrope, DM Sans, Outfit, Sora, Figtree, Urbanist, Lexend, Playfair Display, Lora, Nunito. Huruf dimuat hanya saat dipakai.
+  - Sudut “Ekstra bulat”.
+- Warna tema, model, efek, huruf, dan sudut hanya bisa diubah Super Admin. Pengguna lain dan pengunjung hanya bisa mengganti mode gelap/terang.
+- **Efek zoom halus** pada kartu berita, agenda, informasi, dan dokumen saat kursor diarahkan.
+### Perubahan
+- Footer publik rata kanan.
+- Peringatan saat menutup tab kini **hanya muncul bila ada isian data yang belum disimpan**.
+### Perbaikan bug
+- Menu dropdown (Profil Gampong, Lembaga) tertutup sendiri saat kursor pindah ke submenu. Kini ada jembatan hover + jeda 0,4 detik, dan menu tetap terbuka saat data diperbarui.
+- Listener perubahan di halaman Tampilan menumpuk ke menu lain (memunculkan galat di halaman berikutnya).
+- Judul tab “Serenity | Serenity” sebelum nama desa diatur.
+- Badge bertaut di dalam tautan profil sidebar merusak struktur HTML.
+- Rules: admin berizin Pengaturan dapat membuat dokumen config berisi tema/tata letak saat dokumen belum ada. Kini ditolak.
+
 ## v2.2.0 — 2026.10.27
 ### Fitur baru
 - **Kelembagaan Gampong** (`#/lembaga`): 5 kategori — Pemerintahan (Pemerintah Gampong: Keuchik, Sekretariat, Kasi/Kaur, Kepala Dusun/Ulee Jurong; Tuha Peuet), Adat & Keagamaan (BKM, TPA/TPQ, Imeum Gampong, Tuha Lapan, Remaja Masjid), Kemasyarakatan/LKG (PKK, Posyandu, Karang Taruna, LPMG), Ekonomi (BUMG, Koperasi), Pendidikan (PAUD). Tiap lembaga punya profil, pengurus & jabatan (foto), anggota, murid / santriwan-santriwati, berita, galeri foto/video (URL & YouTube), dokumen unduhan, serta ekspor Excel/PDF. Daftar anggota & murid bersifat privat (publik hanya melihat jumlah).
@@ -80,7 +110,7 @@
 - Menu publik tidak bisa dibuka di ponsel (kini ada tombol menu).
 
 ## v1.0.0 — 2026.10.26
-- Rilis perdana DigiDes — Sistem Informasi Desa Digital.
+- Rilis perdana Serenity — Sistem Informasi Desa Digital.
 - Import data warga dari Excel (deteksi header otomatis, 33 kolom, pemecahan alamat → dusun/RT/RW, pembaruan berdasarkan NIK).
 - Input manual dengan dropdown saran-saat-mengetik, termasuk wilayah seluruh Indonesia (provinsi s/d kelurahan/gampong).
 - Data Master dropdown + kategori kustom.

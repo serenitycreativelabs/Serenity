@@ -28,7 +28,7 @@ export async function exportExcel(filename, sheets, meta = {}) {
       aoa.push([sh.title]);
       if (meta.instansi) aoa.push([meta.instansi]);
       if (meta.filter) aoa.push([meta.filter]);
-      aoa.push([`Dicetak: ${fmtDate(new Date(), true)} — ${APP.name} v${APP.version} ${APP.copyright}`]);
+      aoa.push([`Dicetak: ${fmtDate(new Date(), true)} — ${APP.name} v${APP.version} ${APP.credit}`]);
       aoa.push([]);
     }
     const headerRow = aoa.length;
@@ -96,7 +96,7 @@ export async function exportPdf({ filename, title, subtitle = '', sections, orie
   for (let i = 1; i <= n; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(130);
-    doc.text(`Dicetak ${fmtDate(new Date(), true)} • ${APP.name} v${APP.version} • ${APP.copyright}`, M, H - 16);
+    doc.text(`Dicetak ${fmtDate(new Date(), true)} • ${APP.name} v${APP.version} • ${APP.credit}`, M, H - 16);
     doc.text(`Halaman ${i} dari ${n}`, W - M, H - 16, { align: 'right' });
   }
   doc.save(`${safeFile(filename)}.pdf`);

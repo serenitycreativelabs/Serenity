@@ -1,6 +1,6 @@
-# DigiDes — Sistem Informasi Desa Digital
+# Serenity — Sistem Informasi Gampong Digital
 
-![versi](https://img.shields.io/badge/versi-2.2.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.3.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -8,6 +8,14 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 
 ---
 
+
+## Baru di v2.3.0 “Aurora”
+- Nama baru **Serenity**, ikon baru, dan **pengubah ikon** (Super Admin).
+- **Latar belakang website** dari URL foto/video/YouTube (izin baru `latar`).
+- **Badge pengguna**: centang biru/emas/hijau, developer, gamer, GitHub, Stack Overflow, Credly, Coursera, Google Cloud, dll. (Super Admin).
+- **Linmas** di Lembaga Kemasyarakatan, dan **pengelola lembaga** yang diangkat Super Admin.
+- Efek **Glassy / Blurry Aurora**, **Dark Glass Modern**, palet hangat (Terracotta, Creamy, Golden Hour, Sage, Soft Calm), dan 14 pasangan huruf.
+- Dropdown tidak lagi tertutup saat diarahkan; peringatan tutup tab hanya bila ada isian belum disimpan; footer rata kanan.
 
 ## Baru di v2.2.0
 - **Kelembagaan Gampong** — Pemerintahan, Adat & Keagamaan, LKG, Ekonomi, Pendidikan; pengurus, anggota, murid/santri, galeri YouTube, dokumen, ekspor.
@@ -52,7 +60,7 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 ## Struktur Proyek
 
 ```
-digides/
+serenity/
 ├─ index.html               ← meneruskan ke public/index.html
 ├─ public/                  ← situs yang di-deploy ke Firebase Hosting
 │  ├─ index.html            ← HALAMAN UTAMA aplikasi (login: index.html#/login)
@@ -107,12 +115,12 @@ Tanpa proses *build* — cukup HTML, CSS dan JavaScript modul.
 ### 2. Upload ke GitHub
 
 ```bash
-cd digides
+cd serenity
 git init
 git add .
-git commit -m "DigiDes v2.0.0"
+git commit -m "Serenity v2.0.0"
 git branch -M main
-git remote add origin https://github.com/<akun-anda>/digides.git
+git remote add origin https://github.com/<akun-anda>/serenity.git
 git push -u origin main
 ```
 
@@ -214,4 +222,4 @@ Tambahkan `localhost` di *Authorized domains* Firebase Authentication bila ingin
 
 ---
 
-**DigiDes v2.2.0** — © Serenity Creativa 2026. Hak cipta dilindungi.
+**Serenity v2.3.0 “Aurora”** — Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved

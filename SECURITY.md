@@ -1,4 +1,4 @@
-# Panduan Keamanan DigiDes
+# Panduan Keamanan Serenity
 
 © Serenity Creativa 2026
 
@@ -79,12 +79,15 @@ git push origin --force --all
 - Semua akses detail warga, ekspor, dan perubahan tercatat permanen di **Audit Log**.
 
 
-## 6. Daftar periksa keamanan (v2.2.0)
+## 6. Daftar periksa keamanan (v2.3.0)
 | Status | Item |
 |---|---|
 | ✅ Kode | API key tertanam terpecah (tidak memicu pemindai GitHub); tidak ada service account di repo |
 | ✅ Kode | Firestore Rules: peran superadmin/admin/kadus + izin per fitur, validasi skema & ukuran, batas query publik ≤200, audit log hanya-tambah |
 | ✅ Kode | Data anggota/murid lembaga di koleksi privat `lembagaPrivate` |
+| ✅ Kode | Badge, penugasan pengelola lembaga, tema, ikon: hanya Super Admin (dikunci Rules) |
+| ✅ Kode | Pengelola lembaga hanya bisa mengubah lembaga yang ditugaskan (non-Pemerintahan), tidak bisa menghapus atau memindah kategori |
+| ✅ Kode | URL latar, poster, dan tautan badge wajib `https://`; tautan badge memakai `rel="noopener nofollow ugc"` |
 | ✅ Kode | Kata sandi ulang untuk impor, hapus, dan pengaturan sensitif; logout otomatis saat idle |
 | ⚠️ Anda | Batasi API key (HTTP referrer + daftar API) — Langkah A |
 | ⚠️ Anda | Aktifkan App Check + Enforce — bagian 2 |

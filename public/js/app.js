@@ -1,6 +1,6 @@
 // =============================================================
-//  DigiDes — aplikasi utama (SPA, hash routing)
-//  © Serenity Creativa 2026
+//  Serenity — aplikasi utama (SPA, hash routing)
+//  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 // =============================================================
 import { APP, IG_GRAPH } from './config.js';
 import {
@@ -10,16 +10,19 @@ import {
 import {
   esc, $, $$, norm, debounce, todayISO, toDate, fmtDate, fmtRp, fmtNum, waNumber, waLink, waShareLink,
   normalizePhone, waFormat, toast, modal, confirmDialog, promptDialog, attachAutocomplete,
-  downloadBlob, copyText, compressImage, authErrorMessage, parseNum, fmtThousand, bindThousands,
+  copyText, compressImage, authErrorMessage, parseNum, fmtThousand, bindThousands,
 } from './ui.js';
 import { bindWilayahChain } from './wilayah.js';
 import { exportExcel, exportPdf, getXLSX } from './exporter.js';
 import {
-  F, I, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
-  PERMS, isSuper, isKadus, myDusun, avatar, penulisNow, penulisLabel, confirmDelete, KADUS_PERMS, can, ROLE_LABEL, logAudit, diff, requirePassword, superEmail, insightsFromStats, pct, loginFailed,
+  F, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
+  isSuper, isKadus, myDusun, avatar, penulisNow, penulisLabel, confirmDelete, can, ROLE_LABEL, logAudit, diff, requirePassword, insightsFromStats, pct, loginFailed,
+  cfgUpdate, isPengelola,
 } from './core.js';
+import { badgeRow } from './badges.js';
+import { viewTampilan, viewLatar } from './tampilan.js';
 import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS } from './rich.js';
-import { applyTheme, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle, THEME_PRESETS, MODELS, FONT_PAIRS, RADII, DEFAULT_TEMA } from './layout.js';
+import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle } from './layout.js';
 import { KATEGORI, renderLembagaPublic, bindLembagaPublic, renderDokumenPublic, bindDokumenPublic, viewLembagaAdmin, viewDokumenAdmin, lembagaOf } from './lembaga.js';
 import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
 import { viewAdmins, viewAudit, viewCadangan, openSuperLogin } from './security.js';
@@ -59,7 +62,7 @@ const isAktif = (w) => !['kematian', 'pindah keluar'].includes(norm(w.peristiwa)
 // ---------------------------------------------------------------- boot
 function boot() {
   if (F.configError) { renderConfigError(); return; }
-  F.onSnapshot(C('config/app'), (s) => { state.config = s.data() || {}; applyTheme(state.config.tema); applyBranding(); softRerender(['public', 'dash', 'shell']); }, (e) => console.warn('config', e));
+  F.onSnapshot(C('config/app'), (s) => { state.config = s.data() || {}; applyTheme(state.config.tema); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); }, (e) => console.warn('config', e));
   F.onSnapshot(C('config/auth'), (s) => { state.authCfg = s.data() || {}; }, () => {});
   F.onSnapshot(C('config/stats'), (s) => { state.stats = s.data() || {}; softRerender(['public']); }, () => {});
   F.onSnapshot(F.query(F.collection(F.db, 'instagram'), F.limit(150)), (s) => {
@@ -100,7 +103,7 @@ function boot() {
   });
 
   window.addEventListener('hashchange', onHashChange);
-  setupExitGuards({ isAdmin: () => state.isAdmin });
+  setupExitGuards();
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.deferredPrompt = e; $$('[data-install]').forEach((b) => b.hidden = false); });
   window.addEventListener('appinstalled', () => { state.deferredPrompt = null; $$('[data-install]').forEach((b) => b.hidden = true); toast('Aplikasi berhasil dipasang', 'success'); });
   document.addEventListener('click', (e) => {
@@ -142,7 +145,7 @@ function renderConfigError() {
       <button class="btn btn-primary" id="cfg-save">Simpan & muat ulang</button>
     </div></details>
     <div class="row-gap"><button class="btn btn-ghost" id="cfg-retry">${ic('refresh')} Coba lagi</button>${localStorage.getItem('dd:fbcfg') ? '<button class="btn btn-ghost" id="cfg-clear">Hapus konfigurasi tersimpan</button>' : ''}</div>
-    <p class="muted small center" data-copyright>${APP.name} v${APP.version} • ${APP.copyright}</p></div></div>`;
+    <p class="muted small center" data-copyright>${APP.name} v${APP.version} • ${esc(APP.credit)}</p></div></div>`;
   $('#cfg-retry').onclick = () => location.reload();
   $('#cfg-clear')?.addEventListener('click', () => { localStorage.removeItem('dd:fbcfg'); location.reload(); });
   $('#cfg-save').onclick = () => {
@@ -173,7 +176,8 @@ function registerSW() {
 }
 
 function applyBranding() {
-  document.title = state.route?.parts[0] === 'admin' ? `Admin — ${desaName()} | ${APP.name}` : `${desaJenis()} ${desaName()} | ${APP.name}`;
+  const nm = state.config.namaDesa ? `${desaJenis()} ${desaName()}` : '';
+  document.title = state.route?.parts[0] === 'admin' ? `Admin${nm ? ' — ' + nm : ''} | ${APP.name}` : nm ? `${nm} | ${APP.name}` : APP.fullName;
 }
 
 function subscribeInfo(all) {
@@ -249,12 +253,12 @@ function startAdmin() {
   u.push(F.onSnapshot(C(`users/${state.user.uid}`), (s) => {
     const d = s.data();
     if (!d || d.active === false) { toast('Akses Anda telah dicabut.', 'error'); doLogout('akses_dicabut'); return; }
-    const changed = JSON.stringify(d.perms || {}) !== JSON.stringify(state.perms) || d.role !== state.role;
+    const changed = JSON.stringify(d.perms || {}) !== JSON.stringify(state.perms) || d.role !== state.role || JSON.stringify(d.lembagaIds || []) !== JSON.stringify(state.profile?.lembagaIds || []) || JSON.stringify(d.badges || []) !== JSON.stringify(state.profile?.badges || []);
     state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
     if (changed) { toast('Hak akses Anda diperbarui', 'info'); root.dataset.shell = ''; startAdmin(); render(); }
   }, () => {}));
   subscribeInfo(true);
-  if (can('lembaga') || can('dokumen')) subscribeLembaga(true);
+  if (can('lembaga') || can('dokumen') || isPengelola()) subscribeLembaga(true);
   setTimeout(() => { if (can('instagram')) autoSyncInstagram(); }, 4000);
 }
 function stopAdmin() {
@@ -429,6 +433,7 @@ function renderPublic(r, soft) {
   const rightKeys = ordered(['sholat', 'kegiatan'].filter((k) => !leftKeys.includes(k)), lay.sideRight);
   const side = (keys) => keys.map((k) => `<div class="side-block" data-key="${k}">${sideKeys[k]()}</div>`).join('');
   const editing = state.layoutEdit === 'public';
+  const openDd = soft ? [...document.querySelectorAll('.pub-nav .dropdown')].findIndex((d) => d.classList.contains('open')) : -1;
   root.innerHTML = `
   <header class="pub-header">
     <div class="pub-header-inner">
@@ -459,12 +464,14 @@ function renderPublic(r, soft) {
   ${pubFooter(ticker, rt)}
   ${isSuper() && p0 === '' ? layoutBar('public') : ''}`;
   applyTheme(state.config.tema);
+  applyBackground(state.config.latar, { isHome: p0 === '' });
   bindPublic();
+  if (openDd >= 0) { const d = $$('.pub-nav .dropdown')[openDd]; d?.classList.add('open'); d?.querySelector('.dropdown-btn')?.setAttribute('aria-expanded', 'true'); }
   if (editing) enableLayoutEdit('public');
   if (soft) window.scrollTo(0, y); else window.scrollTo(0, 0);
 }
 
-// Footer statis & minimalis — semua informasi di kiri; running text digerakkan JavaScript
+// Footer statis & minimalis — semua informasi rata kanan; running text digerakkan JavaScript
 function pubFooter(ticker, rt = {}) {
   const items = ticker ? String(rt.teks).split('\n').map((t) => t.trim()).filter(Boolean) : [];
   const speed = { lambat: 35, normal: 60, cepat: 100 }[rt.kecepatan] || 60;
@@ -472,11 +479,10 @@ function pubFooter(ticker, rt = {}) {
   return `<footer class="pub-foot">
     ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan" style="${bg}"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" data-speed="${speed}" style="${tickerStyle(rt)}">${items.map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>` : ''}
     <div class="foot-line">
-      <b>${esc(`${desaJenis()} ${desaName()}`.trim())}</b>
-      ${state.config.telepon ? `<a href="${esc(waLink(state.config.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(state.config.telepon)}</a>` : ''}
-      <span>${APP.name} v${APP.version}</span>
       <button class="link-btn" data-install hidden>${ic('phone')} Pasang aplikasi</button>
-      <span class="copyright" data-copyright title="${esc(APP.copyright)}">${APP.copyright}</span>
+      ${state.config.telepon ? `<a href="${esc(waLink(state.config.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(state.config.telepon)}</a>` : ''}
+      <span class="foot-ver" title="${esc(APP.buildLabel)}">${APP.name} ${APP.versionLabel}</span>
+      <span class="copyright" data-copyright title="${esc(APP.credit)}">${esc(APP.credit)}</span>
     </div>
   </footer>`;
 }
@@ -523,9 +529,6 @@ document.addEventListener('click', async (e) => {
 });
 
 // Ganti seluruh nilai field di config/app (bukan digabung), buat dokumen bila belum ada
-async function cfgUpdate(obj) {
-  try { await F.updateDoc(C('config/app'), obj); } catch (e) { if (/no document|not-found|NOT_FOUND/i.test(e.code || e.message)) await F.setDoc(C('config/app'), obj, { merge: true }); else throw e; }
-}
 const HOME_KEYS = ['hero', 'berita', 'layanan', 'galeri', 'insight', 'viz', 'data'];
 function pubHome() {
   const s = state.stats || {};
@@ -604,7 +607,7 @@ function pubHighlight(full) {
 function penulisSign(i, full = false) {
   const p = i.penulis; if (!p || !p.nama) return '';
   const ttl = penulisLabel(p); const ed = i.diubahOleh ? penulisLabel(i.diubahOleh) : '';
-  return `<div class="byline">${avatar(p, 'sm')}<span>Diterbitkan oleh <b>${esc(ttl)}</b>${full && p.jabatan && !ttl.includes(p.jabatan) ? ` <small class="muted">· ${esc(p.jabatan)}</small>` : ''}${full && ed && ed !== ttl ? `<br><small class="muted">Diperbarui oleh ${esc(ed)}</small>` : ''}</span></div>`;
+  return `<div class="byline">${avatar(p, 'sm')}<span>Diterbitkan oleh <b>${esc(ttl)}</b>${badgeRow(p.badges, full ? 8 : 3)}${full && p.jabatan && !ttl.includes(p.jabatan) ? ` <small class="muted">· ${esc(p.jabatan)}</small>` : ''}${full && ed && ed !== ttl ? `<br><small class="muted">Diperbarui oleh ${esc(ed)}</small>` : ''}</span></div>`;
 }
 const infoThumb = (i) => i.gambar || (i.media || []).map((m) => mediaThumb(m.url)).find(Boolean) || '';
 const hasVideo = (i) => (i.media || []).some((m) => /youtu|drive\.google|\.mp4/i.test(m.url));
@@ -673,9 +676,17 @@ function bindPublic() {
   $$('[data-copy-link]').forEach((b) => b.onclick = () => copyText(b.dataset.copyLink));
   if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   $('#pubnav-toggle')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
+  // Dropdown: di desktop terbuka saat diarahkan & TIDAK langsung tertutup ketika kursor pindah ke submenu
+  const hoverable = () => matchMedia('(hover: hover) and (min-width: 861px)').matches;
   $$('.dropdown').forEach((dd) => {
     const btn = dd.querySelector('.dropdown-btn');
-    btn.onclick = (e) => { e.stopPropagation(); const o = !dd.classList.contains('open'); $$('.dropdown.open').forEach((x) => x.classList.remove('open')); dd.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); };
+    let t = 0;
+    const setOpen = (o) => { clearTimeout(t); if (o) $$('.dropdown.open').forEach((x) => { if (x !== dd) { x.classList.remove('open'); x.querySelector('.dropdown-btn')?.setAttribute('aria-expanded', 'false'); } }); dd.classList.toggle('open', o); btn.setAttribute('aria-expanded', String(o)); };
+    dd.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && hoverable()) setOpen(true); });
+    dd.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && hoverable()) { clearTimeout(t); t = setTimeout(() => setOpen(false), 400); } });
+    btn.onclick = (e) => { e.stopPropagation(); setOpen(hoverable() ? true : !dd.classList.contains('open')); };
+    dd.addEventListener('keydown', (e) => { if (e.key === 'Escape') { setOpen(false); btn.focus(); } });
+    dd.querySelectorAll('.dropdown-menu a').forEach((a) => a.addEventListener('click', () => { setOpen(false); document.body.classList.remove('pubnav-open'); }));
   });
   document.addEventListener('click', closeDropdowns);
   bindDataPortal();
@@ -703,7 +714,7 @@ function renderLogin() {
       <p class="err" id="login-err" role="alert"></p>
       <div class="login-links"><a href="#" id="forgot">Lupa password?</a><a href="#/">← Ke beranda</a></div>
       <p class="muted small center">Akun admin hanya dapat dibuat oleh Super Admin.</p>
-      <p class="muted small center"><span>${APP.name} v${APP.version}</span> • <span class="copyright" data-copyright>${APP.copyright}</span></p>
+      <p class="muted small center"><span>${APP.name} v${APP.version}</span> • <span class="copyright" data-copyright>${esc(APP.credit)}</span></p>
     </form></div>`;
   $('#pw-toggle').onclick = () => { const p = $('#pw'); p.type = p.type === 'password' ? 'text' : 'password'; };
   $('#forgot').onclick = async (e) => {
@@ -738,14 +749,14 @@ const NAV = [
   ['dashboard', 'Dasbor', 'grid', null, 'Utama'],
   ['warga', 'Data Warga', 'users', 'warga', 'Kependudukan'], ['import', 'Import Excel', 'upload', 'import', 'Kependudukan'],
   ['dusun', 'Dusun & Kadus', 'map', 'dusun', 'Kependudukan'], ['master', 'Data Master', 'db', 'master', 'Kependudukan'], ['laporan', 'Laporan & Ekspor', 'chart', 'export', 'Kependudukan'],
-  ['lembaga', 'Lembaga Gampong', 'shield', 'lembaga', 'Kelembagaan'], ['dokumen', 'Dokumen Publik', 'file', 'dokumen', 'Kelembagaan'],
+  ['lembaga', 'Lembaga Gampong', 'shield', 'lembagaAny', 'Kelembagaan'], ['dokumen', 'Dokumen Publik', 'file', 'dokumen', 'Kelembagaan'],
   ['informasi', 'Papan Informasi', 'mega', 'informasi', 'Publikasi'], ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast', 'Publikasi'], ['instagram', 'Instagram', 'ig', 'instagram', 'Publikasi'],
   ['profil', 'Profil Gampong', 'book', 'profil', 'Publikasi'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan', 'Publikasi'],
-  ['pengaturan', 'Pengaturan', 'cog', null, 'Sistem'], ['tampilan', 'Tampilan & Tema', 'eye', 'super', 'Sistem'],
+  ['pengaturan', 'Pengaturan', 'cog', null, 'Sistem'], ['tampilan', 'Tampilan & Tema', 'eye', 'super', 'Sistem'], ['latar', 'Latar Belakang', 'image', 'latar', 'Sistem'],
   ['admin', 'Manajemen Akun', 'lock', 'akun', 'Super Admin'], ['audit', 'Audit Log', 'log', 'super', 'Super Admin'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super', 'Super Admin'],
 ];
 const NAV_GROUPS = ['Utama', 'Kependudukan', 'Kelembagaan', 'Publikasi', 'Sistem', 'Super Admin'];
-const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : p === 'akun' ? (isSuper() || can('kelolaKadus')) : can(p));
+const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : p === 'akun' ? (isSuper() || can('kelolaKadus')) : p === 'lembagaAny' ? (can('lembaga') || isPengelola()) : can(p));
 function updateShellBrand() {
   const b = $('#shell-brand'); if (b) b.innerHTML = `<span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaName())}</b><small>${APP.name} v${APP.version}</small></span>`;
 }
@@ -754,23 +765,23 @@ function renderAdmin(r, soft) {
   if (root.dataset.shell !== 'admin') {
     root.dataset.shell = 'admin';
     const items = NAV.filter(navAllowed);
-    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span></a>${k === 'lembaga' ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}</div>` : ''}`;
+    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span></a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}</div>` : ''}`;
     const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g === 'Super Admin' && !isSuper() ? 'Akun' : g}</small>`}${its.map(link).join('')}` : ''; }).join('');
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
         <a class="brand" id="shell-brand" href="#/admin"></a>
-        <a class="me" href="#/admin/pengaturan" title="Profil saya">${avatar(state.profile)}<div><b>${esc(state.profile?.nama || '')}</b><small><span class="badge ${isSuper() ? 'badge-warn' : isKadus() ? 'badge-ok' : ''}">${esc(ROLE_LABEL[state.role] || state.role)}${isKadus() ? ' · ' + esc(myDusun()) : ''}</span></small></div></a>
+        <a class="me" href="#/admin/pengaturan" title="Profil saya">${avatar(state.profile)}<div><b>${esc(state.profile?.nama || '')}</b>${badgeRow(state.profile?.badges, 4, false)}<small><span class="badge ${isSuper() ? 'badge-warn' : isKadus() ? 'badge-ok' : ''}">${esc(isPengelola() && !Object.values(state.perms || {}).some(Boolean) ? 'Pengelola Lembaga' : ROLE_LABEL[state.role] || state.role)}${isKadus() ? ' · ' + esc(myDusun()) : ''}</span></small></div></a>
         <nav class="side-nav">${navHtml}</nav>
         <div class="side-foot">
           <a href="#/" target="_blank">${ic('ext')}<span>Lihat Situs Publik</span></a>
           <button id="logout">${ic('out')}<span>Keluar</span></button>
-          <p class="muted small copyright" data-copyright>${APP.copyright}</p>
+          <p class="muted small copyright" data-copyright>${esc(APP.credit)}</p>
         </div>
       </aside>
       <div class="admin-body">
         <header class="topbar"><button class="icon-btn" id="nav-toggle" aria-label="Menu">${ic('menu')}</button><h2 id="page-title"></h2><div class="topbar-right"><button class="icon-btn theme-btn" data-theme-toggle aria-label="Mode gelap/terang"></button><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang</button><span class="muted small hide-sm">${esc(state.user?.email || '')}</span></div></header>
         <main class="admin-main" id="admin-main"></main>
-        <footer class="admin-footer">${APP.name} v${APP.version} (build ${APP.build}) • <span class="copyright" data-copyright>${APP.copyright}</span></footer>
+        <footer class="admin-footer"><span title="${esc(APP.buildLabel)}">${APP.name} v${APP.version} • Build ${APP.build} • ${APP.revision}</span> • <span class="copyright" data-copyright>${esc(APP.credit)}</span></footer>
       </div>
       <div class="nav-scrim" id="nav-scrim"></div>
     </div>`;
@@ -783,6 +794,7 @@ function renderAdmin(r, soft) {
   const navKey = sec === 'lembaga' && r.parts[2] === 'k' ? `lembaga/k/${r.parts[3]}` : sec;
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey || (sec === 'lembaga' && a.dataset.nav === 'lembaga' && navKey === 'lembaga')));
   applyTheme(state.config.tema);
+  applyBackground(null);
   const item = NAV.find((n) => n[0] === sec);
   $('#page-title').textContent = item ? item[1] : 'Admin';
   const main = $('#admin-main');
@@ -797,7 +809,7 @@ function renderAdmin(r, soft) {
   const views = {
     dashboard: viewDashboard, warga: viewWarga, import: viewImport, dusun: viewDusun, master: viewMaster, laporan: viewLaporan,
     informasi: viewInformasi, broadcast: viewBroadcast, instagram: viewInstagram, pengaturan: viewPengaturan,
-    profil: viewProfilAdmin, kegiatan: viewKegiatanAdmin, admin: viewAdmins, audit: viewAudit, cadangan: viewCadangan,
+    profil: viewProfilAdmin, kegiatan: viewKegiatanAdmin, admin: viewAdmins, audit: viewAudit, cadangan: viewCadangan, latar: viewLatar,
     lembaga: viewLembagaAdmin, dokumen: viewDokumenAdmin, tampilan: viewTampilan,
   };
   if (sec !== 'dashboard' && state.layoutEdit === 'dash') { state.layoutEdit = null; layoutStop?.(); }
@@ -1330,7 +1342,7 @@ async function downloadTemplate() {
     await exportExcel('Template_Import_Data_Warga', [
       { name: 'Data Warga', head: fields.map((f) => f.label), body: [fields.map((f) => ex[f.key] ?? '')] },
       { name: 'Pilihan Dropdown', head: pilihan.map((f) => f.label), body: pilihanBody },
-      { name: 'Petunjuk', head: ['Petunjuk Pengisian'], body: [['1. Isi data mulai baris ke-2 pada lembar "Data Warga". Hapus baris contoh.'], ['2. NIK & No KK 16 digit. Format kolom sebagai Teks agar angka tidak berubah.'], ['3. Tanggal format YYYY-MM-DD (contoh 1990-01-31) atau DD/MM/YYYY.'], ['4. Untuk kolom pilihan, gunakan nilai pada lembar "Pilihan Dropdown". Nilai baru akan ditambahkan ke Data Master.'], ['5. Jenis Kelamin boleh diisi L / P.'], [`${APP.name} v${APP.version} ${APP.copyright}`]] },
+      { name: 'Petunjuk', head: ['Petunjuk Pengisian'], body: [['1. Isi data mulai baris ke-2 pada lembar "Data Warga". Hapus baris contoh.'], ['2. NIK & No KK 16 digit. Format kolom sebagai Teks agar angka tidak berubah.'], ['3. Tanggal format YYYY-MM-DD (contoh 1990-01-31) atau DD/MM/YYYY.'], ['4. Untuk kolom pilihan, gunakan nilai pada lembar "Pilihan Dropdown". Nilai baru akan ditambahkan ke Data Master.'], ['5. Jenis Kelamin boleh diisi L / P.'], [`${APP.name} v${APP.version} ${APP.credit}`]] },
     ]);
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -1993,7 +2005,7 @@ function viewPengaturan(main) {
     </div>
   </div>
   <div class="panel"><h3>Tentang Aplikasi</h3>
-    <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>v${APP.version} (build ${APP.build})</dd>${isSuper() ? `<dt>Database</dt><dd>Firebase Firestore${F.firebaseConfig?.projectId ? ' • ' + esc(F.firebaseConfig.projectId) : ''}</dd><dt>Perlindungan bot</dt><dd>${APP.appCheckSiteKey ? 'App Check (reCAPTCHA v3) aktif' : 'App Check belum diaktifkan — lihat SECURITY.md'}</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd>` : ''}<dt>Hak cipta</dt><dd>${APP.copyright}</dd></dl>
+    <dl class="detail"><dt>Aplikasi</dt><dd>${APP.fullName}</dd><dt>Versi</dt><dd>${esc(APP.buildLabel)}</dd><dt>Hak cipta</dt><dd>${esc(APP.credit)}</dd>${isSuper() ? `<dt>Database</dt><dd>Firebase Firestore${F.firebaseConfig?.projectId ? ' • ' + esc(F.firebaseConfig.projectId) : ''}</dd><dt>Perlindungan bot</dt><dd>${APP.appCheckSiteKey ? 'App Check (reCAPTCHA v3) aktif' : 'App Check belum diaktifkan — lihat SECURITY.md'}</dd><dt>PWA</dt><dd>${navigator.serviceWorker?.controller ? 'Aktif — bisa dipakai offline' : 'Siap dipasang'}</dd>` : ''}<dt>Hak cipta</dt><dd>${APP.credit}</dd></dl>
     <button class="btn btn-ghost btn-sm" id="chk-upd">${ic('refresh')} Periksa pembaruan</button></div>`;
 
   if (can('pengaturan')) {
@@ -2082,51 +2094,4 @@ function viewPengaturan(main) {
 }
 
 // ---------------------------------------------------------------- Tampilan & Tema (khusus Super Admin)
-function viewTampilan(main) {
-  state.view = 'form';
-  if (!isSuper()) { main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Khusus Super Admin</b></div></div>`; return; }
-  main.setAttribute('data-guard', '');
-  const t = { ...DEFAULT_TEMA, ...(state.config.tema || {}) };
-  const opt = (name, entries, cur, render) => entries.map(([k, v]) => `<label class="choice ${cur === k ? 'on' : ''}"><input type="radio" name="${name}" value="${k}" ${cur === k ? 'checked' : ''}>${render(k, v)}</label>`).join('');
-  main.innerHTML = `
-  <div class="callout">${ic('eye')}<div><b>Tampilan & Tema</b><p>Pengaturan ini berlaku untuk seluruh pengunjung & admin. Perubahan langsung terlihat sebagai pratinjau; klik <b>Simpan Tema</b> untuk menerapkan.</p></div></div>
-  <div class="panel"><h3>${ic('grid')} Warna Tema</h3>
-    <div class="choices colors">${opt('preset', Object.entries(THEME_PRESETS), t.preset, (k, v) => `<span class="sw" style="--c:${v.brand};--a:${v.accent}"><i></i><i></i></span><b>${esc(v.label)}</b>`)}</div>
-    <div class="form-grid" style="margin-top:12px">
-      <label class="field"><span>Warna utama kustom (opsional)</span><div class="input-group"><input type="color" id="tm-brand" value="${esc(t.brand || THEME_PRESETS[t.preset]?.brand || '#0f766e')}"><button type="button" class="btn btn-ghost btn-sm" id="tm-brand-clear">Pakai preset</button></div></label>
-      <label class="field"><span>Warna aksen kustom (opsional)</span><div class="input-group"><input type="color" id="tm-accent" value="${esc(t.accent || THEME_PRESETS[t.preset]?.accent || '#b45309')}"><button type="button" class="btn btn-ghost btn-sm" id="tm-accent-clear">Pakai preset</button></div></label>
-    </div></div>
-  <div class="panel"><h3>${ic('book')} Model Tampilan</h3>
-    <div class="choices models">${opt('model', Object.entries(MODELS), t.model, (k, v) => `<span class="mdl mdl-${k}"><i></i><i></i><i></i></span><b>${esc(v.label.split(' — ')[0])}</b><small>${esc(v.label.split(' — ')[1] || '')}</small>`)}</div></div>
-  <div class="panel-grid two">
-    <div class="panel"><h3>Huruf</h3><div class="choices">${opt('font', Object.entries(FONT_PAIRS), t.font, (k, v) => `<b class="fp-${k}">Aa</b><small>${esc(v.label)}</small>`)}</div>
-      <h3 style="margin-top:14px">Sudut Panel</h3><div class="choices">${opt('radius', Object.entries(RADII), t.radius, (k, v) => `<span class="rd" style="border-radius:${v.v}"></span><small>${esc(v.label)}</small>`)}</div></div>
-    <div class="panel"><h3>${ic('moon')} Mode Gelap / Terang</h3>
-      <div class="choices">${opt('mode', [['auto', 'Ikuti perangkat'], ['light', 'Terang'], ['dark', 'Gelap']], t.mode, (k, v) => `<b>${k === 'dark' ? '🌙' : k === 'light' ? '☀️' : '🖥️'}</b><small>${esc(v)}</small>`)}</div>
-      <label class="check" style="margin-top:10px"><input type="checkbox" id="tm-toggle" ${t.toggle !== false ? 'checked' : ''}> Izinkan setiap pengunjung mengganti mode gelap/terang sendiri (tombol ☾ di header)</label>
-      <h3 style="margin-top:14px">${ic('grid')} Tata Letak Panel</h3>
-      <p class="muted small">Seret-tempel posisi panel di beranda publik (berita, data, insight, jadwal sholat, kegiatan rutin) dan di dasbor admin.</p>
-      <div class="row-gap"><a class="btn btn-ghost btn-sm" href="#/" id="tm-lay-home">Atur beranda publik</a><a class="btn btn-ghost btn-sm" href="#/admin" id="tm-lay-dash">Atur dasbor</a><button class="btn btn-ghost btn-sm" id="tm-lay-reset">Reset semua tata letak</button></div>
-    </div>
-  </div>
-  <div class="sticky-actions"><button class="btn btn-ghost" id="tm-reset">Kembalikan tema bawaan</button><span class="spacer"></span><button class="btn btn-primary" id="tm-save" data-save>${ic('check')} Simpan Tema</button></div>`;
-  let brand = t.brand, accent = t.accent;
-  const read = () => ({ preset: $('input[name=preset]:checked').value, model: $('input[name=model]:checked').value, font: $('input[name=font]:checked').value, radius: $('input[name=radius]:checked').value, mode: $('input[name=mode]:checked').value, toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
-  const preview = () => { $$('.choice', main).forEach((c) => c.classList.toggle('on', c.querySelector('input').checked)); applyTheme(read()); };
-  main.addEventListener('change', (e) => { if (e.target.name === 'preset') { brand = ''; accent = ''; const p = THEME_PRESETS[e.target.value]; $('#tm-brand').value = p.brand; $('#tm-accent').value = p.accent; } preview(); });
-  $('#tm-brand').oninput = (e) => { brand = e.target.value; preview(); };
-  $('#tm-accent').oninput = (e) => { accent = e.target.value; preview(); };
-  $('#tm-brand-clear').onclick = () => { brand = ''; preview(); };
-  $('#tm-accent-clear').onclick = () => { accent = ''; preview(); };
-  $('#tm-save').onclick = async () => {
-    const tema = read();
-    try { await cfgUpdate({ tema }); state.config.tema = tema; guard.dirty = false; logAudit('tampilan', 'tema', `Mengubah tema tampilan (${THEME_PRESETS[tema.preset]?.label}, model ${tema.model})`, { changes: diff(t, tema) }); toast('Tema disimpan', 'success'); }
-    catch (e) { toast('Gagal: ' + e.message, 'error'); }
-  };
-  $('#tm-reset').onclick = async () => { if (!await confirmDialog('Kembalikan tema ke bawaan (Teal Gampong, model Klasik)?', { okText: 'Kembalikan' })) return; await cfgUpdate({ tema: DEFAULT_TEMA }); state.config.tema = DEFAULT_TEMA; guard.dirty = false; logAudit('tampilan', 'tema_reset', 'Mengembalikan tema bawaan'); viewTampilan(main); };
-  $('#tm-lay-home').onclick = (e) => { e.preventDefault(); guard.dirty = false; state.layoutEdit = 'public'; location.hash = '#/'; };
-  $('#tm-lay-dash').onclick = (e) => { e.preventDefault(); guard.dirty = false; state.layoutEdit = 'dash'; location.hash = '#/admin'; };
-  $('#tm-lay-reset').onclick = async () => { if (!await confirmDialog('Kembalikan susunan semua panel (beranda & dasbor) ke bawaan?', { okText: 'Reset' })) return; await cfgUpdate({ layout: {} }); state.config.layout = {}; logAudit('tampilan', 'layout_reset', 'Mengembalikan semua tata letak ke bawaan'); toast('Tata letak dikembalikan', 'success'); };
-}
-
 boot();

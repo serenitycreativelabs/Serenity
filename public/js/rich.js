@@ -1,5 +1,5 @@
 // Editor teks kaya (font, ukuran, warna, tebal, miring), sanitasi HTML aman, konversi ke WhatsApp,
-// serta penyematan media dari URL (YouTube, foto, Google Drive).  © Serenity Creativa 2026
+// serta penyematan media dari URL (YouTube, foto, Google Drive).  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 import { esc, waFormat } from './ui.js';
 
 export const FONTS = [

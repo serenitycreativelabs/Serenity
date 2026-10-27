@@ -11,7 +11,10 @@ pkg.version = next; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2
 const rep = (f, re, v) => fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(re, v));
 rep('public/js/config.js', /version: '[^']+'/, `version: '${next}'`);
 rep('public/js/config.js', /build: '[^']+'/, `build: '${build}'`);
+const prevRev = Number((fs.readFileSync('public/js/config.js', 'utf8').match(/revision: 'R(\d+)'/) || [])[1] || 0);
+const rev = `R${prevRev + 1}`;
+rep('public/js/config.js', /revision: '[^']+'/, `revision: '${rev}'`);
 rep('public/sw.js', /const VERSION = '[^']+'/, `const VERSION = '${next}'`);
 const cl = fs.readFileSync('CHANGELOG.md', 'utf8');
 fs.writeFileSync('CHANGELOG.md', cl.replace('# Catatan Perubahan\n', `# Catatan Perubahan\n\n## v${next} — ${build}\n- ${note}\n`));
-console.log(`Versi dinaikkan ke v${next} (build ${build})`);
+console.log(`Versi dinaikkan ke v${next} (build ${build}, ${rev})`);

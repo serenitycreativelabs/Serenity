@@ -1,7 +1,8 @@
 // Lembaga Gampong (5 kategori) & Dokumen Publik Gampong — halaman publik + panel admin
-// © Serenity Creativa 2026
-import { F, ic, state, C, clean, emptyBox, loadingBox, can, logAudit, diff, confirmDelete, penulisNow, penulisLabel, avatar } from './core.js';
-import { esc, $, $$, norm, debounce, fmtDate, fmtNum, todayISO, waLink, waNumber, normalizePhone, toast, modal, attachAutocomplete, compressImage, promptDialog } from './ui.js';
+// Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
+import { F, ic, state, C, clean, emptyBox, loadingBox, can, isSuper, logAudit, diff, confirmDelete, penulisNow, penulisLabel, avatar, canLembaga, LEMBAGA_DELEGASI, requirePassword, superEmail, ROLE_LABEL } from './core.js';
+import { esc, $, $$, norm, debounce, fmtDate, fmtNum, todayISO, waLink, waNumber, normalizePhone, toast, modal, attachAutocomplete, compressImage, promptDialog, confirmDialog, authErrorMessage } from './ui.js';
+import { badgeRow } from './badges.js';
 import { slugify } from './fields.js';
 import { guard } from './layout.js';
 import { richRender, bindRich, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, safeUrl, downloadUrl, mediaKind } from './rich.js';
@@ -11,7 +12,7 @@ import { exportExcel, exportPdf } from './exporter.js';
 export const KATEGORI = [
   { key: 'pemerintahan', label: 'Lembaga Pemerintahan Gampong', short: 'Pemerintahan', icon: 'home', desc: 'Pemerintah Gampong (eksekutif) dan Tuha Peuet Gampong.' },
   { key: 'adat', label: 'Lembaga Adat & Keagamaan Gampong', short: 'Adat & Keagamaan', icon: 'moon', desc: 'BKM, TPA/TPQ, Imeum Gampong, Tuha Lapan, Remaja Masjid.' },
-  { key: 'lkg', label: 'Lembaga Kemasyarakatan Gampong (LKG)', short: 'Kemasyarakatan', icon: 'users', desc: 'PKK, Posyandu, Pemuda / Karang Taruna, LPMG.' },
+  { key: 'lkg', label: 'Lembaga Kemasyarakatan Gampong (LKG)', short: 'Kemasyarakatan', icon: 'users', desc: 'PKK, Posyandu, Pemuda / Karang Taruna, LPMG, Linmas.' },
   { key: 'ekonomi', label: 'Lembaga Ekonomi Gampong', short: 'Ekonomi', icon: 'chart', desc: 'BUMG dan Koperasi Gampong.' },
   { key: 'pendidikan', label: 'Lembaga Pendidikan Gampong', short: 'Pendidikan', icon: 'book', desc: 'PAUD dan lembaga pendidikan lainnya.' },
 ];
@@ -30,6 +31,9 @@ const SEED = [
   { kategori: 'lkg', nama: 'Pos Pelayanan Terpadu', singkatan: 'Posyandu', jenis: 'umum', jabatanList: ['Ketua', 'Sekretaris', 'Bendahara', 'Kader Posyandu', 'Bidan Desa'] },
   { kategori: 'lkg', nama: 'Pemuda Gampong / Karang Taruna', singkatan: 'Karang Taruna', jenis: 'umum', jabatanList: JAB_UMUM },
   { kategori: 'lkg', nama: 'Lembaga Pemberdayaan Masyarakat Gampong', singkatan: 'LPMG / LPMD', jenis: 'umum', jabatanList: JAB_UMUM },
+  { kategori: 'lkg', nama: 'Perlindungan Masyarakat', singkatan: 'Linmas', jenis: 'umum', since: '2.3.0',
+    bagianList: ['Pimpinan Satuan', 'Regu I', 'Regu II', 'Regu III', 'Anggota'],
+    jabatanList: ['Kepala Satuan Linmas (Kasatlinmas)', 'Wakil Kepala Satuan', 'Komandan Regu (Danru)', 'Wakil Komandan Regu', 'Sekretaris', 'Anggota Linmas'] },
   { kategori: 'ekonomi', nama: 'Badan Usaha Milik Gampong', singkatan: 'BUMG', jenis: 'umum', jabatanList: ['Penasihat', 'Direktur', 'Sekretaris', 'Bendahara', 'Kepala Unit Usaha', 'Pengawas'] },
   { kategori: 'ekonomi', nama: 'Koperasi Gampong', singkatan: 'Koperasi', jenis: 'umum', jabatanList: ['Ketua', 'Sekretaris', 'Bendahara', 'Pengawas', 'Manajer', 'Anggota'] },
   { kategori: 'pendidikan', nama: 'Pendidikan Anak Usia Dini', singkatan: 'PAUD', jenis: 'pendidikan', jabatanList: ['Kepala PAUD', 'Guru', 'Pendidik', 'Tenaga Kependidikan', 'Ketua Komite'] },
@@ -37,7 +41,6 @@ const SEED = [
 export const JENIS_LABEL = { umum: 'Lembaga umum', pendidikan: 'Pendidikan umum (murid)', keagamaan: 'Pendidikan keagamaan (santri)' };
 const pesertaLabel = (l) => (l.jenis === 'keagamaan' ? 'Santri' : l.jenis === 'pendidikan' ? 'Murid' : '');
 const pesertaJk = (l, jk) => (l.jenis === 'keagamaan' ? (jk === 'P' ? 'Santriwati' : 'Santriwan') : jk === 'P' ? 'Perempuan' : 'Laki-laki');
-const lName = (l) => l.singkatan && l.singkatan !== l.nama ? `${l.nama} (${l.singkatan})` : l.nama;
 const katOf = (k) => KATEGORI.find((x) => x.key === k) || KATEGORI[0];
 export const lembagaOf = (k) => state.lembaga.filter((l) => l.kategori === k).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
 
@@ -132,10 +135,18 @@ export function bindDokumenPublic() {
 const guessFormat = (u) => { const m = String(u || '').match(/\.(pdf|docx?|xlsx?|pptx?|zip|jpg|png)(\?|$)/i); return m ? m[1] : /drive\.google/.test(u) ? 'drive' : 'link'; };
 
 // ================================================================ ADMIN: Lembaga
+const seedId = (s) => slugify(s.singkatan || s.nama);
+const seedDoc = (s, i) => { const { since, ...d } = s; void since; return { ...d, urutan: i + 1, published: true, pengurus: [], media: [], berita: [], dokumen: [], createdAt: F.serverTimestamp(), updatedBy: state.user.email }; };
 export async function seedLembaga() {
-  const ops = SEED.map((s, i) => [`lembaga/${slugify(s.singkatan || s.nama)}`, { ...s, urutan: i + 1, published: true, pengurus: [], media: [], berita: [], dokumen: [], createdAt: F.serverTimestamp(), updatedBy: state.user.email }]);
-  const b = F.writeBatch(F.db); ops.forEach(([p, d]) => b.set(C(p), d, { merge: true })); await b.commit();
+  const b = F.writeBatch(F.db); SEED.forEach((s, i) => b.set(C(`lembaga/${seedId(s)}`), seedDoc(s, i), { merge: true })); await b.commit();
   logAudit('lembaga', 'struktur_bawaan', `Memasang struktur bawaan ${SEED.length} lembaga gampong`, { count: SEED.length });
+}
+// Lembaga bawaan baru (mis. Linmas di v2.3.0) yang belum ada pada data lama
+const dismissedSeeds = () => { try { return JSON.parse(localStorage.getItem('dd:seedSkip') || '[]'); } catch { return []; } };
+export const missingSeeds = () => (state.lembaga.length ? SEED.filter((s) => s.since && !state.lembaga.some((l) => l.id === seedId(s) || norm(l.singkatan) === norm(s.singkatan)) && !dismissedSeeds().includes(seedId(s))) : []);
+async function addSeeds(list) {
+  const b = F.writeBatch(F.db); list.forEach((s) => b.set(C(`lembaga/${seedId(s)}`), { ...seedDoc(s, SEED.indexOf(s)), urutan: lembagaOf(s.kategori).length + 1 }, { merge: true })); await b.commit();
+  logAudit('lembaga', 'tambah_bawaan', `Menambahkan lembaga bawaan baru: ${list.map((s) => s.singkatan).join(', ')}`, { count: list.length });
 }
 export function viewLembagaAdmin(main, r) {
   state.view = 'lembaga';
@@ -145,12 +156,24 @@ export function viewLembagaAdmin(main, r) {
   const kat = p2 === 'k' ? katOf(r.parts[3]) : null;
   if (!state.lembagaReady) { main.innerHTML = loadingBox(); return; }
   if (kat) $('#page-title').textContent = kat.label;
+  const full = can('lembaga');
+  // Pengelola (admin yang diangkat Super Admin) hanya melihat lembaga yang dikelolanya
+  if (!full) {
+    const mine = state.lembaga.filter((l) => canLembaga(l.id, l.kategori));
+    main.innerHTML = `<div class="callout">${ic('shield')}<div><b>Lembaga yang Anda kelola</b><p>Anda diangkat Super Admin sebagai pengelola lembaga berikut. Anda dapat mengubah profil, pengurus, anggota, berita, galeri, dan dokumen lembaga ini.</p></div></div>
+      <div class="lg-grid">${mine.map((l) => lembagaCard(l, true)).join('') || emptyBox('Belum ada lembaga yang ditugaskan kepada Anda.')}</div>`;
+    return;
+  }
   const cats = kat ? [kat] : KATEGORI;
+  const miss = missingSeeds();
   main.innerHTML = `
-  ${!state.lembaga.length ? `<div class="callout">${ic('shield')}<div><b>Mulai dengan struktur bawaan</b><p>Pasang ${SEED.length} lembaga sesuai struktur gampong di Aceh: Pemerintah Gampong, TPG, BKM, TPA/TPQ, Imeum, Tuha Lapan, Remaja Masjid, PKK, Posyandu, Karang Taruna, LPMG, BUMG, Koperasi, dan PAUD.</p></div><button class="btn btn-primary" id="lg-seed">${ic('plus')} Pasang struktur bawaan</button></div>` : ''}
+  ${!state.lembaga.length ? `<div class="callout">${ic('shield')}<div><b>Mulai dengan struktur bawaan</b><p>Pasang ${SEED.length} lembaga sesuai struktur gampong di Aceh: Pemerintah Gampong, TPG, BKM, TPA/TPQ, Imeum, Tuha Lapan, Remaja Masjid, PKK, Posyandu, Karang Taruna, LPMG, Linmas, BUMG, Koperasi, dan PAUD.</p></div><button class="btn btn-primary" id="lg-seed">${ic('plus')} Pasang struktur bawaan</button></div>` : ''}
+  ${miss.length ? `<div class="callout">${ic('plus')}<div><b>Lembaga bawaan baru tersedia</b><p>${miss.map((s) => `<b>${esc(s.singkatan)}</b> (${esc(s.nama)}) — ${esc(katOf(s.kategori).short)}`).join(', ')}.</p></div><button class="btn btn-primary btn-sm" id="lg-miss">${ic('plus')} Tambahkan</button><button class="btn btn-ghost btn-sm" id="lg-miss-skip">Abaikan</button></div>` : ''}
   <div class="toolbar toolbar-actions"><button class="btn btn-primary" id="lg-new">${ic('plus')} Tambah Lembaga</button><a class="btn btn-ghost" href="#/lembaga" target="_blank">${ic('ext')} Lihat halaman publik</a>${kat ? '<a class="btn btn-ghost" href="#/admin/lembaga">Semua kategori</a>' : ''}</div>
   ${cats.map((k) => `<div class="lg-cat"><div class="section-head"><h2>${ic(k.icon)} ${esc(k.label)}</h2>${kat ? '' : `<a class="link" href="#/admin/lembaga/k/${k.key}">Buka →</a>`}</div><div class="lg-grid">${lembagaOf(k.key).map((l) => lembagaCard(l, true)).join('') || `<p class="muted small">${esc(k.desc)} Belum ada lembaga.</p>`}</div></div>`).join('')}`;
   $('#lg-seed')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; try { await seedLembaga(); toast('Struktur lembaga bawaan terpasang', 'success'); } catch (err) { toast(err.message, 'error'); } });
+  $('#lg-miss')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; try { await addSeeds(miss); toast(`${miss.map((s) => s.singkatan).join(', ')} ditambahkan`, 'success'); } catch (err) { toast(err.message, 'error'); e.currentTarget.disabled = false; } });
+  $('#lg-miss-skip')?.addEventListener('click', () => { try { localStorage.setItem('dd:seedSkip', JSON.stringify([...dismissedSeeds(), ...miss.map(seedId)])); } catch { /* */ } viewLembagaAdmin(main, r); });
   $('#lg-new').onclick = () => newLembagaDialog(kat?.key);
 }
 function newLembagaDialog(kat) {
@@ -202,16 +225,20 @@ let editorState = null;
 function lembagaEditor(main, id, tabQ) {
   const l0 = state.lembaga.find((x) => x.id === id);
   if (!l0) { main.innerHTML = state.lembagaReady ? emptyBox('Lembaga tidak ditemukan.') : loadingBox(); return; }
+  if (!canLembaga(id, l0.kategori)) { state.view = 'denied'; main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Akses ditolak</b><p>Anda tidak ditugaskan mengelola lembaga ini.</p></div></div>`; return; }
+  const full = can('lembaga');
   if (!editorState || editorState.id !== id) editorState = { id, l: structuredClone(l0), priv: null, tab: tabQ || 'profil', dirty: false };
   const S = editorState; const l = S.l;
   state.view = 'form';
   $('#page-title').textContent = l.singkatan || l.nama;
-  const tabs = [['profil', 'Profil', 'home'], ['pengurus', 'Struktur Kepengurusan', 'users'], ['anggota', 'Anggota', 'users'], ...(pesertaLabel(l) ? [['peserta', pesertaLabel(l) === 'Santri' ? 'Santriwan/Santriwati' : 'Murid', 'book']] : []), ['berita', 'Berita & Kegiatan', 'mega'], ['media', 'Galeri & Video', 'ig'], ['dokumen', 'Dokumen', 'file']];
+  const delegable = LEMBAGA_DELEGASI.includes(l0.kategori);
+  const tabs = [['profil', 'Profil', 'home'], ['pengurus', 'Struktur Kepengurusan', 'users'], ['anggota', 'Anggota', 'users'], ...(pesertaLabel(l) ? [['peserta', pesertaLabel(l) === 'Santri' ? 'Santriwan/Santriwati' : 'Murid', 'book']] : []), ['berita', 'Berita & Kegiatan', 'mega'], ['media', 'Galeri & Video', 'ig'], ['dokumen', 'Dokumen', 'file'], ...(isSuper() && delegable ? [['pengelola', 'Pengelola (Admin)', 'lock']] : [])];
+  if (!tabs.some(([t]) => t === S.tab)) S.tab = 'profil';
   main.innerHTML = `<div class="lg-ed-head">${logoOf(l, 'lg')}<div><span class="eyebrow">${esc(katOf(l.kategori).label)}</span><h2>${esc(l.nama)}</h2></div><span class="spacer"></span>
-      <a class="btn btn-ghost btn-sm" href="#/lembaga/${id}" target="_blank">${ic('ext')} Lihat publik</a><a class="btn btn-ghost btn-sm" href="#/admin/lembaga/k/${l.kategori}">← Kembali</a></div>
+      <a class="btn btn-ghost btn-sm" href="#/lembaga/${id}" target="_blank">${ic('ext')} Lihat publik</a><a class="btn btn-ghost btn-sm" href="${full ? `#/admin/lembaga/k/${l.kategori}` : '#/admin/lembaga'}">← Kembali</a></div>
     <div class="tabs">${tabs.map(([t, n, i]) => `<button class="tab ${S.tab === t ? 'active' : ''}" data-tab="${t}">${ic(i)} ${esc(n)}</button>`).join('')}</div>
-    <div class="panel" id="lg-pane" data-guard></div>
-    <div class="sticky-actions"><span class="muted small">${l0.updatedAt ? `Terakhir disimpan ${esc(fmtDate(l0.updatedAt, true))}${l0.updatedBy ? ' oleh ' + esc(l0.updatedBy) : ''}` : ''}</span><span class="spacer"></span><button class="btn btn-danger btn-ghost" id="lg-del">${ic('trash')} Hapus lembaga</button><button class="btn btn-primary" id="lg-save" data-save>${ic('check')} Simpan</button></div>`;
+    <div class="panel" id="lg-pane" ${S.tab === 'pengelola' ? '' : 'data-guard'}></div>
+    <div class="sticky-actions" ${S.tab === 'pengelola' ? 'hidden' : ''}><span class="muted small">${l0.updatedAt ? `Terakhir disimpan ${esc(fmtDate(l0.updatedAt, true))}${l0.updatedBy ? ' oleh ' + esc(l0.updatedBy) : ''}` : ''}</span><span class="spacer"></span>${full ? `<button class="btn btn-danger btn-ghost" id="lg-del">${ic('trash')} Hapus lembaga</button>` : ''}<button class="btn btn-primary" id="lg-save" data-save>${ic('check')} Simpan</button></div>`;
   $$('[data-tab]', main).forEach((b) => b.onclick = () => { collect(); S.tab = b.dataset.tab; lembagaEditor(main, id); });
   const pane = $('#lg-pane');
   const touch = () => { S.dirty = true; guard.dirty = true; };
@@ -225,7 +252,7 @@ function lembagaEditor(main, id, tabQ) {
     pane.innerHTML = `<form id="lgp" class="form-grid">
       <label class="field"><span>Nama lembaga *</span><input name="nama" value="${esc(l.nama || '')}"></label>
       <label class="field"><span>Singkatan</span><input name="singkatan" value="${esc(l.singkatan || '')}"></label>
-      <label class="field"><span>Kategori</span><select name="kategori">${KATEGORI.map((k) => `<option value="${k.key}" ${k.key === l.kategori ? 'selected' : ''}>${esc(k.label)}</option>`).join('')}</select></label>
+      <label class="field"><span>Kategori</span><select name="kategori" ${full ? '' : 'disabled title="Hanya admin Kelembagaan / Super Admin"'}>${KATEGORI.map((k) => `<option value="${k.key}" ${k.key === l.kategori ? 'selected' : ''}>${esc(k.label)}</option>`).join('')}</select></label>
       <label class="field"><span>Jenis</span><select name="jenis">${Object.entries(JENIS_LABEL).map(([v, n]) => `<option value="${v}" ${v === (l.jenis || 'umum') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="field"><span>Periode kepengurusan</span><input name="periode" value="${esc(l.periode || '')}" placeholder="mis. 2024–2029"></label>
       <label class="field"><span>No. WhatsApp kontak</span><input name="kontak" type="tel" value="${esc(l.kontak || '')}"></label>
@@ -243,7 +270,8 @@ function lembagaEditor(main, id, tabQ) {
     $('#lg-logo-rm').onclick = () => { l.logo = ''; $('.img-prev', f).innerHTML = ''; touch(); };
     f.addEventListener('input', touch);
     collect = () => {
-      for (const k of ['nama', 'singkatan', 'kategori', 'jenis', 'periode', 'alamat', 'deskripsi', 'visi', 'dasarHukum']) l[k] = f.elements[k].value.trim();
+      for (const k of ['nama', 'singkatan', 'jenis', 'periode', 'alamat', 'deskripsi', 'visi', 'dasarHukum']) l[k] = f.elements[k].value.trim();
+      if (full) l.kategori = f.elements.kategori.value;
       l.kontak = normalizePhone(f.elements.kontak.value); l.urutan = Number(f.elements.urutan.value) || 0; l.published = f.elements.published.checked;
       l.bagianList = f.elements.bagianList.value.split(';').map((x) => x.trim()).filter(Boolean);
     };
@@ -320,6 +348,8 @@ function lembagaEditor(main, id, tabQ) {
     l.dokumen = l.dokumen || [];
     pane.innerHTML = `<h3>${ic('file')} Dokumen Lembaga</h3><p class="muted small">Unggah berkas ke Google Drive / penyimpanan lain (atur “siapa saja yang memiliki link dapat melihat”), lalu tempel link-nya. Tombol unduh dibuat otomatis.</p><div id="rows"></div>`;
     rowsEditor($('#rows'), { label: 'dokumen', rows: l.dokumen, onChange: touch, fields: [{ k: 'judul', label: 'Judul dokumen' }, { k: 'jenis', label: 'Jenis' }, { k: 'tahun', label: 'Tahun', ph: '2026' }, { k: 'url', label: 'Link berkas (https://…)' }], suggest: { jenis: ['SK Pembentukan', 'AD/ART', 'Program Kerja', 'Laporan Kegiatan', 'Laporan Keuangan', 'Notulen Rapat', 'Proposal', 'Lainnya'] } });
+  } else if (S.tab === 'pengelola') {
+    pengelolaTab(pane, l0);
   }
   async function save(label) {
     collect();
@@ -338,13 +368,92 @@ function lembagaEditor(main, id, tabQ) {
     } catch (e) { toast('Gagal menyimpan: ' + e.message, 'error'); }
   }
   $('#lg-save').onclick = () => save();
-  $('#lg-del').onclick = async () => {
+  if (full) $('#lg-del').onclick = async () => {
     if (!await confirmDelete(`Hapus lembaga “${l.nama}” beserta pengurus, anggota, berita, dan dokumennya?`)) return;
     const b = F.writeBatch(F.db); b.delete(C(`lembaga/${id}`)); b.delete(C(`lembagaPrivate/${id}`)); await b.commit();
     logAudit('lembaga', 'hapus', `Menghapus lembaga ${l.nama}`, { targetId: id }); editorState = null; guard.dirty = false;
     toast('Lembaga dihapus', 'success'); location.hash = `#/admin/lembaga/k/${l.kategori}`;
   };
 }
+// ---- Pengelola lembaga (khusus Super Admin): angkat admin / buat akun pengelola dari pengurus & anggota
+function pengelolaTab(pane, l) {
+  pane.innerHTML = loadingBox();
+  F.getDocs(F.query(F.collection(F.db, 'users'), F.where('role', '==', 'admin'))).then((snap) => {
+    const admins = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    const draw = () => {
+      const mgr = admins.filter((a) => (a.lembagaIds || []).includes(l.id));
+      const others = admins.filter((a) => !(a.lembagaIds || []).includes(l.id) && a.active !== false);
+      pane.innerHTML = `<h3>${ic('lock')} Pengelola ${esc(l.singkatan || l.nama)}</h3>
+        <p class="muted small">Super Admin dapat mengangkat pengurus/anggota lembaga menjadi <b>admin pengelola</b>. Pengelola hanya dapat mengubah lembaga yang ditugaskan (profil, pengurus, anggota, ${pesertaLabel(l) ? 'murid/santri, ' : ''}berita, galeri, dokumen) — tidak dapat menghapus lembaga, tidak dapat membuka data warga, dan dikunci oleh Firestore Rules.</p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Pengelola</th><th>Jabatan</th><th>Login terakhir</th><th class="actions-col"></th></tr></thead><tbody>
+        ${mgr.map((a) => `<tr><td><div class="user-cell">${avatar(a)}<div><b>${esc(a.nama || '-')}</b>${badgeRow(a.badges, 4)}<br><small class="muted">${esc(a.email)}</small></div></div></td><td class="small">${esc(a.jabatan || '-')}${a.active === false ? ' <span class="badge badge-muted">Nonaktif</span>' : ''}</td><td class="small">${esc(fmtDate(a.lastLogin, true) || '-')}</td><td class="actions-col"><button class="btn btn-sm btn-ghost danger" data-cabut="${a.uid}">Cabut</button></td></tr>`).join('') || `<tr><td colspan="4">${emptyBox('Belum ada pengelola untuk lembaga ini.')}</td></tr>`}</tbody></table></div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="field"><span>Angkat admin yang sudah ada</span><div class="input-group"><select id="pg-pick" style="min-width:260px;flex:1"><option value="">— pilih admin —</option>${others.map((a) => `<option value="${a.uid}">${esc(a.nama || a.email)} (${esc(a.email)})</option>`).join('')}</select><button class="btn btn-ghost" id="pg-angkat">${ic('check')} Angkat</button></div></div>
+          <div class="field"><span>Atau buat akun baru</span><button class="btn btn-primary" id="pg-new">${ic('plus')} Buat akun pengelola</button></div>
+        </div>`;
+      $('#pg-angkat').onclick = async () => {
+        const uid = $('#pg-pick').value; if (!uid) return toast('Pilih admin terlebih dahulu', 'error');
+        const a = admins.find((x) => x.uid === uid);
+        try {
+          await F.updateDoc(C(`users/${uid}`), { lembagaIds: F.arrayUnion(l.id), updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+          a.lembagaIds = [...(a.lembagaIds || []), l.id];
+          logAudit('admin', 'angkat_pengelola', `Mengangkat ${a.email} sebagai pengelola ${l.nama}`, { target: a.email, targetId: uid });
+          toast(`${a.nama || a.email} kini mengelola ${l.singkatan || l.nama}`, 'success'); draw();
+        } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+      };
+      $$('[data-cabut]', pane).forEach((b) => b.onclick = async () => {
+        const a = admins.find((x) => x.uid === b.dataset.cabut);
+        if (!await confirmDialog(`Cabut ${a.nama || a.email} dari pengelola ${l.singkatan || l.nama}? Akun tetap ada, hanya tugas lembaga ini yang dicabut.`, { danger: true, okText: 'Cabut' })) return;
+        try {
+          await F.updateDoc(C(`users/${a.uid}`), { lembagaIds: F.arrayRemove(l.id), updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+          a.lembagaIds = (a.lembagaIds || []).filter((x) => x !== l.id);
+          logAudit('admin', 'cabut_pengelola', `Mencabut ${a.email} dari pengelola ${l.nama}`, { target: a.email, targetId: a.uid });
+          toast('Pengelola dicabut', 'success'); draw();
+        } catch (e) { toast('Gagal: ' + e.message, 'error'); }
+      });
+      $('#pg-new').onclick = () => newPengelolaDialog(l, (u) => { admins.push(u); draw(); });
+    };
+    draw();
+  }).catch((e) => { pane.innerHTML = emptyBox('Gagal memuat daftar admin: ' + e.message); });
+}
+async function newPengelolaDialog(l, onDone) {
+  let priv = editorState?.priv;
+  if (!priv) { try { priv = (await F.getDoc(C(`lembagaPrivate/${l.id}`))).data() || {}; } catch { priv = {}; } }
+  const people = [...(l.pengurus || []).map((p) => ({ label: p.nama, sub: p.jabatan || 'Pengurus', hp: p.hp, jabatan: p.jabatan })), ...(priv.anggota || []).map((a) => ({ label: a.nama, sub: a.peran || 'Anggota', hp: a.hp, jabatan: a.peran }))].filter((p) => p.label);
+  const m = modal({ title: `Buat Akun Pengelola — ${l.singkatan || l.nama}`, size: 'lg', body: `<form id="pgf" class="form-grid">
+    <p class="muted small span-2">Ketik nama untuk memilih dari <b>pengurus/anggota</b> lembaga ini. Akun dibuat sebagai Admin tanpa hak akses lain selain mengelola lembaga ini.</p>
+    <label class="field"><span>Nama lengkap *</span><input name="nama" required autocomplete="off"></label>
+    <label class="field"><span>Jabatan</span><input name="jabatan" value="Pengelola ${esc(l.singkatan || l.nama)}"></label>
+    <label class="field"><span>No. HP / WhatsApp</span><input name="hp" type="tel"></label>
+    <label class="field"><span>Email login *</span><input name="email" type="email" required></label>
+    <label class="field span-2"><span>Password awal * (min. 8, huruf & angka)</span><div class="input-group"><input name="pw" type="text" required minlength="8"><button type="button" class="btn btn-ghost" id="pg-gen">Acak</button></div></label></form>`,
+    footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="pg-ok">Buat akun</button>' });
+  const f = $('#pgf', m.el);
+  attachAutocomplete(f.elements.nama, { source: people, smallList: 12, onSelect: (it) => { if (it.hp && !f.elements.hp.value) f.elements.hp.value = it.hp; if (it.jabatan) f.elements.jabatan.value = `${it.jabatan} — Pengelola ${l.singkatan || l.nama}`; } });
+  const gen = () => { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const arr = crypto.getRandomValues(new Uint32Array(11)); f.elements.pw.value = Array.from(arr, (n) => a[n % a.length]).join('') + '7'; };
+  $('#pg-gen', m.el).onclick = gen; gen();
+  $('#pg-ok', m.el).onclick = async () => {
+    const nama = f.elements.nama.value.trim(), email = f.elements.email.value.trim().toLowerCase(), pw = f.elements.pw.value;
+    if (!nama) return toast('Nama wajib diisi', 'error');
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Email tidak valid', 'error');
+    if (pw.length < 8 || !/[a-zA-Z]/.test(pw) || !/\d/.test(pw)) return toast('Password minimal 8 karakter, berisi huruf & angka', 'error');
+    if (norm(email) === norm(superEmail())) return toast('Email ini milik Super Admin', 'error');
+    if (!await requirePassword(`Membuat akun pengelola ${l.nama} untuk ${email}.`)) return;
+    const btn = $('#pg-ok', m.el); btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Membuat…';
+    try {
+      const uid = await F.createAuthUser(email, pw);
+      const doc = { email, nama, jabatan: f.elements.jabatan.value.trim(), hp: normalizePhone(f.elements.hp.value), role: 'admin', active: true, perms: {}, lembagaIds: [l.id], createdAt: F.serverTimestamp(), createdBy: state.user.email };
+      await F.setDoc(C(`users/${uid}`), doc);
+      logAudit('admin', 'daftar', `Mendaftarkan pengelola ${l.nama}: ${email}`, { target: email, targetId: uid });
+      m.close(); onDone?.({ uid, ...doc });
+      modal({ title: 'Akun pengelola dibuat', size: 'sm', body: `<p>Sampaikan data login ini kepada <b>${esc(nama)}</b> secara pribadi:</p><dl class="detail"><dt>Alamat</dt><dd>${esc(location.origin + location.pathname)}#/login</dd><dt>Email</dt><dd>${esc(email)}</dd><dt>Password</dt><dd><code>${esc(pw)}</code></dd><dt>Mengelola</dt><dd>${esc(l.nama)}</dd></dl><p class="muted small">Minta pengguna segera mengganti password di Pengaturan → Akun Saya.</p>`, footer: '<button class="btn btn-primary" data-close>Selesai</button>', guard: false });
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Buat akun';
+      toast(e.code === 'auth/email-already-in-use' ? 'Email sudah terdaftar. Bila akun itu sudah admin, gunakan “Angkat admin yang sudah ada”.' : 'Gagal: ' + (authErrorMessage(e) || e.message), 'error', { duration: 9000 });
+    }
+  };
+}
+void ROLE_LABEL;
 export const lembagaEditorDirty = () => !!editorState?.dirty;
 export const resetLembagaEditor = () => { editorState = null; };
 

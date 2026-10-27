@@ -1,7 +1,7 @@
 // =============================================================
-//  DigiDes — Sistem Informasi Desa Digital
+//  Serenity — Sistem Informasi Desa Digital
 //  Konfigurasi aplikasi (TIDAK berisi API key — aman di GitHub)
-//  © Serenity Creativa 2026
+//  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 // =============================================================
 //
 //  Konfigurasi Firebase (apiKey, projectId, dst.) TIDAK disimpan di repositori.
@@ -10,11 +10,18 @@
 //    (berkas .local.js sudah masuk .gitignore sehingga tidak ikut ter-commit)
 
 export const APP = {
-  name: 'DigiDes',
-  fullName: 'DigiDes — Sistem Informasi Desa Digital',
-  version: '2.2.0',
+  name: 'Serenity',
+  fullName: 'Serenity — Sistem Informasi Gampong Digital',
+  version: '2.3.0',
   build: '2026.10.27',
-  copyright: '© Serenity Creativa 2026',
+  revision: 'R7',               // nomor revisi rilis (naik otomatis lewat scripts/bump-version.mjs)
+  codename: 'Aurora',
+  channel: 'Stable',
+  owner: 'Deah Glumpang',
+  copyright: 'Powered by Serenity Creativa Labs. © 2026 All Rights Reserved',
+  get credit() { return `${this.owner} ◦ ${this.copyright}`; },
+  get versionLabel() { return `v${this.version}`; },
+  get buildLabel() { return `v${this.version} “${this.codename}” • Build ${this.build} • Rev ${this.revision} • ${this.channel}`; },
 
   // ID proyek Firebase (BUKAN rahasia). Dipakai untuk mengambil konfigurasi dari situs
   // Firebase Hosting bila aplikasi dibuka di hosting lain (GitHub Pages, domain sendiri, localhost).

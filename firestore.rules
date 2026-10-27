@@ -1,7 +1,7 @@
 rules_version = '2';
 // =====================================================================
-//  DigiDes v2.1 — Firestore Security Rules (diperketat)
-//  © Serenity Creativa 2026
+//  Serenity v2.3.0 — Firestore Security Rules (diperketat)
+//  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 //
 //  Prinsip:
 //   • Default TOLAK semua. Hanya jalur yang didefinisikan di bawah yang dibuka.
@@ -11,6 +11,7 @@ rules_version = '2';
 //   • Validasi skema: field yang diizinkan, tipe data, dan ukuran maksimum (anti spam/abuse).
 //   • Kepala Dusun (kadus) DIKUNCI hanya pada warga dusunnya sendiri.
 //   • Audit log hanya bisa DITAMBAH — tidak bisa diubah/dihapus siapa pun.
+//   • Badge, penugasan pengelola lembaga, tema, ikon: hanya Super Admin.
 // =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -28,6 +29,8 @@ service cloud.firestore {
       return isSuper() || (isStaff() && me().perms.get(p, false) == true && (me().role != 'kadus' || kadusPerm(p)));
     }
     function sameDusun(d) { return !isKadus() || d.dusun == me().dusun; }
+    // Admin yang diangkat Super Admin sebagai pengelola lembaga tertentu (bukan kategori Pemerintahan)
+    function pengelola(id) { return isStaff() && me().role == 'admin' && id in me().get('lembagaIds', []); }
 
     // ---------- Helper validasi
     function data() { return request.resource.data; }
@@ -46,13 +49,21 @@ service cloud.firestore {
     // ================================================= /users
     function userKeysOk() {
       return data().keys().hasOnly(['email', 'nama', 'jabatan', 'hp', 'role', 'active', 'perms', 'dusun', 'dusunId',
-        'foto', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'lastLogin'])
+        'foto', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'lastLogin', 'lembagaIds', 'badges'])
         && optStr('nama', 120) && optStr('jabatan', 120) && optStr('hp', 20) && optStr('foto', 200000)
-        && optStr('dusun', 100) && (!('perms' in data()) || data().perms is map);
+        && optStr('dusun', 100) && (!('perms' in data()) || data().perms is map)
+        && (!('lembagaIds' in data()) || (data().lembagaIds is list && data().lembagaIds.size() <= 20))
+        && (!('badges' in data()) || (data().badges is list && data().badges.size() <= 30));
+    }
+    // Badge & penugasan lembaga tidak boleh disentuh selain oleh Super Admin
+    function noSuperFields() {
+      return resource == null ? !data().keys().hasAny(['badges', 'lembagaIds'])
+                              : !data().diff(resource.data).affectedKeys().hasAny(['badges', 'lembagaIds']);
     }
     function kadusDocOk() {
       return data().role == 'kadus' && str(data().dusun, 100) && data().dusun.size() > 0
-        && data().perms.keys().hasOnly(['warga', 'wargaEdit', 'wargaDelete', 'export', 'broadcast']);
+        && data().perms.keys().hasOnly(['warga', 'wargaEdit', 'wargaDelete', 'export', 'broadcast'])
+        && !('lembagaIds' in data());
     }
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus'));
@@ -60,11 +71,11 @@ service cloud.firestore {
       allow list: if isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus');
       allow create: if userKeysOk() && (
         (isSuper() && data().role in ['admin', 'kadus'] && (data().role != 'kadus' || kadusDocOk()))
-        || (can('kelolaKadus') && kadusDocOk())
+        || (can('kelolaKadus') && kadusDocOk() && noSuperFields())
         || (!exists(userPath()) && bootstrapSuper(uid)));
       allow update: if userKeysOk() && (
         (isSuper() && uid != request.auth.uid && resource.data.role in ['admin', 'kadus'] && data().role == resource.data.role && (data().role != 'kadus' || kadusDocOk()))
-        || (can('kelolaKadus') && !isSuper() && uid != request.auth.uid && resource.data.role == 'kadus' && kadusDocOk())
+        || (can('kelolaKadus') && !isSuper() && uid != request.auth.uid && resource.data.role == 'kadus' && kadusDocOk() && noSuperFields())
         || (isSuper() && uid == request.auth.uid && data().role == 'superadmin' && data().active == true)
         || (isStaff() && uid == request.auth.uid && changedOnly(['lastLogin', 'email', 'nama', 'foto'])));
       allow delete: if uid != request.auth.uid && (
@@ -73,14 +84,25 @@ service cloud.firestore {
     }
 
     // ================================================= /config
+    function protectedCfg() { return ['tema', 'layout', 'ikon', 'latar']; }
+    function noProtectedCfg() {
+      return resource == null ? !data().keys().hasAny(protectedCfg())
+                              : !data().diff(resource.data).affectedKeys().hasAny(protectedCfg());
+    }
+    function ikonOk() { return !('ikon' in data()) || (data().ikon is map && data().ikon.size() <= 5 && (!('src' in data().ikon) || str(data().ikon.src, 200000))); }
+    function latarOk() {
+      return !('latar' in data()) || (data().latar is map && data().latar.size() <= 14
+        && (!('url' in data().latar) || (str(data().latar.url, 1000) && (data().latar.url == '' || data().latar.url.matches('^https://.*'))))
+        && (!('poster' in data().latar) || (str(data().latar.poster, 1000) && (data().latar.poster == '' || data().latar.poster.matches('^https://.*')))));
+    }
     match /config/{docId} {
       allow get: if docId in ['app', 'stats', 'auth'];
       allow list: if false;
-      // Tema & tata letak hanya boleh diubah Super Admin
-      allow write: if (docId == 'app' && can('pengaturan') && data().size() <= 60 && optStr('logo', 300000)
-                        && (!('runningText' in data()) || data().runningText is map)
-                        && (isSuper() || resource == null || !data().diff(resource.data).affectedKeys().hasAny(['tema', 'layout'])))
-        || (docId == 'app' && isSuper() && data().size() <= 60)
+      // Tema, tata letak & ikon: hanya Super Admin. Latar belakang: Super Admin atau izin 'latar'.
+      allow write: if (docId == 'app' && can('pengaturan') && data().size() <= 70 && optStr('logo', 300000)
+                        && (!('runningText' in data()) || data().runningText is map) && noProtectedCfg())
+        || (docId == 'app' && isSuper() && data().size() <= 70 && optStr('logo', 300000) && ikonOk() && latarOk())
+        || (docId == 'app' && can('latar') && resource != null && changedOnly(['latar']) && latarOk())
         || (docId == 'app' && can('instagram') && resource != null && changedOnly(['igLastSync', 'igUsername']))
         || (docId == 'stats' && can('warga') && !isKadus() && data().size() <= 40)
         || (docId == 'auth' && isSuper());
@@ -150,23 +172,37 @@ service cloud.firestore {
       allow delete: if can('kegiatan');
     }
     // ---------- Lembaga Gampong (profil, pengurus, berita, galeri, dokumen = publik)
-    match /lembaga/{id} {
-      allow get: if isStaff() || resource.data.published != false;
-      allow list: if isStaff() || (resource.data.published == true && smallList());
-      allow create, update: if can('lembaga') && data().size() <= 40 && str(data().nama, 200) && data().nama.size() > 0
+    function lembagaOk() {
+      return data().size() <= 40 && str(data().nama, 200) && data().nama.size() > 0
         && data().kategori in ['pemerintahan', 'adat', 'lkg', 'ekonomi', 'pendidikan']
         && optStr('deskripsi', 30000) && optStr('logo', 300000)
         && (!('pengurus' in data()) || (data().pengurus is list && data().pengurus.size() <= 300))
         && (!('berita' in data()) || (data().berita is list && data().berita.size() <= 200))
-        && (!('media' in data()) || (data().media is list && data().media.size() <= 100));
+        && (!('media' in data()) || (data().media is list && data().media.size() <= 100))
+        && (!('dokumen' in data()) || (data().dokumen is list && data().dokumen.size() <= 200));
+    }
+    // Pengelola: hanya lembaga yang ditugaskan, kategori non-Pemerintahan, tidak boleh memindah kategori
+    function pengelolaLembaga(id) {
+      return pengelola(id) && resource != null && resource.data.kategori in ['adat', 'lkg', 'ekonomi', 'pendidikan']
+        && data().kategori == resource.data.kategori;
+    }
+    match /lembaga/{id} {
+      allow get: if isStaff() || resource.data.published != false;
+      allow list: if isStaff() || (resource.data.published == true && smallList());
+      allow create: if can('lembaga') && lembagaOk();
+      allow update: if lembagaOk() && (can('lembaga') || pengelolaLembaga(id));
       allow delete: if can('lembaga');
     }
-    // Anggota & murid/santri lembaga = data pribadi (hanya admin berizin)
+    // Anggota & murid/santri lembaga = data pribadi (hanya admin berizin / pengelola lembaga itu)
+    function pengelolaPrivate(id) {
+      return pengelola(id) && get(/databases/$(database)/documents/lembaga/$(id)).data.kategori in ['adat', 'lkg', 'ekonomi', 'pendidikan'];
+    }
     match /lembagaPrivate/{id} {
-      allow read: if can('lembaga');
-      allow write: if can('lembaga') && (request.resource == null || (data().size() <= 5
-        && (!('anggota' in data()) || data().anggota.size() <= 2000)
-        && (!('peserta' in data()) || data().peserta.size() <= 2000)));
+      allow read: if can('lembaga') || pengelolaPrivate(id);
+      allow delete: if can('lembaga');
+      allow create, update: if (can('lembaga') || pengelolaPrivate(id)) && data().size() <= 5
+        && (!('anggota' in data()) || (data().anggota is list && data().anggota.size() <= 2000))
+        && (!('peserta' in data()) || (data().peserta is list && data().peserta.size() <= 2000));
     }
     // ---------- Dokumen publik gampong (RPJMG, APBG, Reusam, dll.)
     match /dokumen/{id} {

@@ -1,17 +1,24 @@
 // Tema & warna (Super Admin), mode Gelap/Terang (semua pengunjung), tata letak panel yang bisa digeser
 // (Super Admin), penjaga isian belum disimpan, konfirmasi keluar, dan running text dinamis.
-// © Serenity Creativa 2026
-import { esc, $, $$, toast, confirmDialog } from './ui.js';
+// Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
+import { esc, $, $$, confirmDialog } from './ui.js';
 
 // ---------------------------------------------------------------- tema
+// Warna tema. bg/surface = nuansa latar mode terang; bgDark/surfaceDark = nuansa mode gelap (opsional)
 export const THEME_PRESETS = {
-  teal: { label: 'Teal Gampong', brand: '#0f766e', accent: '#b45309' },
-  biru: { label: 'Biru Laut', brand: '#1d4ed8', accent: '#ea580c' },
-  hijau: { label: 'Hijau Sawah', brand: '#15803d', accent: '#a16207' },
-  marun: { label: 'Merah Marun', brand: '#9f1239', accent: '#b45309' },
-  ungu: { label: 'Ungu Senja', brand: '#6d28d9', accent: '#db2777' },
-  cokelat: { label: 'Cokelat Meunasah', brand: '#92400e', accent: '#0f766e' },
-  grafit: { label: 'Grafit Netral', brand: '#334155', accent: '#0891b2' },
+  teal: { label: 'Teal Gampong', group: 'Klasik', brand: '#0f766e', accent: '#b45309' },
+  biru: { label: 'Biru Laut', group: 'Klasik', brand: '#1d4ed8', accent: '#ea580c' },
+  hijau: { label: 'Hijau Sawah', group: 'Klasik', brand: '#15803d', accent: '#a16207' },
+  marun: { label: 'Merah Marun', group: 'Klasik', brand: '#9f1239', accent: '#b45309' },
+  ungu: { label: 'Ungu Senja', group: 'Klasik', brand: '#6d28d9', accent: '#db2777' },
+  cokelat: { label: 'Cokelat Meunasah', group: 'Klasik', brand: '#92400e', accent: '#0f766e' },
+  grafit: { label: 'Grafit Netral', group: 'Klasik', brand: '#334155', accent: '#0891b2' },
+  terracotta: { label: 'Earthy & Terracotta', desc: 'Hangat & natural', group: 'Hangat & Lembut', brand: '#b4532a', accent: '#6b7f3a', bg: '#f7f0e8', surface: '#fffbf6', line: '#ecdccb', bgDark: '#16110e', surfaceDark: '#201915' },
+  creamy: { label: 'Warm Neutral / Creamy', desc: 'Minimalis & bersih', group: 'Hangat & Lembut', brand: '#8b6b4e', accent: '#c4975f', bg: '#faf6f0', surface: '#fffdf9', line: '#ece3d6', bgDark: '#15130f', surfaceDark: '#1f1c17' },
+  autumn: { label: 'Warm Autumn / Golden Hour', desc: 'Klasik & elegan', group: 'Hangat & Lembut', brand: '#a8571c', accent: '#c9932a', bg: '#fbf3e6', surface: '#fffaf2', line: '#efdcc0', bgDark: '#17110b', surfaceDark: '#221a12' },
+  sage: { label: 'Sage & Olive Warm', desc: 'Segar tapi tetap hangat', group: 'Hangat & Lembut', brand: '#5d7a4f', accent: '#b0813f', bg: '#f3f4ec', surface: '#fcfcf7', line: '#dfe3d2', bgDark: '#10140f', surfaceDark: '#191e17' },
+  calm: { label: 'Soft Calm', desc: 'Clean, calm & modern', group: 'Hangat & Lembut', brand: '#557a95', accent: '#c48b86', bg: '#f4f6f8', surface: '#ffffff', line: '#e2e7ec', bgDark: '#0f1317', surfaceDark: '#171d23' },
+  lavender: { label: 'Lavender Mist', desc: 'Lembut & menenangkan', group: 'Hangat & Lembut', brand: '#6f62a8', accent: '#d08c60', bg: '#f6f4fa', surface: '#fefdff', line: '#e6e1f0', bgDark: '#121019', surfaceDark: '#1b1824' },
 };
 export const MODELS = {
   klasik: { label: 'Klasik — panel jadwal sholat & kegiatan di kiri-kanan layar', icon: '▥' },
@@ -19,13 +26,47 @@ export const MODELS = {
   fokus: { label: 'Fokus — konten selebar layar, panel samping pindah ke bawah', icon: '▭' },
   majalah: { label: 'Majalah — berita utama ditonjolkan dengan gambar besar', icon: '▤' },
 };
-export const FONT_PAIRS = {
-  modern: { label: 'Modern (Inter + Jakarta Sans)' },
-  klasik: { label: 'Klasik (Lora untuk judul)' },
-  ramah: { label: 'Ramah (Nunito)' },
+// Efek visual (ringan: blur hanya pada header, footer, panel samping & dialog; latar beranimasi memakai GPU)
+export const EFFECTS = {
+  solid: { label: 'Solid & Bersih', desc: 'Tanpa efek, paling ringan' },
+  glass: { label: 'Glassy', desc: 'Panel kaca bening (glassmorphism)' },
+  aurora: { label: 'Blurry Aurora', desc: 'Latar gradien blur yang bergerak lembut' },
 };
-export const RADII = { tegas: { label: 'Tegas', v: '6px' }, sedang: { label: 'Sedang', v: '12px' }, bulat: { label: 'Bulat', v: '18px' } };
-export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', font: 'modern', radius: 'sedang', mode: 'auto', toggle: true };
+// Pasangan huruf. gf = parameter Google Fonts (dimuat hanya saat dipakai)
+export const FONT_PAIRS = {
+  modern: { label: 'Modern — Inter + Plus Jakarta Sans', font: "'Inter'", head: "'Plus Jakarta Sans'", gf: '' },
+  tech: { label: 'Tech — Inter + JetBrains Mono', font: "'Inter'", head: "'Inter'", mono: "'JetBrains Mono'", gf: 'family=JetBrains+Mono:wght@400;500;600;700' },
+  grotesk: { label: 'Grotesk — Space Grotesk + Inter', font: "'Inter'", head: "'Space Grotesk'", mono: "'JetBrains Mono'", gf: 'family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600' },
+  poppins: { label: 'Poppins — geometris & populer', font: "'Poppins'", head: "'Poppins'", gf: 'family=Poppins:wght@400;500;600;700;800' },
+  manrope: { label: 'Manrope — modern & rapi', font: "'Manrope'", head: "'Manrope'", gf: 'family=Manrope:wght@400;500;600;700;800' },
+  dmsans: { label: 'DM Sans — bersih & ringan', font: "'DM Sans'", head: "'DM Sans'", gf: 'family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800' },
+  outfit: { label: 'Outfit — ramping & segar', font: "'Inter'", head: "'Outfit'", gf: 'family=Outfit:wght@500;600;700;800' },
+  sora: { label: 'Sora — futuristik', font: "'Inter'", head: "'Sora'", gf: 'family=Sora:wght@500;600;700;800' },
+  figtree: { label: 'Figtree — ramah & jelas', font: "'Figtree'", head: "'Figtree'", gf: 'family=Figtree:wght@400;500;600;700;800' },
+  urbanist: { label: 'Urbanist — elegan modern', font: "'Inter'", head: "'Urbanist'", gf: 'family=Urbanist:wght@500;600;700;800' },
+  lexend: { label: 'Lexend — mudah dibaca', font: "'Lexend'", head: "'Lexend'", gf: 'family=Lexend:wght@400;500;600;700' },
+  elegan: { label: 'Elegan — Playfair Display + Inter', font: "'Inter'", head: "'Playfair Display'", gf: 'family=Playfair+Display:wght@600;700;800' },
+  klasik: { label: 'Klasik — Lora untuk judul', font: "'Inter'", head: "'Lora'", gf: '' },
+  ramah: { label: 'Ramah — Nunito', font: "'Nunito'", head: "'Nunito'", gf: '' },
+};
+export const RADII = { tegas: { label: 'Tegas', v: '6px' }, sedang: { label: 'Sedang', v: '12px' }, bulat: { label: 'Bulat', v: '18px' }, kapsul: { label: 'Ekstra bulat', v: '24px' } };
+export const STYLE_PRESETS = {
+  darkglass: { label: 'Dark Glass Modern', desc: 'Mode gelap + glassmorphism + Inter & JetBrains Mono', tema: { preset: 'grafit', efek: 'glass', font: 'tech', mode: 'dark', radius: 'bulat', model: 'kartu' } },
+  glassy: { label: 'Glassy Terang', desc: 'Kaca bening di atas latar lembut', tema: { preset: 'calm', efek: 'glass', font: 'manrope', mode: 'light', radius: 'bulat', model: 'kartu' } },
+  aurora: { label: 'Aurora Dinamis', desc: 'Latar blur bergerak, tipografi Sora', tema: { preset: 'lavender', efek: 'aurora', font: 'sora', mode: 'auto', radius: 'bulat', model: 'klasik' } },
+  hangat: { label: 'Terracotta Hangat', desc: 'Palet earthy, huruf Outfit', tema: { preset: 'terracotta', efek: 'solid', font: 'outfit', mode: 'light', radius: 'sedang', model: 'klasik' } },
+  golden: { label: 'Golden Hour', desc: 'Warm autumn, judul Playfair', tema: { preset: 'autumn', efek: 'solid', font: 'elegan', mode: 'light', radius: 'sedang', model: 'majalah' } },
+};
+export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', radius: 'sedang', mode: 'auto', toggle: true };
+
+// Muat huruf Google Fonts sesuai kebutuhan (tidak membebani halaman bila tidak dipakai)
+export function ensureFonts(keys) {
+  for (const k of keys) {
+    const fp = FONT_PAIRS[k]; if (!fp?.gf || document.getElementById(`gf-${k}`)) continue;
+    const l = document.createElement('link'); l.id = `gf-${k}`; l.rel = 'stylesheet';
+    l.href = `https://fonts.googleapis.com/css2?${fp.gf}&display=swap`; document.head.appendChild(l);
+  }
+}
 
 let currentTema = { ...DEFAULT_TEMA };
 const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -35,17 +76,27 @@ export function resolvedMode() {
   const m = pref || currentTema.mode || 'auto';
   return m === 'auto' ? (mq.matches ? 'dark' : 'light') : m;
 }
+const setVar = (html, k, v) => { if (v) html.style.setProperty(k, v); else html.style.removeProperty(k); };
 export function applyTheme(tema) {
   currentTema = { ...DEFAULT_TEMA, ...(tema || {}) };
   const p = THEME_PRESETS[currentTema.preset] || THEME_PRESETS.teal;
   const html = document.documentElement;
   html.style.setProperty('--brand', currentTema.brand || p.brand);
   html.style.setProperty('--brand-accent', currentTema.accent || p.accent);
-  html.style.setProperty('--radius', (RADII[currentTema.radius] || RADII.sedang).v);
-  html.style.setProperty('--radius-sm', `calc(${(RADII[currentTema.radius] || RADII.sedang).v} * .66)`);
-  html.dataset.model = currentTema.model; html.dataset.font = currentTema.font;
+  setVar(html, '--bg-light', p.bg); setVar(html, '--surface-light', p.surface); setVar(html, '--line-light', p.line);
+  setVar(html, '--bg-dark', p.bgDark); setVar(html, '--surface-dark', p.surfaceDark);
+  const r = (RADII[currentTema.radius] || RADII.sedang).v;
+  html.style.setProperty('--radius', r); html.style.setProperty('--radius-sm', `calc(${r} * .66)`);
+  const fp = FONT_PAIRS[currentTema.font] || FONT_PAIRS.modern;
+  ensureFonts([currentTema.font]);
+  html.style.setProperty('--font', `${fp.font}, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`);
+  html.style.setProperty('--font-head', `${fp.head}, ${fp.font}, system-ui, sans-serif`);
+  html.style.setProperty('--font-mono', fp.mono ? `${fp.mono}, ui-monospace, SFMono-Regular, Menlo, monospace` : 'var(--font-head)');
+  html.dataset.model = MODELS[currentTema.model] ? currentTema.model : 'klasik';
+  html.dataset.font = currentTema.font; html.dataset.efek = EFFECTS[currentTema.efek] ? currentTema.efek : 'solid';
+  html.dataset.mono = fp.mono ? '1' : '';
   html.dataset.theme = resolvedMode();
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', html.dataset.theme === 'dark' ? '#0f1419' : '#ffffff');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', html.dataset.theme === 'dark' ? (p.bgDark || '#0f1419') : (p.surface || '#ffffff'));
   $$('[data-theme-toggle]').forEach((b) => { b.hidden = currentTema.toggle === false; b.innerHTML = themeIcon(); b.title = html.dataset.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'; });
 }
 mq.addEventListener?.('change', () => applyTheme(currentTema));
@@ -58,6 +109,87 @@ export function toggleTheme() {
   applyTheme(currentTema);
 }
 document.addEventListener('click', (e) => { if (e.target.closest('[data-theme-toggle]')) toggleTheme(); });
+
+// ---------------------------------------------------------------- ikon aplikasi (tab browser & layar utama)
+const DEFAULT_ICONS = { svg: 'icons/favicon.svg', png: 'icons/icon-192.png', apple: 'icons/apple-touch-icon.png' };
+let iconKey = null, manifestUrl = '';
+export function applyIcon(ikon, appName = '') {
+  const src = ikon?.src && (ikon.src.startsWith('data:image/') || /^https:\/\//.test(ikon.src)) ? ikon.src : '';
+  const key = src ? src.length + src.slice(-40) : '';
+  if (key === iconKey) return; iconKey = key;
+  try { if (src && src.length < 250000) localStorage.setItem('dd:icon', src); else localStorage.removeItem('dd:icon'); } catch { /* */ }
+  const head = document.head;
+  head.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="shortcut icon"]').forEach((el) => el.remove());
+  const add = (rel, href, type = '', sizes = '') => { const el = document.createElement('link'); el.rel = rel; el.href = href; if (type) el.type = type; if (sizes) el.setAttribute('sizes', sizes); head.appendChild(el); };
+  if (src) { add('icon', src); add('apple-touch-icon', src); }
+  else { add('icon', DEFAULT_ICONS.svg, 'image/svg+xml'); add('icon', DEFAULT_ICONS.png, 'image/png', '192x192'); add('apple-touch-icon', DEFAULT_ICONS.apple); }
+  // Manifest dinamis agar ikon "Pasang aplikasi" ikut berubah
+  const man = head.querySelector('link[rel="manifest"]');
+  if (!man) return;
+  if (manifestUrl) { URL.revokeObjectURL(manifestUrl); manifestUrl = ''; }
+  if (!src) { man.href = 'manifest.webmanifest'; return; }
+  fetch('manifest.webmanifest').then((r) => r.json()).then((m) => {
+    const base = new URL('./', location.href).href;
+    const abs = (u) => new URL(u, base).href;
+    const icons = [{ src, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src, sizes: '192x192', type: 'image/png', purpose: 'any' }];
+    const out = { ...m, name: appName ? `${appName} — ${m.name.split(' — ')[1] || ''}`.trim() : m.name, id: abs(m.id || './'), start_url: abs(m.start_url || './'), scope: abs(m.scope || './'), icons,
+      shortcuts: (m.shortcuts || []).map((s) => ({ ...s, url: abs(s.url), icons: [{ src, sizes: '192x192' }] })) };
+    manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/manifest+json' }));
+    man.href = manifestUrl;
+  }).catch(() => {});
+}
+// Olah gambar unggahan menjadi ikon PNG persegi (default 256 px) — bisa diberi latar & sudut membulat
+export async function makeIconPng(fileOrUrl, { size = 256, bg = '', rounded = true, padding = 0 } = {}) {
+  const img = await new Promise((res, rej) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => res(im); im.onerror = () => rej(new Error('Gambar tidak bisa dibaca (pastikan file gambar / URL bisa diakses publik).'));
+    im.src = typeof fileOrUrl === 'string' ? fileOrUrl : URL.createObjectURL(fileOrUrl);
+  });
+  const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d');
+  const rad = rounded ? size * 0.22 : 0;
+  x.beginPath(); x.roundRect ? x.roundRect(0, 0, size, size, rad) : x.rect(0, 0, size, size); x.closePath(); x.clip();
+  if (bg) { x.fillStyle = bg; x.fillRect(0, 0, size, size); }
+  const inner = size - padding * 2; const sc = Math.max(inner / img.width, inner / img.height);
+  const w = img.width * sc, h = img.height * sc;
+  x.drawImage(img, padding + (inner - w) / 2, padding + (inner - h) / 2, w, h);
+  return c.toDataURL('image/png');
+}
+
+// ---------------------------------------------------------------- latar belakang website (foto / video dari URL)
+// latar = { aktif, url, jenis:'auto'|'gambar'|'video'|'youtube', overlay:0-90, blur:0-20, cakupan:'semua'|'beranda', hemat:true }
+export function backgroundKind(url = '') {
+  if (/youtu\.?be/.test(url)) return 'youtube';
+  if (/\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url)) return 'video';
+  return 'gambar';
+}
+const ytId = (u) => (String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([\w-]{11})/) || [])[1] || '';
+const driveImg = (u) => { const m = String(u).match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/); return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w1920` : u; };
+let bgKey = '';
+export function applyBackground(latar, { isHome = false } = {}) {
+  const on = latar?.aktif && /^https:\/\//.test(latar.url || '') && (latar.cakupan !== 'beranda' || isHome);
+  const key = on ? JSON.stringify(latar) : '';
+  document.body.classList.toggle('has-bg', !!on);
+  let layer = document.getElementById('bg-layer');
+  if (!on) { layer?.remove(); bgKey = ''; return; }
+  if (layer && key === bgKey) return; bgKey = key;
+  layer?.remove(); layer = document.createElement('div'); layer.id = 'bg-layer'; layer.setAttribute('aria-hidden', 'true');
+  const kind = latar.jenis && latar.jenis !== 'auto' ? latar.jenis : backgroundKind(latar.url);
+  const saveData = navigator.connection?.saveData || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lite = latar.hemat !== false && (saveData || innerWidth < 700);
+  const blur = Math.min(20, Math.max(0, Number(latar.blur) || 0));
+  const style = blur ? `filter:blur(${blur}px);transform:scale(1.06)` : '';
+  let media = '';
+  if (kind === 'youtube' && ytId(latar.url)) {
+    const id = ytId(latar.url);
+    media = lite ? `<img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="" style="${style}">`
+      : `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&showinfo=0&modestbranding=1&playsinline=1&rel=0&disablekb=1&iv_load_policy=3" allow="autoplay; encrypted-media" tabindex="-1" title="" style="${style}" loading="lazy"></iframe>`;
+  } else if (kind === 'video') {
+    media = lite && latar.poster ? `<img src="${esc(latar.poster)}" alt="" style="${style}">` : `<video src="${esc(latar.url)}" ${latar.poster ? `poster="${esc(latar.poster)}"` : ''} autoplay muted loop playsinline preload="metadata" style="${style}"></video>`;
+  } else media = `<img src="${esc(driveImg(latar.url))}" alt="" style="${style}" decoding="async">`;
+  const ov = Math.min(95, Math.max(0, Number(latar.overlay ?? 55)));
+  layer.innerHTML = `${media}<span class="bg-ov" style="opacity:${ov / 100}"></span>`;
+  document.body.prepend(layer);
+}
 
 // ---------------------------------------------------------------- urutan tata letak
 // Urutkan daftar kunci sesuai urutan tersimpan; kunci baru ditambahkan di akhir
@@ -149,7 +281,7 @@ document.addEventListener('submit', (e) => { if (e.target.closest('[data-guard]'
 export const anyModalDirty = () => false; // modal punya penjaga sendiri (lihat ui.modal)
 
 // ---------------------------------------------------------------- konfirmasi keluar (tombol Kembali & tutup tab)
-export function setupExitGuards({ isAdmin }) {
+export function setupExitGuards() {
   // Sentinel riwayat: tombol Kembali di halaman pertama memunculkan konfirmasi keluar
   if (!history.state || !history.state.dd) { history.replaceState({ dd: 'root' }, ''); history.pushState({ dd: 'app' }, ''); }
   let asking = false;
@@ -161,10 +293,9 @@ export function setupExitGuards({ isAdmin }) {
     asking = false;
     if (ok) { guard.dirty = false; history.back(); } else history.pushState({ dd: 'app' }, '');
   });
-  // Tutup tab / muat ulang: browser menampilkan dialog bawaannya sendiri
+  // Tutup tab / muat ulang: peringatan HANYA bila ada isian data yang belum disimpan
   window.addEventListener('beforeunload', (e) => {
-    const standalone = matchMedia('(display-mode: standalone)').matches;
-    if (guard.dirty || document.querySelector('.modal-backdrop input, .modal-backdrop textarea') || isAdmin() || standalone) { e.preventDefault(); e.returnValue = ''; }
+    if (guard.dirty || document.querySelector('.modal-backdrop[data-dirty]')) { e.preventDefault(); e.returnValue = ''; }
   });
 }
 

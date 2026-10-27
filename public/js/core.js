@@ -1,7 +1,7 @@
 // Inti bersama: state, ikon, izin akses (Super Admin / Admin), audit log, konfirmasi password
 import { APP } from './config.js';
 import * as F from './firebase.js';
-import { esc, norm, toast, modal, confirmDialog, authErrorMessage, fmtNum } from './ui.js';
+import { esc, norm, modal, confirmDialog, authErrorMessage, fmtNum } from './ui.js';
 export { F };
 
 // ---------------------------------------------------------------- ikon
@@ -43,6 +43,8 @@ export const I = {
   book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/>',
   bulb: '<path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
   chev: '<path d="m6 9 6 6 6-6"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.8"/><path d="m21 15-5-5L5 21"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
   archive: '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
 };
 export const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ''}</svg>`;
@@ -71,6 +73,11 @@ export const emptyBox = (t) => `<div class="empty">${esc(t)}</div>`;
 export const loadingBox = () => '<div class="skeleton" aria-busy="true" aria-label="Memuat data"><div class="sk-row"><div class="sk tall"></div><div class="sk tall"></div><div class="sk tall"></div><div class="sk tall"></div></div><div class="sk w60"></div><div class="sk"></div><div class="sk"></div><div class="sk w40"></div><div class="sk"></div></div>';
 export const superEmail = () => (state.authCfg.superEmail || APP.superAdminEmail).toLowerCase();
 
+// Ubah dokumen config/app (updateDoc agar kunci bertingkat bisa dikosongkan; buat bila belum ada)
+export async function cfgUpdate(obj) {
+  try { await F.updateDoc(C('config/app'), obj); } catch (e) { if (/no document|not-found|NOT_FOUND/i.test(e.code || e.message)) await F.setDoc(C('config/app'), obj, { merge: true }); else throw e; }
+}
+
 export async function batchWrite(ops, onProgress) {
   for (let i = 0; i < ops.length; i += 400) {
     const b = F.writeBatch(F.db);
@@ -96,6 +103,7 @@ export const PERMS = [
   ['kegiatan', 'Kelola kegiatan rutin', 'Publikasi'],
   ['pengaturan', 'Ubah pengaturan desa, jadwal sholat & running text', 'Sistem'],
   ['kelolaKadus', 'Buat & kelola akun login Kepala Dusun', 'Sistem'],
+  ['latar', 'Ubah latar belakang website (foto / video dari URL)', 'Sistem'],
   ['lembaga', 'Kelola Lembaga Gampong (pengurus, anggota, murid/santri, berita, galeri)', 'Kelembagaan'],
   ['dokumen', 'Kelola Dokumen Publik (RPJMG, APBG, Reusam, dll.)', 'Kelembagaan'],
 ];
@@ -123,6 +131,11 @@ export const can = (p) => {
   return !!state.perms?.[p];
 };
 export const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin', kadus: 'Kepala Dusun' };
+// Pengelola lembaga tertentu (diangkat Super Admin) — kategori Pemerintahan tidak bisa didelegasikan
+export const LEMBAGA_DELEGASI = ['adat', 'lkg', 'ekonomi', 'pendidikan'];
+export const myLembagaIds = () => (state.role === 'admin' && Array.isArray(state.profile?.lembagaIds) ? state.profile.lembagaIds : []);
+export const isPengelola = () => myLembagaIds().length > 0;
+export const canLembaga = (id, kategori) => can('lembaga') || (myLembagaIds().includes(id) && (!kategori || LEMBAGA_DELEGASI.includes(kategori)));
 // Avatar: foto profil atau inisial nama
 export function avatar(u, size = '') {
   const nama = u?.nama || u?.email || '?';
@@ -139,7 +152,7 @@ export function penulisLabel(p) {
   const n = norm(nama), r = norm(role);
   return n === r || n.startsWith(r) || n.endsWith(r) || r.includes(n) ? nama : `${role} ${nama}`;
 }
-export const penulisNow = () => clean({ uid: state.user?.uid, nama: state.profile?.nama || state.user?.email || '', role: state.role, jabatan: state.profile?.jabatan || (isKadus() ? `Kepala Dusun ${myDusun()}` : ''), foto: state.profile?.foto || '' });
+export const penulisNow = () => clean({ uid: state.user?.uid, nama: state.profile?.nama || state.user?.email || '', role: state.role, jabatan: state.profile?.jabatan || (isKadus() ? `Kepala Dusun ${myDusun()}` : ''), foto: state.profile?.foto || '', badges: Array.isArray(state.profile?.badges) && state.profile.badges.length ? state.profile.badges.slice(0, 12) : undefined });
 
 // ---------------------------------------------------------------- audit log
 const SESSION_ID = Math.random().toString(36).slice(2, 10);
@@ -153,7 +166,7 @@ function deviceInfo() {
 export const AUDIT_CATS = {
   auth: 'Login & Akun', warga: 'Data Warga', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Data Master',
   informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil Gampong', kegiatan: 'Kegiatan Rutin',
-  pengaturan: 'Pengaturan', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
+  pengaturan: 'Pengaturan', latar: 'Latar Belakang', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
 };
 // Catat aktivitas. cat = kategori; action = kode singkat; label = kalimat yang mudah dibaca
 export function logAudit(cat, action, label, extra = {}) {
