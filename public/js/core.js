@@ -1,7 +1,7 @@
 // Inti bersama: state, ikon, izin akses (Super Admin / Admin), audit log, konfirmasi password
 import { APP } from './config.js';
 import * as F from './firebase.js';
-import { esc, norm, toast, modal, authErrorMessage, fmtNum } from './ui.js';
+import { esc, norm, toast, modal, confirmDialog, authErrorMessage, fmtNum } from './ui.js';
 export { F };
 
 // ---------------------------------------------------------------- ikon
@@ -51,7 +51,7 @@ export const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" f
 export const state = {
   route: null, view: '', authReady: false, user: null, isAdmin: false, profile: null, role: '', perms: {},
   config: {}, authCfg: {}, stats: {}, warga: [], wargaReady: false, dusun: [], master: {}, masterReady: false,
-  info: [], ig: [], halaman: {}, kegiatan: [], adminUnsubs: [], infoUnsub: null,
+  info: [], ig: [], halaman: {}, kegiatan: [], lembaga: [], lembagaReady: false, dokumen: [], layoutEdit: null, adminUnsubs: [], infoUnsub: null,
   filters: { q: '', dusun: '', field: '', value: '', jk: '', page: 1, per: 25, sort: 'nama' },
   selected: new Set(), deferredPrompt: null, swReg: null, timers: [],
 };
@@ -96,6 +96,8 @@ export const PERMS = [
   ['kegiatan', 'Kelola kegiatan rutin', 'Publikasi'],
   ['pengaturan', 'Ubah pengaturan desa, jadwal sholat & running text', 'Sistem'],
   ['kelolaKadus', 'Buat & kelola akun login Kepala Dusun', 'Sistem'],
+  ['lembaga', 'Kelola Lembaga Gampong (pengurus, anggota, murid/santri, berita, galeri)', 'Kelembagaan'],
+  ['dokumen', 'Kelola Dokumen Publik (RPJMG, APBG, Reusam, dll.)', 'Kelembagaan'],
 ];
 // Hak akses yang boleh diberikan kepada akun Kepala Dusun (hanya untuk dusunnya sendiri)
 export const KADUS_PERMS = [
@@ -127,6 +129,16 @@ export function avatar(u, size = '') {
   return u?.foto ? `<span class="avatar ${size}"><img src="${esc(u.foto)}" alt=""></span>` : `<span class="avatar ${size}">${esc(String(nama).trim().slice(0, 1).toUpperCase())}</span>`;
 }
 // Label penulis untuk tanda "Diterbitkan oleh"
+// Nama penerbit tanpa pengulangan: "Super Admin Saiful", bukan "Super Admin Super Admin"
+export function penulisLabel(p) {
+  if (!p) return '';
+  const role = ROLE_LABEL[p.role] || '';
+  const nama = String(p.nama || '').trim();
+  if (!nama || nama.includes('@')) return role || nama;
+  if (!role) return nama;
+  const n = norm(nama), r = norm(role);
+  return n === r || n.startsWith(r) || n.endsWith(r) || r.includes(n) ? nama : `${role} ${nama}`;
+}
 export const penulisNow = () => clean({ uid: state.user?.uid, nama: state.profile?.nama || state.user?.email || '', role: state.role, jabatan: state.profile?.jabatan || (isKadus() ? `Kepala Dusun ${myDusun()}` : ''), foto: state.profile?.foto || '' });
 
 // ---------------------------------------------------------------- audit log
@@ -141,7 +153,7 @@ function deviceInfo() {
 export const AUDIT_CATS = {
   auth: 'Login & Akun', warga: 'Data Warga', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Data Master',
   informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil Gampong', kegiatan: 'Kegiatan Rutin',
-  pengaturan: 'Pengaturan', admin: 'Manajemen Akun', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
+  pengaturan: 'Pengaturan', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
 };
 // Catat aktivitas. cat = kategori; action = kode singkat; label = kalimat yang mudah dibaca
 export function logAudit(cat, action, label, extra = {}) {
@@ -182,7 +194,7 @@ export function requirePassword(reason = 'Untuk melanjutkan, masukkan password A
   return new Promise((resolve) => {
     let done = false;
     const m = modal({
-      title: 'Konfirmasi Password', size: 'sm',
+      title: 'Konfirmasi Password', size: 'sm', guard: false,
       body: `<form id="rp-f"><p class="muted small">${esc(reason)}</p>
         <label class="field"><span>Password akun ${esc(state.user?.email || '')}</span><input type="password" id="rp-pw" autocomplete="current-password" required></label>
         <p class="err" id="rp-err"></p></form>`,
@@ -205,6 +217,12 @@ export function requirePassword(reason = 'Untuk melanjutkan, masukkan password A
     m.el.querySelector('#rp-ok').onclick = go;
     m.el.querySelector('#rp-f').onsubmit = go;
   });
+}
+
+// Setiap penghapusan data: konfirmasi + wajib password
+export async function confirmDelete(message, reason) {
+  if (!await confirmDialog(message, { danger: true, okText: 'Hapus', title: 'Hapus data' })) return false;
+  return requirePassword(reason || `Konfirmasi penghapusan: ${String(message).replace(/\?$/, '')}.`);
 }
 
 // ---------------------------------------------------------------- statistik & insight

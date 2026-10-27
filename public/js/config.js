@@ -12,7 +12,7 @@
 export const APP = {
   name: 'DigiDes',
   fullName: 'DigiDes — Sistem Informasi Desa Digital',
-  version: '2.1.0',
+  version: '2.2.0',
   build: '2026.10.27',
   copyright: '© Serenity Creativa 2026',
 
@@ -27,7 +27,7 @@ export const APP = {
 
   // Firebase App Check (reCAPTCHA v3) — melindungi dari bot & pencurian kuota.
   // Isi dengan SITE KEY reCAPTCHA v3 (berawalan 6L…, bukan rahasia). Kosongkan untuk menonaktifkan.
-  appCheckSiteKey: '6Ld6VwIuAAAAADcRZAOAPvDjoFu1nUQgjaZ3mpCv',
+  appCheckSiteKey: '',
 
   // Logout otomatis bila tidak ada aktivitas (menit). Bisa diubah Super Admin di Pengaturan.
   idleMinutesDefault: 30,

@@ -1,8 +1,9 @@
 // Halaman publik "Profil Gampong", Infografis, panel Jadwal Sholat & Kegiatan Rutin, serta editornya di panel admin
 import { APP } from './config.js';
-import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, can, logAudit, diff, insightsFromStats, pct } from './core.js';
+import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, confirmDelete, can, logAudit, diff, insightsFromStats, pct } from './core.js';
 import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage, parseNum, fmtThousand, bindThousands } from './ui.js';
 import { exportExcel } from './exporter.js';
+import { richRender, bindRich } from './rich.js';
 import { prayerTimes, PRAYER_NAMES, DEFAULT_SHOLAT, fmtMin, nowMinutes, dateInTz, hijriDate } from './praytimes.js';
 
 // ---------------------------------------------------------------- definisi halaman
@@ -41,10 +42,10 @@ export function renderPubPage(key) {
   if (p.key === 'profil') {
     const s = state.stats || {};
     const rows = [['Luas wilayah', d.luas], ['Ketinggian', d.ketinggian], ['Batas utara', d.batasUtara], ['Batas selatan', d.batasSelatan], ['Batas timur', d.batasTimur], ['Batas barat', d.batasBarat], ['Jarak ke kantor camat', d.jarakKecamatan], ['Jarak ke ibu kota', d.jarakKabupaten], ['Jumlah penduduk', s.penduduk ? `${fmtNum(s.penduduk)} jiwa` : ''], ['Jumlah KK', s.kk ? fmtNum(s.kk) : ''], ['Jumlah dusun', s.dusun ? fmtNum(s.dusun) : ''], [state.config.kepalaDesa ? (jenisLabel() === 'Gampong' ? 'Keuchik' : 'Kepala Desa') : '', state.config.kepalaDesa]].filter((r) => r[0] && r[1]);
-    body = (d.gambar ? `<img class="article-img" src="${esc(d.gambar)}" alt="">` : '') + (d.ringkasan ? `<div class="article-body">${waFormat(d.ringkasan)}</div>` : '') + (rows.length ? `<dl class="detail profile-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '');
+    body = (d.gambar ? `<img class="article-img" src="${esc(d.gambar)}" alt="">` : '') + (d.ringkasan ? `<div class="article-body rich">${richRender(d.ringkasan)}</div>` : '') + (rows.length ? `<dl class="detail profile-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '');
     if (!d.ringkasan && !rows.length) body = empty(p);
   } else if (p.key === 'sejarah') {
-    body = d.isi ? `${d.gambar ? `<img class="article-img" src="${esc(d.gambar)}" alt="">` : ''}<div class="article-body">${waFormat(d.isi)}</div>` : empty(p);
+    body = d.isi ? `${d.gambar ? `<img class="article-img" src="${esc(d.gambar)}" alt="">` : ''}<div class="article-body rich">${richRender(d.isi)}</div>` : empty(p);
   } else if (p.key === 'visimisi') {
     const misi = String(d.misi || '').split('\n').map((x) => x.trim()).filter(Boolean);
     body = d.visi || misi.length ? `${d.visi ? `<div class="visi"><small>VISI</small><p>${esc(d.visi)}</p></div>` : ''}${misi.length ? `<h3>Misi</h3><ol class="misi">${misi.map((m) => `<li>${esc(m)}</li>`).join('')}</ol>` : ''}${d.motto ? `<p class="motto">“${esc(d.motto)}”</p>` : ''}` : empty(p);
@@ -54,12 +55,12 @@ export function renderPubPage(key) {
   } else if (p.key === 'lembaga') {
     body = items.length ? `<div class="cards">${items.map((x) => `<div class="info-card"><div class="info-body"><h3>${esc(x.nama)}</h3>${x.ketua ? `<p class="muted small">Ketua: ${esc(x.ketua)}</p>` : ''}<p class="excerpt">${esc(x.deskripsi || '')}</p>${waNumber(x.hp) ? `<a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="${esc(waLink(x.hp))}">${ic('wa')} Hubungi</a>` : ''}</div></div>`).join('')}</div>` : empty(p);
   } else if (p.key === 'layanan') {
-    body = (d.jamLayanan ? `<div class="event-box"><span>${ic('cal')} ${esc(d.jamLayanan)}</span></div>` : '') + (d.catatan ? `<p>${waFormat(d.catatan)}</p>` : '') + (items.length ? `<div class="layanan">${items.map((x) => `<details class="fieldset"><summary>${esc(x.nama)}</summary><div class="pad"><b>Persyaratan:</b><ul>${String(x.syarat || '').split('\n').filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•\d.]+\s*/, ''))}</li>`).join('')}</ul>${x.waktu ? `<p class="small">⏱ Lama proses: ${esc(x.waktu)}</p>` : ''}${x.biaya ? `<p class="small">💰 Biaya: ${esc(x.biaya)}</p>` : ''}</div></details>`).join('')}</div>` : empty(p)) + (state.config.telepon ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(state.config.telepon, 'Assalamu\'alaikum, saya ingin bertanya tentang layanan administrasi.'))}">${ic('wa')} Tanya via WhatsApp</a>` : '');
+    body = (d.jamLayanan ? `<div class="event-box"><span>${ic('cal')} ${esc(d.jamLayanan)}</span></div>` : '') + (d.catatan ? `<div class="rich">${richRender(d.catatan)}</div>` : '') + (items.length ? `<div class="layanan">${items.map((x) => `<details class="fieldset"><summary>${esc(x.nama)}</summary><div class="pad"><b>Persyaratan:</b><ul>${String(x.syarat || '').split('\n').filter((l) => l.trim()).map((l) => `<li>${esc(l.replace(/^[-•\d.]+\s*/, ''))}</li>`).join('')}</ul>${x.waktu ? `<p class="small">⏱ Lama proses: ${esc(x.waktu)}</p>` : ''}${x.biaya ? `<p class="small">💰 Biaya: ${esc(x.biaya)}</p>` : ''}</div></details>`).join('')}</div>` : empty(p)) + (state.config.telepon ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(state.config.telepon, 'Assalamu\'alaikum, saya ingin bertanya tentang layanan administrasi.'))}">${ic('wa')} Tanya via WhatsApp</a>` : '');
   } else if (p.key === 'apbdes') {
     const sum = (j, f) => items.filter((x) => norm(x.jenis) === norm(j)).reduce((a, x) => a + (Number(x[f]) || 0), 0);
     const jenis = [...new Set(items.map((x) => x.jenis || 'Lainnya'))];
     body = items.length ? `${d.tahun ? `<p class="eyebrow">Tahun Anggaran ${esc(d.tahun)}</p>` : ''}<div class="stat-grid">${['Pendapatan', 'Belanja', 'Pembiayaan'].map((j) => sum(j, 'anggaran') ? `<div class="stat"><div><span class="stat-label">${j}</span><b class="stat-val">${fmtRp(sum(j, 'anggaran'))}</b><small class="muted">Realisasi ${fmtRp(sum(j, 'realisasi'))} (${pct(sum(j, 'realisasi'), sum(j, 'anggaran'))}%)</small></div></div>` : '').join('')}</div>
-      ${jenis.map((j) => `<h3 class="detail-h">${esc(j)}</h3><div class="table-wrap"><table class="table"><thead><tr><th>Uraian</th><th style="text-align:right">Anggaran</th><th style="text-align:right">Realisasi</th><th style="text-align:right">%</th></tr></thead><tbody>${items.filter((x) => (x.jenis || 'Lainnya') === j).map((x) => `<tr><td>${esc(x.uraian)}</td><td style="text-align:right">${fmtRp(x.anggaran)}</td><td style="text-align:right">${fmtRp(x.realisasi)}</td><td style="text-align:right">${pct(Number(x.realisasi) || 0, Number(x.anggaran) || 0)}%</td></tr>`).join('')}</tbody></table></div>`).join('')}${d.catatan ? `<p class="muted">${waFormat(d.catatan)}</p>` : ''}` : empty(p);
+      ${jenis.map((j) => `<h3 class="detail-h">${esc(j)}</h3><div class="table-wrap"><table class="table"><thead><tr><th>Uraian</th><th style="text-align:right">Anggaran</th><th style="text-align:right">Realisasi</th><th style="text-align:right">%</th></tr></thead><tbody>${items.filter((x) => (x.jenis || 'Lainnya') === j).map((x) => `<tr><td>${esc(x.uraian)}</td><td style="text-align:right">${fmtRp(x.anggaran)}</td><td style="text-align:right">${fmtRp(x.realisasi)}</td><td style="text-align:right">${pct(Number(x.realisasi) || 0, Number(x.anggaran) || 0)}%</td></tr>`).join('')}</tbody></table></div>`).join('')}${d.catatan ? `<div class="muted rich">${richRender(d.catatan)}</div>` : ''}` : empty(p);
   } else if (p.key === 'potensi') {
     body = items.length ? `<div class="cards">${items.map((x) => `<div class="info-card">${x.foto ? `<div class="info-img"><img src="${esc(x.foto)}" alt=""></div>` : ''}<div class="info-body">${x.kategori ? `<div class="info-meta"><span class="badge">${esc(x.kategori)}</span></div>` : ''}<h3>${esc(x.nama)}</h3><p class="excerpt">${esc(x.deskripsi || '')}</p>${waNumber(x.kontak) ? `<a class="btn btn-sm btn-wa" target="_blank" rel="noopener" href="${esc(waLink(x.kontak, `Halo, saya tertarik dengan ${x.nama}.`))}">${ic('wa')} Hubungi</a>` : ''}</div></div>`).join('')}</div>` : empty(p);
   } else if (p.key === 'kontak') {
@@ -101,14 +102,14 @@ export function renderInfografis() {
 }
 
 // ---------------------------------------------------------------- PUBLIK: Portal Data (non-sensitif, agregat)
-const PALETTE = ['#0f766e', '#d97706', '#4f46e5', '#db2777', '#0284c7', '#65a30d', '#7c3aed', '#dc2626', '#0d9488', '#ca8a04', '#475569', '#9333ea'];
+const PALETTE = ['var(--brand)', 'var(--brand-accent)', '#4f46e5', '#db2777', '#0284c7', '#65a30d', '#7c3aed', '#dc2626', '#0d9488', '#ca8a04', '#475569', '#9333ea'];
 const CAT_ICON = { kelompokUmur: 'users', jk: 'users', dusun: 'map', agama: 'moon', pendidikan: 'book', pekerjaan: 'file', statusKawin: 'home', sektor: 'chart', profesi: 'file', golDarah: 'shield' };
 // Diagram donat SVG
 export function donut(rows, { size = 160, center = '', sub = '', legend = true } = {}) {
   const total = rows.reduce((a, r) => a + (r.n || 0), 0);
   if (!total) return '<div class="empty">Belum ada data</div>';
   const R = 15.915; let acc = 0;
-  const segs = rows.map((r, i) => { const v = (r.n / total) * 100; const seg = `<circle r="${R}" cx="21" cy="21" fill="none" stroke="${PALETTE[i % PALETTE.length]}" stroke-width="6" stroke-dasharray="${v} ${100 - v}" stroke-dashoffset="${25 - acc}"><title>${esc(r.v)}: ${r.n}</title></circle>`; acc += v; return seg; }).join('');
+  const segs = rows.map((r, i) => { const v = (r.n / total) * 100; const seg = `<circle r="${R}" cx="21" cy="21" fill="none" style="stroke:${PALETTE[i % PALETTE.length]}" stroke-width="6" stroke-dasharray="${v} ${100 - v}" stroke-dashoffset="${25 - acc}"><title>${esc(r.v)}: ${r.n}</title></circle>`; acc += v; return seg; }).join('');
   return `<div class="donut-wrap"><div class="donut" style="width:${size}px;height:${size}px"><svg viewBox="0 0 42 42" role="img" aria-label="Diagram donat"><circle r="${R}" cx="21" cy="21" fill="none" stroke="var(--surface-2)" stroke-width="6"></circle>${segs}</svg>${center ? `<div class="donut-c"><b>${esc(center)}</b><small>${esc(sub)}</small></div>` : ''}</div>
     ${legend ? `<ul class="legend">${rows.slice(0, 8).map((r, i) => `<li><i style="background:${PALETTE[i % PALETTE.length]}"></i><span>${esc(r.v)}</span><b>${fmtNum(r.n)}</b><small>${String(pct(r.n, total)).replace('.', ',')}%</small></li>`).join('')}${rows.length > 8 ? `<li class="muted small">+${rows.length - 8} lainnya</li>` : ''}</ul>` : ''}</div>`;
 }
@@ -223,14 +224,14 @@ export function viewProfilAdmin(main) {
   d.items = d.items || [];
   const fieldHtml = (f, val, name) => {
     const v = val ?? '';
-    if (f.type === 'textarea' || f.type === 'lines') return `<label class="field span-2"><span>${esc(f.label)}</span><textarea name="${name}" rows="${f.rows || 3}">${esc(v)}</textarea></label>`;
+    if (f.type === 'textarea' || f.type === 'lines') return `<label class="field span-2"><span>${esc(f.label)}</span><textarea name="${name}" rows="${f.rows || 3}" ${f.type === 'textarea' && !name.startsWith('items.') && f.k !== 'syarat' ? 'data-rich' : ''}>${esc(v)}</textarea></label>`;
     if (f.type === 'image') return `<div class="field span-2"><span>${esc(f.label)}</span><div class="img-pick"><div class="img-prev">${v ? `<img src="${esc(v)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih<input type="file" accept="image/*" data-img="${name}" hidden></label><button type="button" class="btn btn-ghost btn-sm" data-noimg="${name}">Hapus</button><input type="hidden" name="${name}" value="${esc(v)}"></div></div>`;
     if (f.type === 'number') return `<label class="field"><span>${esc(f.label)}</span><input name="${name}" value="${esc(fmtThousand(v))}" data-num placeholder="0"></label>`;
     return `<label class="field"><span>${esc(f.label)}</span><input name="${name}" value="${esc(v)}" ${f.type === 'phone' ? 'type="tel"' : ''} ${f.suggest ? `data-suggest="${esc(JSON.stringify(f.suggest))}"` : ''}></label>`;
   };
   main.innerHTML = `
   <div class="tabs">${PAGES.map((x) => `<button class="tab ${x.key === p.key ? 'active' : ''}" data-tab="${x.key}">${ic(x.icon)} ${esc(pageLabel(x))}</button>`).join('')}</div>
-  <form class="panel" id="pg-form">
+  <form class="panel" id="pg-form" data-guard>
     <div class="master-head"><h3>${esc(pageLabel(p))}</h3><a class="btn btn-ghost btn-sm" href="#/profil/${p.key}" target="_blank">${ic('ext')} Lihat halaman publik</a></div>
     ${p.fields ? `<div class="form-grid">${p.fields.map((f) => fieldHtml(f, d[f.k], f.k)).join('')}</div>` : ''}
     ${p.list ? `<h4 class="detail-h">${esc(p.list.label)}</h4><div id="pg-items">${d.items.map((it, i) => `<div class="list-item" data-i="${i}"><div class="li-head"><b>#${i + 1} ${esc(it.nama || it.uraian || '')}</b><span><button type="button" class="icon-btn" data-up="${i}" ${i ? '' : 'disabled'}>↑</button><button type="button" class="icon-btn danger" data-rm="${i}">${ic('trash')}</button></span></div><div class="form-grid">${p.list.fields.map((f) => fieldHtml(f, it[f.k], `items.${i}.${f.k}`)).join('')}</div></div>`).join('')}</div>
@@ -239,7 +240,7 @@ export function viewProfilAdmin(main) {
   </form>`;
   $$('[data-tab]', main).forEach((b) => b.onclick = () => { profilTab = b.dataset.tab; viewProfilAdmin(main); });
   const form = $('#pg-form');
-  bindThousands(form);
+  bindThousands(form); bindRich(form);
   $$('[data-suggest]', form).forEach((inp) => attachAutocomplete(inp, { source: JSON.parse(inp.dataset.suggest), smallList: 12 }));
   $$('[data-img]', form).forEach((inp) => inp.onchange = async () => {
     try {
@@ -257,7 +258,7 @@ export function viewProfilAdmin(main) {
   };
   const keep = () => { const c = collect(); Object.assign(d, c); state.halaman[p.key] = { ...(state.halaman[p.key] || {}), ...c, items: c.items || d.items }; };
   $('#pg-add', form)?.addEventListener('click', () => { keep(); d.items.push({}); state.halaman[p.key] = { ...state.halaman[p.key], items: d.items }; viewProfilAdmin(main); });
-  $$('[data-rm]', form).forEach((b) => b.onclick = async () => { keep(); if (!await confirmDialog('Hapus baris ini? (Klik Simpan untuk menerapkan)', { danger: true, okText: 'Hapus' })) return; d.items.splice(+b.dataset.rm, 1); state.halaman[p.key] = { ...state.halaman[p.key], items: d.items }; viewProfilAdmin(main); });
+  $$('[data-rm]', form).forEach((b) => b.onclick = async () => { keep(); if (!await confirmDelete('Hapus baris ini? (Klik Simpan untuk menerapkan)')) return; d.items.splice(+b.dataset.rm, 1); state.halaman[p.key] = { ...state.halaman[p.key], items: d.items }; viewProfilAdmin(main); });
   $$('[data-up]', form).forEach((b) => b.onclick = () => { keep(); const i = +b.dataset.up; [d.items[i - 1], d.items[i]] = [d.items[i], d.items[i - 1]]; state.halaman[p.key] = { ...state.halaman[p.key], items: d.items }; viewProfilAdmin(main); });
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -282,7 +283,7 @@ export function viewKegiatanAdmin(main) {
     <div class="info-row-actions"><button class="icon-btn" data-ed="${k.id}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-del="${k.id}" title="Hapus">${ic('trash')}</button></div></div>`).join('') || emptyBox('Belum ada kegiatan rutin. Contoh: Pengajian Malam Jumat, Wirid Yasin, Posyandu, Gotong Royong.')}</div>`;
   $('#kg-new').onclick = () => kegiatanForm(null);
   $$('[data-ed]', main).forEach((b) => b.onclick = () => kegiatanForm(state.kegiatan.find((k) => k.id === b.dataset.ed)));
-  $$('[data-del]', main).forEach((b) => b.onclick = async () => { const k = state.kegiatan.find((x) => x.id === b.dataset.del); if (await confirmDialog(`Hapus kegiatan “${k.nama}”?`, { danger: true, okText: 'Hapus' })) { await F.deleteDoc(C(`kegiatan/${k.id}`)); logAudit('kegiatan', 'hapus', `Menghapus kegiatan rutin “${k.nama}”`); toast('Dihapus', 'success'); } });
+  $$('[data-del]', main).forEach((b) => b.onclick = async () => { const k = state.kegiatan.find((x) => x.id === b.dataset.del); if (await confirmDelete(`Hapus kegiatan “${k.nama}”?`)) { await F.deleteDoc(C(`kegiatan/${k.id}`)); logAudit('kegiatan', 'hapus', `Menghapus kegiatan rutin “${k.nama}”`); toast('Dihapus', 'success'); } });
 }
 function kegiatanForm(k) {
   const hari = k?.hari || [];
@@ -298,12 +299,12 @@ function kegiatanForm(k) {
       <label class="field"><span>Penanggung jawab</span><input name="pj" value="${esc(k?.pj || '')}"></label>
       <label class="field"><span>No. HP PJ</span><input name="hp" type="tel" value="${esc(k?.hp || '')}"></label>
       <label class="field"><span>Urutan tampil</span><input name="urutan" type="number" value="${esc(k?.urutan ?? state.kegiatan.length + 1)}"></label>
-      <label class="field span-2"><span>Keterangan</span><textarea name="keterangan" rows="2">${esc(k?.keterangan || '')}</textarea></label>
+      <label class="field span-2"><span>Keterangan</span><textarea name="keterangan" rows="3" data-rich>${esc(k?.keterangan || '')}</textarea></label>
       <label class="check"><input type="checkbox" name="aktif" ${k?.aktif === false ? '' : 'checked'}> Aktif (tampil di beranda)</label>
     </form>`,
     footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="kg-ok">Simpan</button>',
   });
-  const f = $('#kgf', m.el);
+  const f = $('#kgf', m.el); bindRich(f);
   attachAutocomplete(f.elements.kategori, { source: () => state.master.kategoriKegiatan?.items || ['Pengajian', 'Wirid Yasin', 'Gotong Royong', 'Posyandu', 'Olahraga', 'Rapat Gampong', 'Majelis Taklim', 'Kesenian'], smallList: 12 });
   $('#kg-ok', m.el).onclick = async () => {
     const data = {

@@ -7,7 +7,7 @@ import { exportExcel, exportPdf } from './exporter.js';
 // ---------------------------------------------------------------- login Super Admin (cukup password)
 export function openSuperLogin() {
   const m = modal({
-    title: 'Login Super Admin', size: 'sm',
+    title: 'Login Super Admin', size: 'sm', guard: false,
     body: `<form id="sa-f" class="form-stack"><p class="muted small">${ic('shield')} Akses khusus Super Admin. Cukup masukkan password.</p>
       <label class="field"><span>Password Super Admin</span><input type="password" id="sa-pw" autocomplete="current-password" required></label>
       <p class="err" id="sa-err"></p></form>`,

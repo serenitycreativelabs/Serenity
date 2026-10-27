@@ -83,7 +83,7 @@ export function toast(msg, type = 'info', opts = {}) {
 }
 
 // ---------- Modal ----------
-export function modal({ title = '', body = '', footer = '', size = 'md', onClose } = {}) {
+export function modal({ title = '', body = '', footer = '', size = 'md', onClose, guard = true } = {}) {
   const el = document.createElement('div');
   el.className = 'modal-backdrop';
   el.innerHTML = `<div class="modal modal-${size}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
@@ -93,25 +93,38 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   </div>`;
   document.body.appendChild(el);
   document.body.classList.add('no-scroll');
+  let dirty = false, closed = false;
+  if (guard) {
+    const mark = (e) => { if (!e.target.closest('[data-noguard]') && e.isTrusted !== false) dirty = true; };
+    el.addEventListener('input', mark); el.addEventListener('change', mark);
+  }
+  // Tutup paksa (dipanggil kode setelah simpan berhasil)
   const close = () => {
+    if (closed) return; closed = true;
     el.remove();
     if (!$('.modal-backdrop')) document.body.classList.remove('no-scroll');
     document.removeEventListener('keydown', onKey);
     onClose?.();
   };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  // Tutup oleh pengguna (✕, Batal, Esc, klik di luar) → konfirmasi bila ada isian belum disimpan
+  const requestClose = async () => {
+    if (dirty && !(await confirmDialog('Perubahan yang Anda isi belum disimpan. Tutup tanpa menyimpan?', { title: 'Belum disimpan', okText: 'Tutup tanpa simpan', danger: true }))) return;
+    close();
+  };
+  const isTop = () => { const all = document.querySelectorAll('.modal-backdrop'); return all[all.length - 1] === el; };
+  const onKey = (e) => { if (e.key === 'Escape' && isTop()) requestClose(); };
   document.addEventListener('keydown', onKey);
-  el.addEventListener('mousedown', (e) => { if (e.target === el) close(); });
-  el.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) close(); });
+  el.addEventListener('mousedown', (e) => { if (e.target === el) requestClose(); });
+  el.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) requestClose(); });
   requestAnimationFrame(() => el.classList.add('show'));
-  return { el, close };
+  return { el, close, requestClose, isDirty: () => dirty, markClean: () => { dirty = false; } };
 }
 
 export function confirmDialog(message, { title = 'Konfirmasi', okText = 'Ya, lanjutkan', danger = false } = {}) {
   return new Promise((resolve) => {
     let done = false;
     const m = modal({
-      title, size: 'sm',
+      title, size: 'sm', guard: false,
       body: `<p>${esc(message)}</p>`,
       footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-ok>${esc(okText)}</button>`,
       onClose: () => { if (!done) resolve(false); },
@@ -124,7 +137,7 @@ export function promptDialog(title, label, value = '', { placeholder = '', okTex
   return new Promise((resolve) => {
     let done = false;
     const m = modal({
-      title, size: 'sm',
+      title, size: 'sm', guard: false,
       body: `<label class="field"><span>${esc(label)}</span><input id="pd-in" value="${esc(value)}" placeholder="${esc(placeholder)}"></label>`,
       footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" data-ok>${esc(okText)}</button>`,
       onClose: () => { if (!done) resolve(null); },

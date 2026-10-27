@@ -27,6 +27,7 @@ export async function exportExcel(filename, sheets, meta = {}) {
     if (sh.title) {
       aoa.push([sh.title]);
       if (meta.instansi) aoa.push([meta.instansi]);
+      if (meta.filter) aoa.push([meta.filter]);
       aoa.push([`Dicetak: ${fmtDate(new Date(), true)} — ${APP.name} v${APP.version} ${APP.copyright}`]);
       aoa.push([]);
     }
@@ -53,6 +54,8 @@ export async function exportPdf({ filename, title, subtitle = '', sections, orie
   const H = doc.internal.pageSize.getHeight();
   const M = 32;
   const teal = [15, 118, 110];
+  const HL = meta.filter ? 62 : 52; // garis bawah kop
+  const TOP = HL + 10;
 
   const header = () => {
     doc.setFillColor(...teal); doc.rect(0, 0, W, 6, 'F');
@@ -60,15 +63,16 @@ export async function exportPdf({ filename, title, subtitle = '', sections, orie
     doc.text(title, M, 30);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(90);
     const line2 = [meta.instansi, subtitle].filter(Boolean).join('  •  ');
-    if (line2) doc.text(line2, M, 44, { maxWidth: W - 2 * M });
-    doc.setDrawColor(220); doc.line(M, 52, W - M, 52);
+    if (line2) doc.text(line2, M, 43, { maxWidth: W - 2 * M });
+    if (meta.filter) { doc.setTextColor(15, 118, 110); doc.text(meta.filter, M, 54, { maxWidth: W - 2 * M }); }
+    doc.setDrawColor(220); doc.line(M, HL, W - M, HL);
   };
 
-  let y = 62;
+  let y = TOP;
   header();
   sections.forEach((sec, idx) => {
     if (sec.heading) {
-      if (y > H - 90) { doc.addPage(); header(); y = 62; }
+      if (y > H - 90) { doc.addPage(); header(); y = TOP; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...teal);
       doc.text(sec.heading, M, y + 10);
       y += 14;
@@ -79,7 +83,7 @@ export async function exportPdf({ filename, title, subtitle = '', sections, orie
       startY: y + 4,
       head: [sec.head],
       body: sec.body.length ? sec.body : [[{ content: 'Tidak ada data', colSpan: cols, styles: { halign: 'center', textColor: 140 } }]],
-      margin: { left: M, right: M, top: 62, bottom: 36 },
+      margin: { left: M, right: M, top: TOP, bottom: 36 },
       styles: { font: 'helvetica', fontSize: cols > 14 ? 6 : cols > 9 ? 7 : 8.5, cellPadding: cols > 14 ? 2 : 3.5, overflow: 'linebreak', lineColor: [225, 230, 230], lineWidth: 0.4 },
       headStyles: { fillColor: teal, textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [244, 249, 248] },
