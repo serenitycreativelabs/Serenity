@@ -1,5 +1,11 @@
 # Catatan Perubahan
 
+## v2.8.1 “Nadi” — 2026.10.29 (Build 2026.10.29 · R15 · Stable)
+### Perbaikan
+- **Dasbor kadang tertahan di animasi loading.** Penyebab: saat versi data di cache browser sama persis dengan server, Firestore tidak mengirim kabar “sudah dikonfirmasi server”, sehingga sinkron bertahap menunggu selamanya. Kini pemantau versi juga menerima kabar konfirmasi tersebut (tanpa tambahan read), ditambah pengaman: bila dalam 6 detik versi belum tiba, data langsung dimuat.
+- **Postingan/dokumen yang baru disimpan tidak langsung muncul di halaman publik** (terutama di browser yang sama setelah logout/muat ulang). Penyebabnya sama — salinan lama di perangkat tetap ditampilkan karena versi terbaru dianggap “belum terkonfirmasi”. Kini halaman publik langsung memuat perubahan begitu versi server diterima.
+- Penanda versi dari tulisan perangkat sendiri yang belum dikonfirmasi server diabaikan (mencegah muat ulang penuh ganda setelah menyimpan → lebih hemat read).
+
 ## v2.8.0 “Nadi” — 2026.10.29 (Build 2026.10.29 · R14 · Stable)
 ### Chat Staf privat
 - Tombol **chat** baru di kanan bawah (dasbor & halaman publik) — **hanya muncul untuk Kepala Dusun, Pengelola Lembaga, Admin, dan Super Admin**. Pengunjung & warga tidak melihatnya sama sekali.

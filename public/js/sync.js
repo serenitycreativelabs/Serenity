@@ -122,9 +122,19 @@ export async function clearDeviceCache() {
 function listenMeta(scope) {
   if (S.metaUnsub[scope]) return;
   S.metaState[scope] = 'loading';
-  S.metaUnsub[scope] = F.onSnapshot(F.doc(F.db, 'meta', scope), (s) => {
-    S.meta[scope] = s.data() || {}; S.metaState[scope] = s.metadata.fromCache ? 'cache' : 'ok';
-    if (s.metadata.fromCache) return; // versi dari cache belum tentu terbaru
+  let lastKey = null;
+  // includeMetadataChanges: WAJIB. Tanpa ini, bila versi di cache perangkat sama dengan server,
+  // Firestore tidak mengirim kabar "sudah terkonfirmasi server" → data tidak pernah dimuat
+  // (dasbor tertahan di animasi loading / halaman publik menampilkan data lama).
+  S.metaUnsub[scope] = F.onSnapshot(F.doc(F.db, 'meta', scope), { includeMetadataChanges: true }, (s) => {
+    if (s.metadata.hasPendingWrites) return; // tulisan perangkat ini belum dikonfirmasi server (cap waktu belum final)
+    const d = s.data() || {};
+    if (s.metadata.fromCache) { if (S.metaState[scope] !== 'ok') { S.meta[scope] = d; S.metaState[scope] = 'cache'; } return; } // versi dari cache belum tentu terbaru
+    const key = JSON.stringify(Object.entries(d).map(([k, v]) => [k, tsMs(v)]).sort());
+    const wasOk = S.metaState[scope] === 'ok';
+    S.meta[scope] = d; S.metaState[scope] = 'ok';
+    if (wasOk && key === lastKey) return; // hanya perubahan metadata — tidak ada versi baru
+    lastKey = key;
     for (const w of S.watches.values()) if (w.metaScope === scope) schedule(w);
   }, (e) => {
     console.warn(`meta/${scope} tidak terbaca — memakai listener penuh`, e?.code);
@@ -161,8 +171,10 @@ export function watch(spec) {
     listenMeta(metaScope);
     if (S.metaState[metaScope] === 'off') toLegacy(w);
     else if (S.metaState[metaScope] === 'ok') schedule(w);
-    // Offline & belum ada salinan: tampilkan apa pun yang ada di cache Firestore
-    if (!w.emitted && typeof navigator !== 'undefined' && navigator.onLine === false) setTimeout(() => { if (w.alive && !w.emitted && S.metaState[metaScope] !== 'ok') full(w, null); }, 2500);
+    // Pengaman: bila versi dari server belum datang (koneksi lambat/offline), jangan biarkan layar
+    // tertahan di animasi loading — muat apa yang tersedia, lalu sinkron normal saat versi tiba
+    const wait = typeof navigator !== 'undefined' && navigator.onLine === false ? 2500 : 6000;
+    setTimeout(() => { if (w.alive && !w.emitted && !w.busy && S.metaState[metaScope] !== 'ok' && w.mode !== 'legacy') full(w, null); }, wait);
   })();
   return () => unwatch(w.id);
 }

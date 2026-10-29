@@ -1,6 +1,6 @@
 {
   "name": "serenity",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Serenity — Sistem Informasi Desa Digital (PWA + Firebase). © Serenity Creativa 2026",
   "private": true,
   "type": "module",

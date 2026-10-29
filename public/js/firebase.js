@@ -202,9 +202,11 @@ export function writeBatch() {
 export async function getDoc(ref) { const s = await _getDoc(ref); if (!s.metadata.fromCache) track('r', 1, colName(ref)); return s; }
 export async function getDocs(q) { const s = await _getDocs(q); if (!s.metadata.fromCache) track('r', Math.max(1, s.size), colName(q)); return s; }
 export async function getCountFromServer(q) { const r = await _getCountFromServer(q); track('r', Math.max(1, Math.ceil((r.data().count || 0) / 1000)), colName(q)); return r; }
-export function onSnapshot(ref, next, err) {
+export function onSnapshot(ref, a, b, c) {
+  // onSnapshot(ref, next, err) atau onSnapshot(ref, { includeMetadataChanges }, next, err)
+  const opts = typeof a === 'object' && a ? a : null; const next = opts ? b : a; const err = opts ? c : b;
   let first = true;
-  return _onSnapshot(ref, (s) => {
+  const cb = (s) => {
     try {
       if (!s.metadata.fromCache) {
         const n = typeof s.docChanges === 'function' ? (first ? Math.max(1, s.size) : s.docChanges().length) : 1;
@@ -212,7 +214,8 @@ export function onSnapshot(ref, next, err) {
       }
     } catch { /* */ }
     next(s);
-  }, err);
+  };
+  return opts ? _onSnapshot(ref, opts, cb, err) : _onSnapshot(ref, cb, err);
 }
 // Akses mentah (tidak dihitung & tanpa penanda sinkron) — untuk analitik/kehadiran/flush pemakaian
 export const raw = { setDoc: _setDoc, updateDoc: _updateDoc, getDoc: _getDoc, getDocs: _getDocs, deleteDoc: _deleteDoc, onSnapshot: _onSnapshot };
