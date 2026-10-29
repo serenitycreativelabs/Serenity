@@ -1,5 +1,25 @@
 # Catatan Perubahan
 
+## v2.9.6 “Kirana” — 2026.10.29 (Build 2026.10.29 · R22 · Stable)
+### Perbaikan latar belakang foto/video (YouTube, MP4, gambar)
+- **Latar tidak tampil walau sudah disimpan.** Dua penyebab:
+  1. Di panel Latar Belakang, kotak centang “Aktifkan” bawaannya tidak tercentang, sehingga tombol Simpan menyimpan latar dalam keadaan **mati** (pemberitahuan “Latar belakang dimatikan” mudah terlewat). Kini tombol **Simpan & tampilkan** selalu mengaktifkan latar bila URL terisi; tombol **Matikan latar** untuk menonaktifkan. Status **Aktif / Belum aktif** tampil jelas di bagian atas panel, plus tombol **Lihat website**.
+  2. Sejak v2.9.0 warna dasar tema dipasang di elemen `<html>` (untuk mencegah kilatan putih), sehingga latar `<body>` — yang pada efek Kaca, Aurora, Gen Z, macOS & model Kartu tetap pekat — ikut tergambar **di atas** lapisan video dan menutupinya. Kini `<body>` selalu transparan saat latar aktif; warna dasar tema tetap berada di bawah video.
+
+## v2.9.5 “Kirana” — 2026.10.29 (Build 2026.10.29 · R21 · Stable)
+### Pratinjau tautan
+- Warna gambar pratinjau (`public/og-image.png`) disesuaikan dengan tema website **Warm Neutral / Creamy**: garis paling atas bergradasi #8b6b4e → #c4975f, tulisan “PORTAL RESMI PEMERINTAH”, alamat website & garis pemisah berwarna utama tema #8b6b4e, latar krem #faf6f0.
+
+## v2.9.4 “Kirana” — 2026.10.29 (Build 2026.10.29 · R20 · Stable)
+### Pratinjau tautan
+- Gambar pratinjau (`public/og-image.png`, 1200×630) kini memakai **lambang resmi Kota Banda Aceh** dengan judul “Portal Resmi Pemerintah Gampong Deah Glumpang”, keterangan “Kota Banda Aceh · Provinsi Aceh”, dan alamat www.digides.web.id.
+
+## v2.9.3 “Kirana” — 2026.10.29 (Build 2026.10.29 · R19 · Stable)
+### Pratinjau tautan saat dibagikan
+- Tautan website yang dibagikan ke WhatsApp, Facebook, Telegram, X, LinkedIn, dll. kini tampil sebagai **“Portal Resmi Pemerintah Gampong Deah Glumpang”** lengkap dengan deskripsi & **gambar pratinjau 1200×630** (`public/og-image.png`). Sebelumnya tampil “Serenity — Sistem Informasi Desa Digital” tanpa gambar.
+- Penyebab: domain www.digides.web.id melayani halaman pengalih `index.html` di folder utama repo yang masih berjudul lama dan tidak memiliki tag Open Graph — mesin pratinjau tidak menjalankan JavaScript/pengalihan sehingga hanya membaca halaman itu. Kini halaman pengalih **dan** halaman aplikasi sama-sama memiliki tag Open Graph & Twitter Card, deskripsi, dan alamat kanonik.
+- Nama aplikasi saat dipasang (PWA): “Portal Resmi Pemerintah Gampong Deah Glumpang” / “Deah Glumpang”.
+
 ## v2.9.2 “Kirana” — 2026.10.29 (Build 2026.10.29 · R18 · Stable)
 ### Video YouTube latar belakang
 - **Langsung berjalan** saat halaman dibuka — bisu, tanpa tombol play/kontrol, tanpa judul & logo YouTube, berulang terus. Sebelumnya: di layar < 700 px & saat “Mode hemat” aktif video sengaja diganti gambar diam, dan video dimuat malas (*lazy*) sehingga tertunda.

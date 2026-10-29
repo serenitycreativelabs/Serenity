@@ -1878,3 +1878,9 @@ body.has-bg .reader .rv-card, body.has-bg .rv-more-list a, body.has-bg .rv-box {
 #bg-layer .bg-yt { position: absolute; top: 50%; left: 50%; transform-origin: center; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #bg-layer .bg-yt.on { opacity: 1; }
 #bg-layer .bg-yt iframe { position: absolute; inset: 0; width: 100% !important; height: 100% !important; border: 0; transform: none; top: 0; left: 0; pointer-events: none; }
+/* v2.9.6 — status latar belakang */
+.lt-status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--ink-2); border: 1px dashed var(--line-2, var(--line)); font-size: .9rem; }
+.lt-status .ic { width: 18px; height: 18px; flex: none; }
+.lt-status.on { background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
+/* v2.9.6 — latar foto/video: body tidak boleh menutupi lapisan latar (warna dasar tema ada di <html>, di bawah video) */
+:root body.has-bg, :root[data-efek] body.has-bg, :root[data-model] body.has-bg { background: transparent !important; }

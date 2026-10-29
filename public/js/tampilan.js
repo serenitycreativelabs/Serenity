@@ -184,7 +184,8 @@ export function viewLatar(main) {
   const L = { aktif: false, url: '', jenis: 'auto', overlay: 55, blur: 0, cakupan: 'semua', hemat: true, poster: '', ...(state.config.latar || {}) };
   main.innerHTML = `<div class="callout">${ic('image')}<div><b>Latar Belakang Website</b><p>Pakai foto atau video dari <b>URL</b> (hemat kuota penyimpanan): YouTube, video MP4/WebM, gambar JPG/PNG/WebP, atau Google Drive (gambar dibagikan publik). Hanya Super Admin dan admin yang diberi izin <b>Latar Belakang</b> yang dapat mengubahnya.</p></div></div>
   <div class="panel"><form id="lt-f" class="form-grid">
-    <label class="check span-2"><input type="checkbox" name="aktif" ${L.aktif ? 'checked' : ''}> Aktifkan latar belakang foto/video</label>
+    <div class="span-2 lt-status ${L.aktif && L.url ? 'on' : ''}" id="lt-status">${L.aktif && L.url ? `${ic('check')} <b>Aktif</b> — latar belakang sedang tampil di website` : `${ic('eye')} <b>Belum aktif</b> — tempel URL lalu klik <b>Simpan & tampilkan</b>`}</div>
+    <input type="hidden" name="aktif" value="${L.aktif ? '1' : ''}">
     <label class="field span-2"><span>URL foto / video *</span><input name="url" value="${esc(L.url)}" placeholder="https://www.youtube.com/watch?v=… atau https://…/latar.jpg"></label>
     <label class="field"><span>Jenis</span><select name="jenis">${[['auto', 'Otomatis (deteksi dari URL)'], ['gambar', 'Foto / gambar'], ['video', 'Video (MP4/WebM)'], ['youtube', 'YouTube']].map(([v, l]) => `<option value="${v}" ${L.jenis === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="field"><span>Tampilkan di</span><select name="cakupan"><option value="semua" ${L.cakupan === 'semua' ? 'selected' : ''}>Semua halaman publik</option><option value="beranda" ${L.cakupan === 'beranda' ? 'selected' : ''}>Beranda saja</option></select></label>
@@ -195,9 +196,9 @@ export function viewLatar(main) {
   </form>
   <h4 class="detail-h">Pratinjau</h4><div class="bg-prev" id="lt-prev"></div>
   <p class="muted small">Catatan: video YouTube sebagai latar memuat pemutar YouTube (±1 MB). Untuk performa terbaik gunakan foto atau video MP4 pendek (≤ 5 MB).</p></div>
-  <div class="sticky-actions"><button class="btn btn-ghost" id="lt-off">Matikan latar</button><span class="spacer"></span><button class="btn btn-primary" id="lt-save" data-save>${ic('check')} Simpan latar belakang</button></div>`;
+  <div class="sticky-actions"><button class="btn btn-ghost" id="lt-off">Matikan latar</button><span class="spacer"></span><a class="btn btn-ghost" href="#/" target="_blank" rel="noopener">${ic('ext')} Lihat website</a><button class="btn btn-primary" id="lt-save" data-save>${ic('check')} Simpan & tampilkan</button></div>`;
   const f = $('#lt-f');
-  const read = () => ({ aktif: f.elements.aktif.checked, url: f.elements.url.value.trim(), jenis: f.elements.jenis.value, cakupan: f.elements.cakupan.value, overlay: Number(f.elements.overlay.value), blur: Number(f.elements.blur.value), poster: f.elements.poster.value.trim(), hemat: f.elements.hemat.checked });
+  const read = () => ({ aktif: !!f.elements.aktif.value, url: f.elements.url.value.trim(), jenis: f.elements.jenis.value, cakupan: f.elements.cakupan.value, overlay: Number(f.elements.overlay.value), blur: Number(f.elements.blur.value), poster: f.elements.poster.value.trim(), hemat: f.elements.hemat.checked });
   const prev = () => {
     const d = read(); $('#lt-ov-v').textContent = `${d.overlay}%`; $('#lt-bl-v').textContent = `${d.blur}px`;
     const box = $('#lt-prev');
@@ -215,10 +216,12 @@ export function viewLatar(main) {
     try {
       await cfgUpdate({ latar: { ...d, updatedAt: new Date().toISOString(), updatedBy: state.user.email } });
       state.config.latar = d; guard.dirty = false; applyBackground(null);
+      f.elements.aktif.value = d.aktif ? '1' : '';
+      const s = $('#lt-status'); if (s) { s.classList.toggle('on', d.aktif); s.innerHTML = d.aktif ? `${ic('check')} <b>Aktif</b> — latar belakang sedang tampil di website` : `${ic('eye')} <b>Tidak aktif</b> — klik <b>Simpan & tampilkan</b> untuk menampilkan lagi`; }
       logAudit('latar', d.aktif ? 'ubah' : 'matikan', d.aktif ? `Mengubah latar belakang website (${d.jenis === 'auto' ? backgroundKind(d.url) : d.jenis})` : 'Mematikan latar belakang website', { detail: d.url });
       toast(d.aktif ? 'Latar belakang disimpan — lihat di halaman publik' : 'Latar belakang dimatikan', 'success');
     } catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };
-  $('#lt-save').onclick = () => save(read());
-  $('#lt-off').onclick = async () => { f.elements.aktif.checked = false; await save(read()); };
+  $('#lt-save').onclick = () => { const d = read(); if (!d.url) return toast('Tempel URL foto / video terlebih dahulu', 'error'); save({ ...d, aktif: true }); };
+  $('#lt-off').onclick = async () => { await save({ ...read(), aktif: false }); };
 }

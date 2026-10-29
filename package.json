@@ -1,7 +1,7 @@
 {
   "name": "serenity",
-  "version": "2.9.2",
-  "description": "Serenity — Sistem Informasi Desa Digital (PWA + Firebase). © Serenity Creativa 2026",
+  "version": "2.9.6",
+  "description": "Portal Resmi Pemerintah Gampong Deah Glumpang — Serenity (PWA + Firebase). © Serenity Creativa 2026",
   "private": true,
   "type": "module",
   "author": "Serenity Creativa",

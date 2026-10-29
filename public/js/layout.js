@@ -248,7 +248,7 @@ export function refreshManifest() {
         ? [{ src, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src, sizes: '192x192', type: 'image/png', purpose: 'any' }, ...(maskable ? [{ src: maskable, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] : [])]
         : (m.icons || []).map((i) => ({ ...i, src: abs(i.src) }));
       const sc = src ? [{ src: maskable || src, sizes: '192x192' }] : null;
-      const out = { ...m, name: appName ? `${appName} — ${m.name.split(' — ')[1] || ''}`.trim() : m.name, id: abs(m.id || './'), start_url: abs(m.start_url || './'), scope: abs(m.scope || './'), icons,
+      const out = { ...m, name: appName ? `Portal Resmi Pemerintah ${appName}` : m.name, short_name: appName ? appName.replace(/^(Gampong|Desa|Kelurahan|Nagari)\s+/i, '') : m.short_name, id: abs(m.id || './'), start_url: abs(m.start_url || './'), scope: abs(m.scope || './'), icons,
         background_color: bg, theme_color: bg || theme || m.theme_color,
         shortcuts: (m.shortcuts || []).map((s) => ({ ...s, url: abs(s.url), icons: sc || (s.icons || []).map((i) => ({ ...i, src: abs(i.src) })) })) };
       if (manifestUrl) URL.revokeObjectURL(manifestUrl);
