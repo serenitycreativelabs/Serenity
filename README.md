@@ -40,7 +40,7 @@
 - Hak akses baru: `lembaga`, `dokumen` (diatur Super Admin di Manajemen Akun).
 
 ## Minor Release Version (Latest Work).
-· v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
+- v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
  - ⤷ v1.9.0 — Deprecation Warning & Migration Preparation
  - ⤷ v1.8.0 — Developement Integrations API, Security, Cloud System, Safety & Webhook Integrations
  - ⤷ v1.7.0 — Performance, Caching & PWA Support
@@ -54,6 +54,7 @@
  - ⤷ v1.1.1 — Bugfixes
  - ⤷ v1.1.0 — Search, Filter & Enhancement
  - ⤷ v1.0.1 — Hotfix & Post-Launch Stabilization
-· v1.0.0 — Development, Building & Minor Release
+
+- v1.0.0 — Development, Building & Minor Release
 
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
