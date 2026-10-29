@@ -18,6 +18,7 @@ import {
   F, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
   isSuper, isKadus, myDusun, avatar, penulisNow, penulisLabel, confirmDelete, can, ROLE_LABEL, logAudit, diff, requirePassword, insightsFromStats, pct, loginFailed,
   cfgUpdate, isPengelola, hasGreen,
+  PERMS,
 } from './core.js';
 import * as Sync from './sync.js';
 import { mountChat, unmountChat } from './chat.js';
@@ -260,6 +261,24 @@ async function ensureUser(user) {
   return { ...u, email: user.email };
 }
 
+// Sidik hak akses yang stabil: peran + izin aktif + lembaga + jenis badge (diurutkan, tanpa field lain)
+const badgeIds = (bs) => (Array.isArray(bs) ? bs : []).map((b) => (typeof b === 'string' ? b : b?.id)).filter(Boolean).sort();
+function accessKey(p, role, perms) {
+  const on = Object.keys(perms || {}).filter((k) => perms[k] === true).sort();
+  return JSON.stringify([role || '', on, [...(p?.lembagaIds || [])].sort(), badgeIds(p?.badges), p?.dusun || '']);
+}
+function accessDiff(oldP, oldPerms, oldRole, d) {
+  const out = []; const lbl = Object.fromEntries((PERMS || []).map(([k, l]) => [k, l]));
+  if (oldRole !== d.role) out.push(`peran menjadi ${ROLE_LABEL[d.role] || d.role}`);
+  const a = new Set(Object.keys(oldPerms || {}).filter((k) => oldPerms[k] === true)), b = new Set(Object.keys(d.perms || {}).filter((k) => d.perms[k] === true));
+  const add = [...b].filter((k) => !a.has(k)).map((k) => lbl[k] || k), rem = [...a].filter((k) => !b.has(k)).map((k) => lbl[k] || k);
+  if (add.length) out.push(`ditambah ${add.join(', ')}`); if (rem.length) out.push(`dicabut ${rem.join(', ')}`);
+  const ba = badgeIds(oldP?.badges), bb = badgeIds(d.badges);
+  if (bb.includes('verified-green') && !ba.includes('verified-green')) out.push('mendapat Centang Hijau');
+  if (!bb.includes('verified-green') && ba.includes('verified-green')) out.push('Centang Hijau dicabut');
+  if (JSON.stringify([...(oldP?.lembagaIds || [])].sort()) !== JSON.stringify([...(d.lembagaIds || [])].sort())) out.push('lembaga yang dikelola diperbarui');
+  return out.slice(0, 3).join('; ');
+}
 let adminGen = 0;
 function startAdmin() {
   stopAdmin();
@@ -269,9 +288,15 @@ function startAdmin() {
   u.push(F.onSnapshot(C(`users/${state.user.uid}`), (s) => {
     const d = s.data();
     if (!d || d.active === false) { toast('Akses Anda telah dicabut.', 'error'); doLogout('akses_dicabut'); return; }
-    const changed = JSON.stringify(d.perms || {}) !== JSON.stringify(state.perms) || d.role !== state.role || JSON.stringify(d.lembagaIds || []) !== JSON.stringify(state.profile?.lembagaIds || []) || JSON.stringify(d.badges || []) !== JSON.stringify(state.profile?.badges || []);
+    // v2.9.1: bandingkan HANYA isi hak akses secara kanonik (urutan field dari server bisa berbeda-beda,
+    // sehingga perbandingan teks mentah dulu sering salah mendeteksi "berubah" — terutama akun ber-badge)
+    const before = accessKey(state.profile, state.role, state.perms), after = accessKey(d, d.role, d.perms);
+    const what = before !== after ? accessDiff(state.profile, state.perms, state.role, d) : '';
     state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
-    if (changed) { toast('Hak akses Anda diperbarui', 'info'); root.dataset.shell = ''; startAdmin(); render(); }
+    if (before !== after) {
+      toast(`Hak akses Anda baru saja diubah oleh Super Admin${what ? ': ' + what : ''}. Menu disesuaikan otomatis.`, 'info', { duration: 7000 });
+      root.dataset.shell = ''; startAdmin(); render();
+    }
   }, () => {}));
   mountChat();
   F.getDoc(C('config/auth')).then((s) => { state.authCfg = s.data() || {}; }).catch(() => {});

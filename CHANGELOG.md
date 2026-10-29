@@ -1,5 +1,10 @@
 # Catatan Perubahan
 
+## v2.9.1 “Kirana” — 2026.10.29 (Build 2026.10.29 · R17 · Stable)
+### Perbaikan
+- **Notifikasi palsu “Hak akses Anda diperbarui”** yang muncul berulang (terutama pada admin ber-badge seperti Centang Hijau) saat menyimpan data atau membuka halaman. Penyebab: profil akun dibandingkan sebagai teks mentah, padahal urutan field dari server bisa berbeda walau isinya sama, dan perubahan non-akses (login terakhir, nama, foto, catatan badge) ikut dihitung. Kini yang dibandingkan hanya isi hak akses secara kanonik: peran, izin aktif, lembaga yang dikelola, jenis badge, dan dusun.
+- Bila Super Admin benar-benar mengubah hak akses, notifikasi kini menjelaskan apa yang berubah (mis. “dicabut Kelola Data Master”, “mendapat Centang Hijau”) dan hanya muncul sekali.
+
 ## v2.9.0 “Kirana” — 2026.10.29 (Build 2026.10.29 · R16 · Stable)
 ### Model Tampilan Baca (Super Admin › Tampilan & Tema)
 - Tiga model untuk halaman baca **Papan Informasi**, **Berita & Kegiatan Lembaga**, dan **Kegiatan Rutin**:
