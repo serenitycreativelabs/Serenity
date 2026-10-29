@@ -782,13 +782,14 @@ function pubInfoDetail(id) {
   });
 }
 
+let kgDelegated = false;
 function bindPublic() {
   $$('[data-copy-link]').forEach((b) => b.onclick = () => copyText(b.dataset.copyLink));
   if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   $('#pubnav-toggle')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
   $('#mnav-menu')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
   // baris kegiatan rutin bisa diklik → halaman detail
-  $$('.kg-list [data-link]').forEach((el) => { const go = (e) => { if (e.target.closest('a')) return; location.hash = el.dataset.link; }; el.onclick = go; el.onkeydown = (e) => { if (e.key === 'Enter') go(e); }; });
+  if (!kgDelegated) { kgDelegated = true; const go = (e) => { const el = e.target.closest?.('.kg-list [data-link]'); if (!el || e.target.closest('a')) return; if (e.type === 'keydown' && e.key !== 'Enter') return; location.hash = el.dataset.link; }; document.addEventListener('click', go); document.addEventListener('keydown', go); }
   $('#mnav-scrim')?.addEventListener('click', () => document.body.classList.remove('pubnav-open'));
   // Dropdown: di desktop terbuka saat diarahkan & TIDAK langsung tertutup ketika kursor pindah ke submenu
   const hoverable = () => matchMedia('(hover: hover) and (min-width: 861px)').matches;

@@ -9,10 +9,10 @@ import { ic, state, isSuper, logAudit, cfgUpdate } from './core.js';
 import { esc, $, fmtDate, toast } from './ui.js';
 import { plainText, mediaThumb } from './rich.js';
 
-export const WIDGET_DEFAULT = { berita: { aktif: true, kecepatan: 24, maks: 20, tinggi: 380, arah: 'atas' }, analitik: { aktif: true } };
+export const WIDGET_DEFAULT = { berita: { aktif: true, kecepatan: 24, maks: 20, tinggi: 380, arah: 'atas' }, kegiatan: { gerak: true, kecepatan: 18, tinggi: 320, arah: 'atas' }, analitik: { aktif: true } };
 export const widgetCfg = () => {
   const w = state.config.widget || {};
-  return { berita: { ...WIDGET_DEFAULT.berita, ...(w.berita || {}) }, analitik: { ...WIDGET_DEFAULT.analitik, ...(w.analitik || {}) } };
+  return { berita: { ...WIDGET_DEFAULT.berita, ...(w.berita || {}) }, kegiatan: { ...WIDGET_DEFAULT.kegiatan, ...(w.kegiatan || {}) }, analitik: { ...WIDGET_DEFAULT.analitik, ...(w.analitik || {}) } };
 };
 
 // ---------------------------------------------------------------- data berita semua lembaga
@@ -43,35 +43,45 @@ export function lembagaNewsPanel() {
 }
 
 // ---------------------------------------------------------------- gulir otomatis vertikal (JavaScript, mulus & hemat CPU)
-let raf = 0;
+// Dipakai panel "Berita & Kegiatan Lembaga" (.ln-viewport) dan "Kegiatan Rutin" (.kg-viewport)
+const runs = new Map();
 export function startNewsScroller() {
-  cancelAnimationFrame(raf); raf = 0;
-  const vp = $('.ln-viewport'); const track = vp?.querySelector('.ln-track'); if (!vp || !track) return;
+  for (const [vp, id] of runs) { if (!vp.isConnected) { cancelAnimationFrame(id.raf); runs.delete(vp); } }
+  document.querySelectorAll('.ln-viewport, .kg-viewport').forEach((vp) => { if (!runs.has(vp)) runScroller(vp); });
+}
+function runScroller(vp) {
+  const track = vp.querySelector('.ln-track, .kg-track'); if (!track) return;
   const base = track.innerHTML;
   if (track.scrollHeight <= vp.clientHeight + 4) { vp.classList.add('static'); return; } // muat semua → tidak perlu bergulir
   track.insertAdjacentHTML('beforeend', base);
+  track.querySelectorAll(':scope > *').forEach((el, i, all) => { if (i >= all.length / 2) { el.setAttribute('aria-hidden', 'true'); el.querySelectorAll('a,[tabindex]').forEach((a) => a.setAttribute('tabindex', '-1')); } });
   const loopH = track.scrollHeight / 2;
   const speed = Number(vp.dataset.speed) || 24; const dir = vp.dataset.dir === 'bawah' ? 1 : -1;
-  let y = dir < 0 ? 0 : -loopH, last = performance.now(), paused = false, holdUntil = 0;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let y = dir < 0 ? 0 : -loopH, last = performance.now(), paused = false, holdUntil = performance.now() + 1200;
   const pause = () => { paused = true; }; const resume = () => { paused = false; holdUntil = performance.now() + 600; };
   vp.onmouseenter = pause; vp.onmouseleave = resume; vp.onfocusin = pause; vp.onfocusout = resume;
-  vp.addEventListener('touchstart', pause, { passive: true }); vp.addEventListener('touchend', resume, { passive: true });
+  vp.addEventListener('touchstart', pause, { passive: true }); vp.addEventListener('touchend', () => setTimeout(resume, 1500), { passive: true });
   // gulir manual dengan roda mouse saat dijeda
   vp.addEventListener('wheel', (e) => { e.preventDefault(); y -= e.deltaY * 0.6; if (y > 0) y -= loopH; if (-y >= loopH) y += loopH; track.style.transform = `translate3d(0,${y}px,0)`; }, { passive: false });
+  const st = { raf: 0 }; runs.set(vp, st);
   const step = (t) => {
-    if (!vp.isConnected) { raf = 0; return; }
+    if (!vp.isConnected) { runs.delete(vp); return; }
     const dt = Math.min(64, t - last); last = t;
     if (!paused && !document.hidden && t > holdUntil) {
-      y += dir * (speed * dt) / 1000;
+      y += dir * ((reduce ? speed * 0.5 : speed) * dt) / 1000;
       if (dir < 0 && -y >= loopH) y += loopH;
       if (dir > 0 && y >= 0) y -= loopH;
       track.style.transform = `translate3d(0,${y.toFixed(2)}px,0)`;
     }
-    raf = requestAnimationFrame(step);
+    st.raf = requestAnimationFrame(step);
   };
-  raf = requestAnimationFrame(step);
+  st.raf = requestAnimationFrame(step);
 }
 
+// Panel Kegiatan Rutin didaftarkan dari cms.js (menghindari impor melingkar) untuk pratinjau di pengaturan
+let kegiatanPanelFn = null;
+export const registerKegiatanPanel = (fn) => { kegiatanPanelFn = fn; };
 // ---------------------------------------------------------------- Admin › Sistem › Widget Beranda (khusus Super Admin)
 export function viewWidget(main) {
   state.view = 'form';
@@ -93,6 +103,16 @@ export function viewWidget(main) {
       <div class="ln-preview" id="wb-prev"></div>
       <div class="row-gap"><button class="btn btn-primary" id="wb-save" data-save>${ic('check')} Simpan</button><button class="btn btn-ghost" id="wb-reset">Kembalikan bawaan</button><a class="btn btn-ghost" href="#/" target="_blank">${ic('ext')} Lihat beranda</a></div>
     </div>
+    <div class="panel"><h3>${ic('repeat')} Gerak Panel Kegiatan Rutin</h3>
+      <p class="muted small">Panel <b>Kegiatan Rutin</b> di beranda (bagian <b>Hari ini</b> & <b>Kegiatan lainnya</b>) bergulir otomatis seperti panel berita lembaga. Bila semua kegiatan muat di panel, daftar tetap diam.</p>
+      <div class="form-grid">
+        <label class="check span-2"><input type="checkbox" id="wk-on" ${c.kegiatan.gerak ? 'checked' : ''}> Gulir otomatis</label>
+        <label class="field span-2"><span>Kecepatan gulir — <b id="wk-speed-v">${c.kegiatan.kecepatan}</b> piksel/detik</span><input type="range" id="wk-speed" min="4" max="120" step="1" value="${c.kegiatan.kecepatan}"><small class="muted">18 = nyaman dibaca (bawaan)</small></label>
+        <label class="field"><span>Arah gulir</span><select id="wk-dir"><option value="atas" ${c.kegiatan.arah !== 'bawah' ? 'selected' : ''}>Bergerak ke atas</option><option value="bawah" ${c.kegiatan.arah === 'bawah' ? 'selected' : ''}>Bergerak ke bawah</option></select></label>
+        <label class="field"><span>Tinggi panel (piksel)</span><input type="number" id="wk-h" min="160" max="900" step="10" value="${c.kegiatan.tinggi}"></label>
+      </div>
+      <div class="kg-preview" id="wk-prev"></div>
+    </div>
     <div class="panel"><h3>${ic('activity')} Widget Analitik Pengunjung</h3>
       <p class="muted small">Widget kecil di kiri bawah beranda (di atas running text): jumlah pengunjung <b>online sekarang</b>, kunjungan <b>hari ini</b>, dan <b>total</b>. Klik widget untuk melihat grafik 7 hari. Hanya tampil di halaman depan.</p>
       <label class="check"><input type="checkbox" id="wa-on" ${c.analitik.aktif ? 'checked' : ''}> Tampilkan widget analitik di beranda</label>
@@ -100,20 +120,22 @@ export function viewWidget(main) {
       <a class="btn btn-ghost btn-sm" href="#/admin/monitor">${ic('chart')} Buka Monitor & Analitik</a>
     </div>
   </div>`;
-  const read = () => ({ berita: { aktif: $('#wb-on').checked, kecepatan: Number($('#wb-speed').value) || 24, maks: Math.max(3, Math.min(60, Number($('#wb-max').value) || 20)), tinggi: Math.max(200, Math.min(900, Number($('#wb-h').value) || 380)), arah: $('#wb-dir').value }, analitik: { aktif: $('#wa-on').checked } });
+  const read = () => ({ kegiatan: { gerak: $('#wk-on').checked, kecepatan: Number($('#wk-speed').value) || 18, arah: $('#wk-dir').value, tinggi: Math.max(160, Math.min(900, Number($('#wk-h').value) || 320)) }, berita: { aktif: $('#wb-on').checked, kecepatan: Number($('#wb-speed').value) || 24, maks: Math.max(3, Math.min(60, Number($('#wb-max').value) || 20)), tinggi: Math.max(200, Math.min(900, Number($('#wb-h').value) || 380)), arah: $('#wb-dir').value }, analitik: { aktif: $('#wa-on').checked } });
   const prev = () => {
     const keep = state.config.widget; state.config.widget = read();
-    $('#wb-prev').innerHTML = lembagaNewsPanel(); state.config.widget = keep;
-    $('#wb-speed-v').textContent = $('#wb-speed').value;
+    $('#wb-prev').innerHTML = lembagaNewsPanel();
+    if (kegiatanPanelFn) $('#wk-prev').innerHTML = kegiatanPanelFn();
+    state.config.widget = keep;
+    $('#wb-speed-v').textContent = $('#wb-speed').value; $('#wk-speed-v').textContent = $('#wk-speed').value;
     startNewsScroller();
   };
   $('#wb-root').addEventListener('input', prev); prev();
-  $('#wb-reset').onclick = () => { $('#wb-on').checked = true; $('#wb-speed').value = 24; $('#wb-max').value = 20; $('#wb-h').value = 380; $('#wb-dir').value = 'atas'; $('#wa-on').checked = true; prev(); };
+  $('#wb-reset').onclick = () => { $('#wb-on').checked = true; $('#wb-speed').value = 24; $('#wb-max').value = 20; $('#wb-h').value = 380; $('#wb-dir').value = 'atas'; $('#wa-on').checked = true; $('#wk-on').checked = true; $('#wk-speed').value = 18; $('#wk-dir').value = 'atas'; $('#wk-h').value = 320; prev(); };
   $('#wb-save').onclick = async () => {
     const v = read();
     try {
       await cfgUpdate({ widget: v }); state.config.widget = v;
-      logAudit('sistem', 'widget', 'Mengubah pengaturan widget beranda', { detail: `Berita lembaga: ${v.berita.aktif ? 'aktif' : 'nonaktif'}, ${v.berita.kecepatan} px/detik, arah ${v.berita.arah}, maks ${v.berita.maks}, tinggi ${v.berita.tinggi}px • Analitik: ${v.analitik.aktif ? 'aktif' : 'nonaktif'}` });
+      logAudit('sistem', 'widget', 'Mengubah pengaturan widget beranda', { detail: `Berita lembaga: ${v.berita.aktif ? 'aktif' : 'nonaktif'}, ${v.berita.kecepatan} px/detik, arah ${v.berita.arah}, maks ${v.berita.maks}, tinggi ${v.berita.tinggi}px • Kegiatan rutin: ${v.kegiatan.gerak ? `bergulir ${v.kegiatan.kecepatan} px/detik, arah ${v.kegiatan.arah}, tinggi ${v.kegiatan.tinggi}px` : 'diam'} • Analitik: ${v.analitik.aktif ? 'aktif' : 'nonaktif'}` });
       toast('Pengaturan widget disimpan', 'success');
     } catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };

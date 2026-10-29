@@ -4,6 +4,7 @@ import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, conf
 import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage, parseNum, fmtThousand, bindThousands } from './ui.js';
 import { exportExcel } from './exporter.js';
 import { readerPage, readMins } from './reader.js';
+import { widgetCfg, registerKegiatanPanel } from './widgets.js';
 import { richRender, bindRich, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText } from './rich.js';
 import { prayerTimes, PRAYER_NAMES, DEFAULT_SHOLAT, fmtMin, nowMinutes, dateInTz, hijriDate } from './praytimes.js';
 
@@ -204,14 +205,20 @@ export function kegiatanPanel() {
   const today = list.filter((k) => kegiatanToday(k, d));
   const others = list.filter((k) => !today.includes(k));
   const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}" data-link="#/kegiatan/${esc(k.id)}" tabindex="0" title="Lihat detail kegiatan"><div class="kg-time">${esc(k.waktu || '')}</div><div><b>${esc(k.nama)}${k.media?.length ? ` <span class="kg-media" title="Ada foto/video">${ic('image')}</span>` : ''}</b><small>${esc([(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small>${k.pj ? `<small>PJ: ${esc(k.pj)}${waNumber(k.hp) ? ` · <a href="${esc(waLink(k.hp))}" target="_blank" rel="noopener">WA</a>` : ''}</small>` : ''}</div></li>`;
+  const g = widgetCfg().kegiatan;
+  const inner = `${today.length ? `<div class="kg-grp"><p class="kg-label">Hari ini — ${HARI[d.getDay()]}</p><ul class="kg-list">${today.map((k) => row(k, true)).join('')}</ul></div>` : `<p class="muted small kg-grp">Tidak ada kegiatan rutin hari ini.</p>`}
+    ${others.length ? `<div class="kg-grp"><p class="kg-label">Kegiatan lainnya</p><ul class="kg-list">${others.map((k) => row(k, false)).join('')}</ul></div>` : ''}`;
+  // v2.9.8: bergulir otomatis seperti panel Berita & Kegiatan Lembaga (diatur Super Admin di Widget Beranda)
+  const moving = g.gerak !== false && list.length > 1;
   return `<div class="side-panel kegiatan">
     <div class="sp-head">${ic('repeat')}<div><b>Kegiatan Rutin ${esc(jenisLabel())}</b><small>Jadwal pengajian & kegiatan warga</small></div></div>
-    ${today.length ? `<p class="kg-label">Hari ini — ${HARI[d.getDay()]}</p><ul class="kg-list">${today.map((k) => row(k, true)).join('')}</ul>` : `<p class="muted small">Tidak ada kegiatan rutin hari ini.</p>`}
-    ${others.length ? `<p class="kg-label">Kegiatan lainnya</p><ul class="kg-list">${others.map((k) => row(k, false)).join('')}</ul>` : ''}
-    ${!list.length ? '<p class="muted small">Belum ada kegiatan rutin yang dijadwalkan.</p>' : ''}
+    ${!list.length ? '<p class="muted small">Belum ada kegiatan rutin yang dijadwalkan.</p>' : moving
+      ? `<div class="kg-viewport" style="height:${Math.max(160, Math.min(900, Number(g.tinggi) || 320))}px" data-speed="${Math.max(4, Math.min(120, Number(g.kecepatan) || 18))}" data-dir="${g.arah === 'bawah' ? 'bawah' : 'atas'}" tabindex="0" aria-label="Kegiatan rutin bergulir otomatis. Arahkan kursor untuk menjeda."><div class="kg-track">${inner}</div></div><p class="muted tiny ln-hint kg-hint">${ic('eye')} Arahkan kursor / sentuh untuk menjeda</p>`
+      : inner}
     ${list.length ? '<a class="link small" href="#/kegiatan">Semua kegiatan →</a>' : ''}
   </div>`;
 }
+registerKegiatanPanel(() => kegiatanPanel());
 const kgJadwal = (k) => [(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.waktu].filter(Boolean).join(' • ');
 // PUBLIK: daftar & detail kegiatan rutin (tata baca sama dengan Papan Informasi)
 export function renderKegiatanPublic(id) {

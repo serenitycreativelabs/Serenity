@@ -1884,3 +1884,26 @@ body.has-bg .reader .rv-card, body.has-bg .rv-more-list a, body.has-bg .rv-box {
 .lt-status.on { background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
 /* v2.9.6 — latar foto/video: body tidak boleh menutupi lapisan latar (warna dasar tema ada di <html>, di bawah video) */
 :root body.has-bg, :root[data-efek] body.has-bg, :root[data-model] body.has-bg { background: transparent !important; }
+
+/* =============================================================
+   v2.9.8 — Panel Kegiatan Rutin bergulir & tulisan berlatar foto/video tetap terbaca
+   ============================================================= */
+.kg-viewport { position: relative; overflow: hidden; border-radius: var(--radius-sm); outline: none; mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent); -webkit-mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent); }
+.kg-viewport.static { mask-image: none; -webkit-mask-image: none; height: auto !important; }
+.kg-viewport:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+.kg-track { display: grid; gap: 4px; will-change: transform; padding: 4px 0; }
+.kg-track .kg-grp { min-width: 0; }
+.kg-track .kg-label { margin-top: 6px; }
+.kg-hint { margin: 6px 0 4px; }
+.kg-preview { margin-top: 12px; max-width: 340px; }
+@media (max-width: 860px) { .kg-viewport { height: 260px !important; } }
+/* Outline halus (halo) pada tulisan yang langsung berada di atas foto/video latar belakang.
+   Warna halo = warna kartu tema → otomatis terang di mode terang & gelap di mode gelap. */
+body.has-bg { --halo: var(--surface); }
+body.has-bg :is(.section-head, .section > .eyebrow, .section > h1, .section > h2, .section > p, .pub-main > .section > .muted, .sp-head, .kg-label, .ln-hint, .side-panel > .link, .side-panel > .muted, .side > .muted, .side > p, .reader-back, .rv-more .reader-sub, .page-head, .breadcrumbs) {
+  text-shadow: 0 0 1px var(--halo), 0 0 2px var(--halo), 0 0 4px color-mix(in srgb, var(--halo) 85%, transparent), 0 0 10px color-mix(in srgb, var(--halo) 70%, transparent), 0 1px 16px color-mix(in srgb, var(--halo) 55%, transparent);
+}
+body.has-bg :is(.section-head, .sp-head) .ic { filter: drop-shadow(0 0 1.5px var(--halo)) drop-shadow(0 0 4px var(--halo)); }
+/* tautan “Lihat semua →” sedikit lebih tegas agar terbaca di atas video */
+body.has-bg :is(.section-head .link, .side-panel > .link) { font-weight: 700; }
+@media print { body.has-bg * { text-shadow: none !important; } }

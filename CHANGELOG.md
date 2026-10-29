@@ -1,5 +1,13 @@
 # Catatan Perubahan
 
+## v2.9.8 “Kirana” — 2026.10.30 (Build 2026.10.30 · R24 · Stable)
+### Panel Kegiatan Rutin bergulir otomatis
+- Panel **Kegiatan Rutin Gampong** di beranda (bagian **Hari ini** & **Kegiatan lainnya**) kini bergulir mulus seperti panel Berita & Kegiatan Lembaga: berhenti saat diarahkan kursor/disentuh, bisa digulir manual dengan roda mouse, dan tetap diam bila semua kegiatan muat di panel.
+- Pengaturan baru di **Sistem › Widget Beranda › Gerak Panel Kegiatan Rutin** (khusus Super Admin): hidup/mati gulir otomatis, kecepatan (4–120 piksel/detik, bawaan 18), arah (ke atas/ke bawah), dan tinggi panel — lengkap dengan pratinjau langsung.
+- Mesin gulir kini mendukung beberapa panel sekaligus; salinan daftar untuk putaran tanpa jeda disembunyikan dari pembaca layar. Klik baris kegiatan tetap membuka halaman detail.
+### Tulisan di atas foto/video latar tetap terbaca
+- Judul bagian (mis. “Informasi & Berita Terbaru”, “Agenda Terdekat”), tautan “Lihat semua →”, judul panel samping, label & petunjuk yang langsung berada di atas latar belakang kini memiliki **outline halus (halo)** berwarna kartu tema — terang di mode terang, gelap di mode gelap — sehingga nyaman dibaca di atas video atau foto apa pun. Ikon ikut diberi halo.
+
 ## v2.9.7 “Kirana” — 2026.10.30 (Build 2026.10.30 · R23 · Stable)
 ### Video YouTube latar — benar-benar bersih
 - **Tombol sebelumnya / jeda / berikutnya tidak lagi muncul.** Penyebab: pengulangan video memakai mode *playlist* YouTube (memunculkan tombol sebelumnya/berikutnya), dan YouTube selalu menampilkan tombol ±3 detik setelah mulai, saat buffering, atau saat berhenti. Kini:
