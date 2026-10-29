@@ -15,7 +15,8 @@
 - 🔤 **Pustaka 38 huruf** atur huruf judul & teks secara terpisah (Super Admin).
 
 ## Baru di v2.4.0 “Nebula”
-- ⚡ **Sinkronisasi Efisien (Delta Sync)** - data disimpan di perangkat dan cloud sync secara otomatis setiap hari. Data admin dienkripsi AES-GCM 256-bit.
+- ⚡ **Sinkronisasi Efisien (Delta Sync)** - data disimpan di perangkat dan cloud sync secara otomatis setiap hari.
+- 🔐 **Data admin dienkripsi AES-GCM 256-bit.
 - 📊 **Widget analitik pengunjung realtime**.
 - 📰 **Berita & Kegiatan Lembaga**.
 - 🗂️ Data Master: **hapus kategori** (bawaan bisa dipulihkan), **geser ▲▼ antar kelompok**, bug hapus kategori diperbaiki.
