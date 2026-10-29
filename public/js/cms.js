@@ -172,7 +172,7 @@ export function sholatPanel() {
     <div class="sp-date"><b>${esc(fmtDate(today))}</b><small>${esc(hijriDate(today))}</small></div>
     <div class="sp-next" id="sp-next"></div>
     <ul class="sp-times">${PRAYER_NAMES.map(([k, l]) => `<li data-pr="${k}"><span>${l}</span><b>${fmtMin(t[k])}</b></li>`).join('')}</ul>
-    <p class="muted tiny">Perhitungan Kemenag RI (Subuh 20°, Isya 18°, ihtiyat ${cfg.ihtiyat} menit). Selisih ±2 menit dengan jadwal resmi daerah dapat terjadi.</p>
+    <p class="muted tiny">Kemenag RI (Subuh 20°, Isya 18°, ihtiyat ${cfg.ihtiyat} mnt). Selisih ±2 menit dapat terjadi.</p>
   </div>`;
 }
 function tickSholat() {
@@ -198,25 +198,30 @@ function kegiatanToday(k, d) {
   const nth = Math.ceil(d.getDate() / 7);
   return k.minggu === `Minggu ke-${nth}`;
 }
-export function kegiatanPanel() {
+// part: 'hari' = Kegiatan Rutin hari ini, 'lain' = Kegiatan Lainnya, kosong = keduanya (pratinjau pengaturan)
+export function kegiatanPanel(part = '') {
   const cfg = sholatCfg();
   const d = dateInTz(cfg.tz);
   const list = state.kegiatan.filter((k) => k.aktif !== false);
   const today = list.filter((k) => kegiatanToday(k, d));
   const others = list.filter((k) => !today.includes(k));
-  const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}" data-link="#/kegiatan/${esc(k.id)}" tabindex="0" title="Lihat detail kegiatan"><div class="kg-time">${esc(k.waktu || '')}</div><div><b>${esc(k.nama)}${k.media?.length ? ` <span class="kg-media" title="Ada foto/video">${ic('image')}</span>` : ''}</b><small>${esc([(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small>${k.pj ? `<small>PJ: ${esc(k.pj)}${waNumber(k.hp) ? ` · <a href="${esc(waLink(k.hp))}" target="_blank" rel="noopener">WA</a>` : ''}</small>` : ''}</div></li>`;
+  // baris ringkas: jam · nama · hari/tempat (PJ & WA tetap ada di halaman detail)
+  const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}" data-link="#/kegiatan/${esc(k.id)}" tabindex="0" title="${esc(k.nama)} — lihat detail"><span class="kg-time">${esc(k.waktu || '—')}</span><span class="kg-txt"><b>${esc(k.nama)}${k.media?.length ? ` <span class="kg-media" title="Ada foto/video">${ic('image')}</span>` : ''}</b><small>${esc([isToday ? '' : (k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small></span></li>`;
   const g = widgetCfg().kegiatan;
-  const inner = `${today.length ? `<div class="kg-grp"><p class="kg-label">Hari ini — ${HARI[d.getDay()]}</p><ul class="kg-list">${today.map((k) => row(k, true)).join('')}</ul></div>` : `<p class="muted small kg-grp">Tidak ada kegiatan rutin hari ini.</p>`}
-    ${others.length ? `<div class="kg-grp"><p class="kg-label">Kegiatan lainnya</p><ul class="kg-list">${others.map((k) => row(k, false)).join('')}</ul></div>` : ''}`;
-  // v2.9.8: bergulir otomatis seperti panel Berita & Kegiatan Lembaga (diatur Super Admin di Widget Beranda)
-  const moving = g.gerak !== false && list.length > 1;
-  return `<div class="side-panel kegiatan">
-    <div class="sp-head">${ic('repeat')}<div><b>Kegiatan Rutin ${esc(jenisLabel())}</b><small>Jadwal pengajian & kegiatan warga</small></div></div>
-    ${!list.length ? '<p class="muted small">Belum ada kegiatan rutin yang dijadwalkan.</p>' : moving
-      ? `<div class="kg-viewport" style="height:${Math.max(160, Math.min(900, Number(g.tinggi) || 320))}px" data-speed="${Math.max(4, Math.min(120, Number(g.kecepatan) || 18))}" data-dir="${g.arah === 'bawah' ? 'bawah' : 'atas'}" tabindex="0" aria-label="Kegiatan rutin bergulir otomatis. Arahkan kursor untuk menjeda."><div class="kg-track">${inner}</div></div><p class="muted tiny ln-hint kg-hint">${ic('eye')} Arahkan kursor / sentuh untuk menjeda</p>`
-      : inner}
-    ${list.length ? '<a class="link small" href="#/kegiatan">Semua kegiatan →</a>' : ''}
+  const sp = Math.max(4, Math.min(120, Number(g.kecepatan) || 18)), dir = g.arah === 'bawah' ? 'bawah' : 'atas';
+  const scroller = (rows, label) => (g.gerak !== false && rows.length > 1
+    ? `<div class="kg-viewport sp-fill" data-speed="${sp}" data-dir="${dir}" tabindex="0" aria-label="${esc(label)} bergulir otomatis. Arahkan kursor untuk menjeda."><div class="kg-track"><ul class="kg-list">${rows.join('')}</ul></div></div>`
+    : `<div class="sp-fill sp-static"><ul class="kg-list">${rows.join('')}</ul></div>`);
+  const head = (icon, title, sub, href, more) => `<div class="sp-head">${ic(icon)}<div><b>${title}</b><small>${sub}</small></div>${href ? `<a class="sp-more" href="${href}" title="${esc(more)}" aria-label="${esc(more)}">${ic('chev')}</a>` : ''}</div>`;
+  const hari = `<div class="side-panel kegiatan sp-card">
+    ${head('repeat', `Kegiatan Rutin ${esc(jenisLabel())}`, `Hari ini — ${HARI[d.getDay()]}`, '#/kegiatan', 'Semua kegiatan')}
+    ${today.length ? scroller(today.map((k) => row(k, true)), 'Kegiatan rutin hari ini') : `<p class="muted small kg-empty">${list.length ? 'Tidak ada kegiatan rutin hari ini.' : 'Belum ada kegiatan rutin yang dijadwalkan.'}</p>`}
   </div>`;
+  const lain = others.length ? `<div class="side-panel kegiatan-lain sp-card">
+    ${head('cal', 'Kegiatan Lainnya', `${others.length} kegiatan di hari lain`, '#/kegiatan', 'Semua kegiatan')}
+    ${scroller(others.map((k) => row(k, false)), 'Kegiatan lainnya')}
+  </div>` : '';
+  return part === 'hari' ? hari : part === 'lain' ? lain : hari + lain;
 }
 registerKegiatanPanel(() => kegiatanPanel());
 const kgJadwal = (k) => [(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.waktu].filter(Boolean).join(' • ');

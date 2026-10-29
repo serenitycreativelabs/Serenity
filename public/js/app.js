@@ -516,9 +516,9 @@ function renderPublic(r, soft) {
   document.body.classList.toggle('has-ticker', !!ticker);
   const lay = state.config.layout || {};
   const editing = state.layoutEdit === 'public';
-  const sideKeys = { sholat: () => sholatPanel(), kegiatan: () => kegiatanPanel(), lnews: () => lembagaNewsPanel() };
+  const sideKeys = { sholat: () => sholatPanel(), kegiatan: () => kegiatanPanel('hari'), lnews: () => lembagaNewsPanel(), kglain: () => kegiatanPanel('lain') };
   const { leftKeys, rightKeys } = sideLayout(lay, editing || widgetCfg().berita.aktif);
-  const side = (keys) => keys.map((k) => `<div class="side-block" data-key="${k}">${sideKeys[k]()}</div>`).join('');
+  const side = (keys) => keys.map((k) => { const h = sideKeys[k](); return h ? `<div class="side-block" data-key="${k}">${h}</div>` : ''; }).join('');
   const showVisits = p0 === '' && widgetCfg().analitik.aktif;
   const openDd = soft ? [...document.querySelectorAll('.pub-nav .dropdown')].findIndex((d) => d.classList.contains('open')) : -1;
   root.innerHTML = `
@@ -570,7 +570,7 @@ function renderPublic(r, soft) {
 }
 
 // Susunan panel samping. Panel baru "Berita Lembaga" (v2.4) otomatis ditempatkan tepat di bawah Kegiatan Rutin.
-const SIDE_ALL = ['sholat', 'kegiatan', 'lnews'];
+const SIDE_ALL = ['sholat', 'kegiatan', 'lnews', 'kglain'];
 let pubStarted = false;
 function sideLayout(lay, withNews) {
   const all = SIDE_ALL.filter((k) => k !== 'lnews' || withNews);
@@ -579,6 +579,11 @@ function sideLayout(lay, withNews) {
   if (withNews && !right.includes('lnews') && !left.includes('lnews')) {
     const t = left.includes('kegiatan') ? left : right; const i = t.indexOf('kegiatan');
     t.splice(i >= 0 ? i + 1 : t.length, 0, 'lnews');
+  }
+  // v2.9.9: "Kegiatan Lainnya" blok tersendiri — bawaan: Kegiatan Rutin → Berita Lembaga → Kegiatan Lainnya
+  if (!right.includes('kglain') && !left.includes('kglain')) {
+    const t = left.includes('kegiatan') ? left : right; const ref = t.includes('lnews') ? 'lnews' : 'kegiatan'; const i = t.indexOf(ref);
+    t.splice(i >= 0 ? i + 1 : t.length, 0, 'kglain');
   }
   const leftKeys = ordered(all.filter((k) => !right.includes(k)), left);
   return { leftKeys, rightKeys: right };
@@ -663,9 +668,9 @@ function pubHome() {
         <h1>Portal Data & Informasi<br>${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
         <div class="hero-desc rich">${state.config.deskripsi ? richRender(state.config.deskripsi) : 'Data kependudukan terbuka, informasi kegiatan, dan layanan gampong dalam satu tempat — mudah diakses warga kapan saja.'}</div>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#/informasi">${ic('mega')} Informasi Terbaru</a>
-          <a class="btn btn-ghost" href="#/data">${ic('chart')} Jelajahi Data</a>
-          <a class="btn btn-ghost" href="#/dokumen">${ic('file')} Dokumen Publik</a>
+          <a class="btn btn-primary" href="#/informasi" title="Informasi Terbaru">${ic('mega')} Informasi<span class="xw"> Terbaru</span></a>
+          <a class="btn btn-ghost" href="#/data" title="Jelajahi Data">${ic('chart')} <span class="xw">Jelajahi </span>Data</a>
+          <a class="btn btn-ghost" href="#/dokumen" title="Dokumen Publik">${ic('file')} Dokumen<span class="xw"> Publik</span></a>
         </div>
       </div>
       <div class="hero-tiles">${tiles.map(([l, v, sub, i]) => `<a class="tile" href="#/data"><span class="tile-ic">${ic(i)}</span><b>${v != null ? fmtNum(v) : '–'}</b><span>${esc(l)}</span><small>${esc(sub)}</small></a>`).join('')}</div>
@@ -2088,9 +2093,10 @@ function viewInstagram(main) {
     <p class="muted">Postingan yang diunggah admin ke Instagram desa otomatis tampil di halaman <b>Highlight</b> situs ini. Sinkronisasi berjalan otomatis saat admin membuka dasbor (setiap 3 jam)${isSuper() ? ' dan — bila GitHub Actions diaktifkan — setiap 6 jam di server' : ' dan secara berkala di server'}.</p>
     <form id="ig-form" class="form-grid">
       <label class="field"><span>Username Instagram</span><div class="input-group"><span class="addon">@</span><input name="username" value="${esc(state.config.igUsername || '')}" placeholder="namadesa"></div></label>
-      <label class="field"><span>Access Token (Instagram API with Instagram Login)</span><input name="token" type="password" placeholder="IGAA… (kosongkan bila tidak diubah)" autocomplete="off"></label>
+      <label class="field" title="Access Token (Instagram API with Instagram Login)"><span>Access Token</span><input name="token" type="password" placeholder="IGAA… (kosongkan bila tidak diubah)" autocomplete="off"></label>
+      <div class="ig-actions"><button type="button" class="btn btn-primary" id="ig-save">${ic('check')} Simpan</button><button type="button" class="btn btn-ghost" id="ig-sync">${ic('refresh')} Sinkronkan</button></div>
+      <p class="muted small span-2 ig-last">${ic('cal')} Sinkron terakhir: <b>${esc(fmtDate(state.config.igLastSync, true) || 'belum pernah')}</b></p>
     </form>
-    <div class="row-gap"><button class="btn btn-primary" id="ig-save">Simpan</button><button class="btn btn-ghost" id="ig-sync">${ic('refresh')} Sinkronkan sekarang</button><span class="muted small">Sinkron terakhir: ${esc(fmtDate(state.config.igLastSync, true) || 'belum pernah')}</span></div>
     <details class="fieldset"><summary>Cara mendapatkan Access Token</summary><ol class="steps small">
       <li>Ubah akun Instagram desa menjadi akun <b>Profesional</b> (Bisnis / Kreator).</li>
       <li>Buka <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener">developers.facebook.com/apps</a> → Buat Aplikasi → pilih kasus penggunaan <b>Instagram</b> (“Manage messaging & content on Instagram”).</li>

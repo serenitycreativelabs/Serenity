@@ -69,6 +69,22 @@ function drawAdmins(main) {
     const lg = (u.lembagaIds || []).map((id) => state.lembaga.find((l) => l.id === id)).filter(Boolean).map((l) => `Pengelola ${l.singkatan || l.nama}`);
     return [...list.filter(([k]) => u.perms?.[k]).map((p) => p[1]), ...lg].join(', ') || 'Belum ada akses';
   };
+  // v2.9.9: hak akses ringkas & rapi — dikelompokkan per bagian dengan label pendek (rincian lengkap di tooltip)
+  const SHORT = { warga: 'Lihat', wargaEdit: 'Ubah', wargaDelete: 'Hapus', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Master', informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil', kegiatan: 'Kegiatan', pengaturan: 'Pengaturan', kelolaKadus: 'Akun Kadus', latar: 'Latar', lembaga: 'Lembaga', dokumen: 'Dokumen' };
+  const permCell = (u) => {
+    const full = esc(permLabel(u));
+    if (u.role === 'superadmin') return `<div class="perm-cell" title="${full}"><span class="perm-all">${ic('check')} Semua akses</span></div>`;
+    const list = u.role === 'kadus' ? KADUS_PERMS.map(([k, l]) => [k, l, `Dusun ${u.dusun || ''}`.trim()]) : PERMS;
+    const on = list.filter(([k]) => u.perms?.[k]);
+    const lg = (u.lembagaIds || []).map((id) => state.lembaga.find((l) => l.id === id)).filter(Boolean).map((l) => l.singkatan || l.nama);
+    if (!on.length && !lg.length) return '<span class="perm-none">Belum ada akses</span>';
+    const groups = []; for (const [k, , g] of on) { let x = groups.find((y) => y[0] === g); if (!x) groups.push(x = [g, []]); x[1].push(k); }
+    const all = u.role !== 'kadus' && on.length === PERMS.length;
+    if (all) return `<div class="perm-cell" title="${full}"><span class="perm-all">${ic('check')} Semua hak akses admin (${PERMS.length})</span>${lg.length ? `<div class="perm-g lg"><b>Pengelola</b><span>${lg.map((n) => `<i>${esc(n)}</i>`).join('')}</span></div>` : ''}</div>`;
+    return `<div class="perm-cell" title="${full}">
+      ${groups.map(([g, ks]) => `<div class="perm-g"><b>${esc(g)}</b><span>${ks.map((k) => `<i>${esc(SHORT[k] || k)}</i>`).join('')}</span></div>`).join('')}
+      ${lg.length ? `<div class="perm-g lg"><b>Pengelola</b><span>${lg.map((n) => `<i>${esc(n)}</i>`).join('')}</span></div>` : ''}</div>`;
+  };
   const editable = (u) => u.uid !== state.user.uid && u.role !== 'superadmin' && (isSuper() || (u.role === 'kadus' && can('kelolaKadus')));
   const canKadus = isSuper() || can('kelolaKadus');
   const nAdmin = usersCache.filter((u) => u.role === 'admin').length, nKadus = usersCache.filter((u) => u.role === 'kadus').length;
@@ -82,7 +98,7 @@ function drawAdmins(main) {
   <tbody>${usersCache.map((u) => `<tr>
     <td><div class="user-cell">${avatar(u)}<div><b>${esc(u.nama || '-')}</b>${badgeRow(u.badges, 6)}${u.uid === state.user.uid ? ' <span class="badge">Anda</span>' : ''}<br><small class="muted">${esc(u.email)}</small></div></div></td>
     <td><span class="badge ${u.role === 'superadmin' ? 'badge-warn' : u.role === 'kadus' ? 'badge-ok' : ''}">${esc(ROLE_LABEL[u.role] || u.role)}</span>${u.role === 'kadus' ? `<br><small class="muted">Dusun ${esc(u.dusun || '-')}</small>` : ''}</td>
-    <td class="small" style="max-width:340px;white-space:normal">${esc(permLabel(u))}</td>
+    <td>${permCell(u)}</td>
     <td><span class="badge ${u.active === false ? 'badge-muted' : 'badge-ok'}">${u.active === false ? 'Nonaktif' : 'Aktif'}</span></td>
     <td class="small">${esc(fmtDate(u.lastLogin, true) || '-')}</td>
     <td class="actions-col">${isSuper() ? `<button class="icon-btn" data-bdg="${u.uid}" title="Atur badge">${ic('star')}</button>` : ''}${editable(u) ? `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>` : ''}</td>

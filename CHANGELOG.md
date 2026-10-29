@@ -1,5 +1,24 @@
 # Catatan Perubahan
 
+## v2.9.9 “Kirana” — 2026.10.30 (Build 2026.10.30 · R25 · Stable)
+### Beranda publik — lebih ringkas & rapi
+- **Panel kanan jadi 3 blok terpisah**, urutan bawaan: **Kegiatan Rutin Gampong** (kegiatan hari ini) → **Berita & Kegiatan Lembaga** → **Kegiatan Lainnya**. Masing-masing kartu sendiri dengan gulir otomatis sendiri.
+  - Di laptop/komputer/PWA desktop **ketiganya selalu terlihat utuh tanpa perlu digulir** — tinggi dibagi otomatis mengikuti tinggi layar (diuji 768 & 860 px); blok berisi sedikit tidak memanjang kosong.
+  - Isi lebih ringkas: kegiatan cukup 1 baris (jam · nama · tempat — PJ & WA tetap di halaman detail), berita lembaga tanpa cuplikan isi, judul blok lebih kecil dengan tombol panah “semua” di pojok, tanpa tulisan petunjuk.
+  - Di ponsel: 3 kartu bertumpuk (±190 px/blok) tanpa kotak pembungkus ganda.
+  - “Kegiatan Lainnya” kini blok tata letak tersendiri (bisa dipindah di Atur Tata Letak). Widget Beranda: “Tinggi tiap blok” (bawaan 260 px).
+- **Jadwal Sholat ringkas**: kolom kiri 300 → 252 px, tanggal & Hijriah satu baris, hitung mundur satu baris, 8 waktu dalam kisi 2 kolom (±40% lebih pendek), catatan perhitungan dipersingkat.
+- **Kartu hero** ±56% lebih pendek di laptop (515 → 227 px), ±20% di ponsel: statistik dengan ikon di kiri, judul & deskripsi lebih kecil, tombol tetap 1 baris — label dipersingkat otomatis (“Informasi · Data · Dokumen”) saat ruang sempit.
+- **Logo header simetris**: logo kini terkunci di dalam kotaknya (sebelumnya logo tegak seperti lambang Banda Aceh meluber ±13 px ke bawah) dan ukurannya 44 px, sejajar tengah dengan nama web & deskripsi.
+- **Running text lebih ramping**: 34 → 26 px (laptop), 30 → 24 px (ponsel).
+- Outline halus pada tulisan di atas latar (v2.9.8) **dikembalikan** seperti semula.
+### Dasbor admin — ringkas di semua halaman
+- Jarak panel, kartu statistik, tombol, kolom isian, chip, tab, tabel, kotak keterangan, dan baris berita/informasi dirapatkan. Contoh penghematan tinggi halaman: Dasbor −19%, Laporan −16%, Lembaga −20%, Instagram −49%, Pengaturan −15%, Tampilan & Tema −27%, Monitor −34%, Audit Log −42%, Manajemen Akun −28%.
+- **Instagram**: Username, Access Token & tombol Simpan/Sinkronkan sejajar satu baris; grid postingan lebih kecil dengan tombol di atas gambar. Diperbaiki: grid melebar setinggi satu layar sehingga ada ruang kosong besar.
+- **Manajemen Akun**: hak akses dikelompokkan per bagian dengan label pendek (mis. DATA WARGA: Lihat · Ubah · Hapus); akun berakses penuh cukup “Semua hak akses admin (17)”; rincian lengkap di tooltip. Lencana peran tidak lagi terlipat.
+- **Monitor**: tabel pemakaian per koleksi dibatasi tinggi & bisa digulir dengan judul kolom menempel.
+- **Tampilan & Tema**: kartu gaya, pratinjau efek/model/kursor/huruf lebih kecil; pratinjau Ikon Aplikasi tanpa latar putih.
+
 ## v2.9.8 “Kirana” — 2026.10.30 (Build 2026.10.30 · R24 · Stable)
 ### Panel Kegiatan Rutin bergulir otomatis
 - Panel **Kegiatan Rutin Gampong** di beranda (bagian **Hari ini** & **Kegiatan lainnya**) kini bergulir mulus seperti panel Berita & Kegiatan Lembaga: berhenti saat diarahkan kursor/disentuh, bisa digulir manual dengan roda mouse, dan tetap diam bila semua kegiatan muat di panel.

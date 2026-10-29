@@ -9,7 +9,7 @@ import { ic, state, isSuper, logAudit, cfgUpdate } from './core.js';
 import { esc, $, fmtDate, toast } from './ui.js';
 import { plainText, mediaThumb } from './rich.js';
 
-export const WIDGET_DEFAULT = { berita: { aktif: true, kecepatan: 24, maks: 20, tinggi: 380, arah: 'atas' }, kegiatan: { gerak: true, kecepatan: 18, tinggi: 320, arah: 'atas' }, analitik: { aktif: true } };
+export const WIDGET_DEFAULT = { berita: { aktif: true, kecepatan: 24, maks: 20, tinggi: 380, arah: 'atas' }, kegiatan: { gerak: true, kecepatan: 18, tinggi: 260, arah: 'atas' }, analitik: { aktif: true } };
 export const widgetCfg = () => {
   const w = state.config.widget || {};
   return { berita: { ...WIDGET_DEFAULT.berita, ...(w.berita || {}) }, kegiatan: { ...WIDGET_DEFAULT.kegiatan, ...(w.kegiatan || {}) }, analitik: { ...WIDGET_DEFAULT.analitik, ...(w.analitik || {}) } };
@@ -35,11 +35,10 @@ export function lembagaNewsPanel() {
       ${b.thumb ? `<span class="ln-thumb"><img loading="lazy" src="${esc(b.thumb)}" alt="" onerror="this.parentNode.remove()"></span>` : ''}
       <span class="ln-body"><span class="ln-meta"><span class="ln-org">${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ic('shield')}${esc(b.lembaga)}</span>${b.tanggal ? `<small>${esc(fmtDate(b.tanggal))}</small>` : ''}</span>
       <b>${esc(b.judul)}</b><small class="ln-ex">${esc(plainText(b.isi || '').replace(/\s+/g, ' ').trim().slice(0, 110))}</small></span></a>`;
-  return `<div class="side-panel lnews">
-    <div class="sp-head">${ic('news')}<div><b>Berita & Kegiatan Lembaga</b><small>${list.length ? `${list.length} kabar terbaru dari lembaga gampong` : 'Kabar dari setiap lembaga gampong'}</small></div></div>
-    ${list.length ? `<div class="ln-viewport" style="height:${Math.max(200, Math.min(900, Number(c.tinggi) || 380))}px" data-speed="${Math.max(4, Math.min(120, Number(c.kecepatan) || 24))}" data-dir="${c.arah === 'bawah' ? 'bawah' : 'atas'}" tabindex="0" aria-label="Berita lembaga bergulir otomatis. Arahkan kursor untuk menjeda."><div class="ln-track">${list.map(item).join('')}</div></div>
-      <p class="muted tiny ln-hint">${ic('eye')} Arahkan kursor / sentuh untuk menjeda</p>` : '<p class="muted small">Belum ada berita lembaga.</p>'}
-    <a class="link small" href="#/lembaga">Semua lembaga →</a></div>`;
+  return `<div class="side-panel lnews sp-card">
+    <div class="sp-head">${ic('news')}<div><b>Berita & Kegiatan Lembaga</b><small>${list.length ? `${list.length} kabar terbaru` : 'Kabar dari lembaga gampong'}</small></div><a class="sp-more" href="#/lembaga" title="Semua lembaga" aria-label="Semua lembaga">${ic('chev')}</a></div>
+    ${list.length ? `<div class="ln-viewport sp-fill" data-speed="${Math.max(4, Math.min(120, Number(c.kecepatan) || 24))}" data-dir="${c.arah === 'bawah' ? 'bawah' : 'atas'}" tabindex="0" aria-label="Berita lembaga bergulir otomatis. Arahkan kursor untuk menjeda."><div class="ln-track">${list.map(item).join('')}</div></div>` : '<p class="muted small kg-empty">Belum ada berita lembaga.</p>'}
+  </div>`;
 }
 
 // ---------------------------------------------------------------- gulir otomatis vertikal (JavaScript, mulus & hemat CPU)
@@ -104,12 +103,12 @@ export function viewWidget(main) {
       <div class="row-gap"><button class="btn btn-primary" id="wb-save" data-save>${ic('check')} Simpan</button><button class="btn btn-ghost" id="wb-reset">Kembalikan bawaan</button><a class="btn btn-ghost" href="#/" target="_blank">${ic('ext')} Lihat beranda</a></div>
     </div>
     <div class="panel"><h3>${ic('repeat')} Gerak Panel Kegiatan Rutin</h3>
-      <p class="muted small">Panel <b>Kegiatan Rutin</b> di beranda (bagian <b>Hari ini</b> & <b>Kegiatan lainnya</b>) bergulir otomatis seperti panel berita lembaga. Bila semua kegiatan muat di panel, daftar tetap diam.</p>
+      <p class="muted small">Dua blok di beranda — <b>Kegiatan Rutin (hari ini)</b> dan <b>Kegiatan Lainnya</b> — masing-masing kartu sendiri yang bergulir otomatis seperti panel berita lembaga. Bila semua kegiatan muat di blok, daftar tetap diam.</p>
       <div class="form-grid">
         <label class="check span-2"><input type="checkbox" id="wk-on" ${c.kegiatan.gerak ? 'checked' : ''}> Gulir otomatis</label>
         <label class="field span-2"><span>Kecepatan gulir — <b id="wk-speed-v">${c.kegiatan.kecepatan}</b> piksel/detik</span><input type="range" id="wk-speed" min="4" max="120" step="1" value="${c.kegiatan.kecepatan}"><small class="muted">18 = nyaman dibaca (bawaan)</small></label>
         <label class="field"><span>Arah gulir</span><select id="wk-dir"><option value="atas" ${c.kegiatan.arah !== 'bawah' ? 'selected' : ''}>Bergerak ke atas</option><option value="bawah" ${c.kegiatan.arah === 'bawah' ? 'selected' : ''}>Bergerak ke bawah</option></select></label>
-        <label class="field"><span>Tinggi panel (piksel)</span><input type="number" id="wk-h" min="160" max="900" step="10" value="${c.kegiatan.tinggi}"></label>
+        <label class="field"><span>Tinggi tiap blok (piksel)</span><input type="number" id="wk-h" min="140" max="900" step="10" value="${c.kegiatan.tinggi}"></label>
       </div>
       <div class="kg-preview" id="wk-prev"></div>
     </div>
@@ -120,7 +119,7 @@ export function viewWidget(main) {
       <a class="btn btn-ghost btn-sm" href="#/admin/monitor">${ic('chart')} Buka Monitor & Analitik</a>
     </div>
   </div>`;
-  const read = () => ({ kegiatan: { gerak: $('#wk-on').checked, kecepatan: Number($('#wk-speed').value) || 18, arah: $('#wk-dir').value, tinggi: Math.max(160, Math.min(900, Number($('#wk-h').value) || 320)) }, berita: { aktif: $('#wb-on').checked, kecepatan: Number($('#wb-speed').value) || 24, maks: Math.max(3, Math.min(60, Number($('#wb-max').value) || 20)), tinggi: Math.max(200, Math.min(900, Number($('#wb-h').value) || 380)), arah: $('#wb-dir').value }, analitik: { aktif: $('#wa-on').checked } });
+  const read = () => ({ kegiatan: { gerak: $('#wk-on').checked, kecepatan: Number($('#wk-speed').value) || 18, arah: $('#wk-dir').value, tinggi: Math.max(140, Math.min(900, Number($('#wk-h').value) || 260)) }, berita: { aktif: $('#wb-on').checked, kecepatan: Number($('#wb-speed').value) || 24, maks: Math.max(3, Math.min(60, Number($('#wb-max').value) || 20)), tinggi: Math.max(200, Math.min(900, Number($('#wb-h').value) || 380)), arah: $('#wb-dir').value }, analitik: { aktif: $('#wa-on').checked } });
   const prev = () => {
     const keep = state.config.widget; state.config.widget = read();
     $('#wb-prev').innerHTML = lembagaNewsPanel();
@@ -130,7 +129,7 @@ export function viewWidget(main) {
     startNewsScroller();
   };
   $('#wb-root').addEventListener('input', prev); prev();
-  $('#wb-reset').onclick = () => { $('#wb-on').checked = true; $('#wb-speed').value = 24; $('#wb-max').value = 20; $('#wb-h').value = 380; $('#wb-dir').value = 'atas'; $('#wa-on').checked = true; $('#wk-on').checked = true; $('#wk-speed').value = 18; $('#wk-dir').value = 'atas'; $('#wk-h').value = 320; prev(); };
+  $('#wb-reset').onclick = () => { $('#wb-on').checked = true; $('#wb-speed').value = 24; $('#wb-max').value = 20; $('#wb-h').value = 380; $('#wb-dir').value = 'atas'; $('#wa-on').checked = true; $('#wk-on').checked = true; $('#wk-speed').value = 18; $('#wk-dir').value = 'atas'; $('#wk-h').value = 260; prev(); };
   $('#wb-save').onclick = async () => {
     const v = read();
     try {
