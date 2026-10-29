@@ -40,20 +40,20 @@
 - Hak akses baru: `lembaga`, `dokumen` (diatur Super Admin di Manajemen Akun).
 
 ## Minor Release Version (Latest Work).
-○ v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
- ⤷ v1.9.0 — Deprecation Warning & Migration Preparation
- ⤷ v1.8.0 — Developement Integrations API, Security, Cloud System, Safety & Webhook Integrations
- ⤷ v1.7.0 — Performance, Caching & PWA Support
- ⤷ v1.6.0 — Community & Social Interactions
- ⤷ v1.5.1 — Admin Bugfix & Query Tuning
- ⤷ v1.5.0 — Analytics Dashboard & Admin Control Panel
- ⤷ v1.4.0 — Notification Engine & New Login Panel
- ⤷ v1.3.1 — Hotfix & Bugfixes
- ⤷ v1.3.0 — Hotfix & Bugfixes
- ⤷ v1.2.0 — Dark Mode & Internationalization
- ⤷ v1.1.1 — Bugfixes
- ⤷ v1.1.0 — Search, Filter & Enhancement
- ⤷ v1.0.1 — Hotfix & Post-Launch Stabilization
-○ v1.0.0 — Development, Building & Minor Release
+· v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
+ - ⤷ v1.9.0 — Deprecation Warning & Migration Preparation
+ - ⤷ v1.8.0 — Developement Integrations API, Security, Cloud System, Safety & Webhook Integrations
+ - ⤷ v1.7.0 — Performance, Caching & PWA Support
+ - ⤷ v1.6.0 — Community & Social Interactions
+ - ⤷ v1.5.1 — Admin Bugfix & Query Tuning
+ - ⤷ v1.5.0 — Analytics Dashboard & Admin Control Panel
+ - ⤷ v1.4.0 — Notification Engine & New Login Panel
+ - ⤷ v1.3.1 — Hotfix & Bugfixes
+ - ⤷ v1.3.0 — Hotfix & Bugfixes
+ - ⤷ v1.2.0 — Dark Mode & Internationalization
+ - ⤷ v1.1.1 — Bugfixes
+ - ⤷ v1.1.0 — Search, Filter & Enhancement
+ - ⤷ v1.0.1 — Hotfix & Post-Launch Stabilization
+· v1.0.0 — Development, Building & Minor Release
 
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
