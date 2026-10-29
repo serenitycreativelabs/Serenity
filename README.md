@@ -11,7 +11,7 @@
 - 📱 Pembaharuan efisiensi penggunaan **PWA** : navigasi bawah, menu lembar bawah, kartu bergeser, dialog bottom sheet **Fixed**.
 
 ## Baru di v2.5.0 “Prisma”
-- 🎨 Gaya **Gen Z Vibrant** (+ Neon Night, Acid, Sunset) dan 4 palet warna Gen Z di **Sistem › Tampilan & Tema**.
+- 🎨 Gaya **Vibrant** (+ Neon Night, Acid, Sunset) dan 4 palet warna **Sistem › Tampilan & Tema**.
 - 🔤 **Pustaka 38 huruf** atur huruf judul & teks secara terpisah (Super Admin).
 
 ## Baru di v2.4.0 “Nebula”
