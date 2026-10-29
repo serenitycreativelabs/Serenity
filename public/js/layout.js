@@ -77,7 +77,11 @@ export function resolvedMode() {
   return m === 'auto' ? (mq.matches ? 'dark' : 'light') : m;
 }
 const setVar = (html, k, v) => { if (v) html.style.setProperty(k, v); else html.style.removeProperty(k); };
-export function applyTheme(tema) {
+// v2.4.2: tema terakhir dari Super Admin diingat di perangkat agar TIDAK pernah tampil warna bawaan/lama
+// sesaat sebelum pengaturan termuat. Dipanggil tanpa argumen → pakai tema tersimpan.
+const savedTema = () => { try { return JSON.parse(localStorage.getItem('dd:tema') || 'null'); } catch { return null; } };
+export function applyTheme(tema, { fromServer = false } = {}) {
+  if (tema === undefined || tema === null) tema = fromServer ? {} : savedTema() || {};
   currentTema = { ...DEFAULT_TEMA, ...(tema || {}) };
   const p = THEME_PRESETS[currentTema.preset] || THEME_PRESETS.teal;
   const html = document.documentElement;
@@ -97,6 +101,13 @@ export function applyTheme(tema) {
   html.dataset.mono = fp.mono ? '1' : '';
   html.dataset.theme = resolvedMode();
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', html.dataset.theme === 'dark' ? (p.bgDark || '#0f1419') : (p.surface || '#ffffff'));
+  // Simpan cuplikan tema yang sudah diterapkan → dipakai skrip awal di index.html (sebelum JavaScript utama berjalan)
+  if (fromServer) {
+    try {
+      localStorage.setItem('dd:tema', JSON.stringify(tema || {}));
+      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, gf: fp.gf ? `${currentTema.font}|${fp.gf}` : '', meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
+    } catch { /* */ }
+  }
   $$('[data-theme-toggle]').forEach((b) => { b.hidden = currentTema.toggle === false; b.innerHTML = themeIcon(); b.title = html.dataset.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'; });
 }
 mq.addEventListener?.('change', () => applyTheme(currentTema));

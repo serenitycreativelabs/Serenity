@@ -23,7 +23,19 @@
   <link rel="stylesheet" href="css/app.css">
   <script>
     // Terapkan mode gelap/terang sebelum halaman tampil (mencegah kedip putih)
-    (function () { try { var p = localStorage.getItem('dd:theme'); var d = p ? p === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = d ? 'dark' : 'light'; } catch (e) {} })();
+    // Terapkan tema terakhir dari Super Admin (warna, huruf, model, efek) + mode gelap/terang sebelum halaman tampil
+    (function () { try {
+      var h = document.documentElement, t = JSON.parse(localStorage.getItem('dd:temaSnap') || 'null');
+      if (t) {
+        if (t.css) h.style.cssText = t.css;
+        for (var k in t.ds) if (t.ds[k]) h.dataset[k] = t.ds[k];
+        if (t.gf) { var g = t.gf.split('|'); var l = document.createElement('link'); l.id = 'gf-' + g[0]; l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?' + g[1] + '&display=swap'; document.head.appendChild(l); }
+      }
+      var p = t && t.toggle === false ? '' : localStorage.getItem('dd:theme'); var m = p || (t && t.mode) || 'auto';
+      var d = m === 'auto' ? matchMedia('(prefers-color-scheme: dark)').matches : m === 'dark';
+      h.dataset.theme = d ? 'dark' : 'light';
+      if (t && t.meta) document.querySelector('meta[name=theme-color]').setAttribute('content', t.meta);
+    } catch (e) {} })();
     // Ikon kustom dari Super Admin (disimpan di perangkat) agar langsung tampil di tab browser
     (function () { try { var ic = localStorage.getItem('dd:icon'); if (ic && /^(data:image\/|https:\/\/)/.test(ic)) document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]').forEach(function (l) { l.href = ic; l.removeAttribute('type'); }); } catch (e) {} })();
   </script>

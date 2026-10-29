@@ -1,5 +1,9 @@
 # Catatan Perubahan
 
+## v2.4.2 — 2026.10.29 (R10 · Stable)
+### Perbaikan
+- **Tema/warna lama sesekali muncul saat website dibuka.** Halaman pertama sempat digambar dengan warna bawaan sebelum pengaturan tema Super Admin termuat. Kini tema terakhir (warna, huruf, model, efek, sudut, mode gelap/terang) diingat di perangkat dan diterapkan **sebelum halaman tampil**, dan tampilan pertama menunggu pengaturan termuat (maks. 2,5 detik).
+
 ## v2.4.1 — 2026.10.29 (R9 · Stable)
 ### Perbaikan
 - Workflow **Sinkron Instagram** gagal dengan `8 RESOURCE_EXHAUSTED: Quota exceeded` saat kuota harian Firestore habis. Kini dilewati dengan peringatan (workflow tetap hijau) dan dicoba lagi pada jadwal berikutnya.

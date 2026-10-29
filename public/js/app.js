@@ -76,7 +76,7 @@ function boot() {
   if (F.configError) { renderConfigError(); return; }
   // v2.4: semua data publik lewat Sinkron Bertahap → kunjungan berikutnya hanya membaca yang berubah
   Sync.startPublic();
-  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; applyTheme(state.config.tema); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
+  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; state.cfgLoaded = true; applyTheme(state.config.tema, { fromServer: true }); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); if (cfgWaiting) { cfgWaiting = false; render(); return; } softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
   Sync.watch({ id: 'config:stats', scope: 'pub', doc: 'config/stats', onData: (d) => { state.stats = d || {}; softRerender(['public']); } });
   Sync.watch({ id: 'instagram', scope: 'pub', col: 'instagram', limit: 150, onData: (list) => {
     state.ig = list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
@@ -406,8 +406,12 @@ async function onHashChange() {
   lastHash = location.hash;
   render();
 }
+// Tampilan pertama menunggu pengaturan tema termuat (dari perangkat ±50 ms, atau server) maks. 2,5 detik
+let cfgWaiting = false;
+setTimeout(() => { if (cfgWaiting) { cfgWaiting = false; state.cfgLoaded = true; render(); } }, 2500);
 function render(soft = false) {
   if (F.configError) return;
+  if (!state.cfgLoaded) { cfgWaiting = true; return; }
   if (!soft) { guard.dirty = false; lastHash = location.hash; }
   if (!soft) routeBar();
   const r = parseRoute(); state.route = r;
