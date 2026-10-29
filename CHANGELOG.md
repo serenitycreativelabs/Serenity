@@ -1,5 +1,10 @@
 # Catatan Perubahan
 
+## v2.4.1 — 2026.10.29 (R9 · Stable)
+### Perbaikan
+- Workflow **Sinkron Instagram** gagal dengan `8 RESOURCE_EXHAUSTED: Quota exceeded` saat kuota harian Firestore habis. Kini dilewati dengan peringatan (workflow tetap hijau) dan dicoba lagi pada jadwal berikutnya.
+- Sinkron Instagram jauh lebih hemat: jadwal tiap **6 jam** (sebelumnya tiap jam), hanya menulis bila ada postingan baru/berubah (sidik SHA-256), penyegaran URL media sekali sehari, batas waktu 5 menit & tanpa eksekusi ganda.
+
 ## v2.4.0 “Nebula” — 2026.10.29 (Build 2026.10.29 · R8 · Stable)
 > Fokus rilis: **hemat kuota Firestore**, **analitik & monitoring**, **cadangan yang benar-benar lengkap**, dan perapian panel admin.
 
