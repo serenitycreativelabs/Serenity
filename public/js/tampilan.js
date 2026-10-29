@@ -5,7 +5,7 @@ import { ic, state, isSuper, can, logAudit, diff, cfgUpdate } from './core.js';
 import { esc, $, $$, toast, confirmDialog, debounce } from './ui.js';
 import {
   applyTheme, applyIcon, applyBackground, ensureFonts, backgroundKind, makeIconPng, guard,
-  THEME_PRESETS, MODELS, FONT_PAIRS, RADII, EFFECTS, STYLE_PRESETS, DEFAULT_TEMA, FONT_LIST, FONT_CATS, fontStack, ensureFontIds,
+  THEME_PRESETS, MODELS, READ_MODELS, FONT_PAIRS, RADII, EFFECTS, STYLE_PRESETS, DEFAULT_TEMA, FONT_LIST, FONT_CATS, fontStack, ensureFontIds,
 } from './layout.js';
 import { CURSORS, CLICKS, ICON_LEVELS, FX_DEFAULT, applyFx } from './motion.js';
 
@@ -43,6 +43,9 @@ export function viewTampilan(main) {
   <div class="panel"><h3>${ic('book')} Model Tampilan</h3>
     <div class="choices models">${opt('model', Object.entries(MODELS), t.model, (k, v) => `<span class="mdl mdl-${k}"><i></i><i></i><i></i></span><b>${esc(v.label.split(' — ')[0])}</b><small>${esc(v.label.split(' — ')[1] || '')}</small>`)}</div></div>
 
+  <div class="panel"><h3>${ic('news')} Model Tampilan Baca</h3><p class="muted small">Tampilan halaman baca <b>Papan Informasi</b>, <b>Berita & Kegiatan Lembaga</b>, dan <b>Kegiatan Rutin</b> — berlaku di desktop, tablet, ponsel & PWA. Tulisan selalu berada di atas kartu pekat agar tetap kontras dengan latar/efek apa pun. <a href="#/informasi" target="_blank" rel="noopener">Buka contoh postingan ↗</a></p>
+    <div class="choices models">${opt('baca', Object.entries(READ_MODELS), READ_MODELS[t.baca] ? t.baca : 'kartu', (k, v) => `<span class="rdm rdm-${k}"><i></i><i></i><i></i></span><b>${esc(v.label)}</b><small>${esc(v.desc)}</small>`)}</div></div>
+
   <div class="panel"><h3>Aa Huruf (Tipografi)</h3>
     <div class="font-choices">${opt('font', Object.entries(FONT_PAIRS), t.font, (k, v) => `<b style="font-family:${v.head}, ${v.font}, sans-serif">Aa 123</b><small style="font-family:${v.font}, sans-serif">${esc(v.label)}</small>`)}</div>
     <h4 class="detail-h">Pustaka Huruf — ${Object.keys(FONT_LIST).length} pilihan (atur huruf judul & teks secara terpisah)</h4>
@@ -74,10 +77,10 @@ export function viewTampilan(main) {
   </div>
 
   <div class="panel" data-noguard><h3>${ic('phone')} Ikon Aplikasi (tab browser desktop & mobile, ikon layar utama)</h3>
-    <p class="muted small">Unggah gambar persegi (PNG/JPG/SVG, disarankan ≥ 512×512) atau tempel URL gambar. Ikon diolah menjadi PNG 256×256. Perubahan disimpan terpisah dari tema.</p>
+    <p class="muted small">Unggah gambar (PNG/JPG/SVG, disarankan ≥ 512×512) atau tempel URL gambar. <b>PNG berlatar transparan tetap transparan</b> — tidak diberi latar putih di tab browser desktop, ponsel, tablet, maupun PWA. Ikon diolah menjadi PNG 256×256 + versi ikon aplikasi (PWA/layar utama) yang berlatar warna tema. Perubahan disimpan terpisah dari tema.</p>
     <div class="form-grid">
       <div class="field"><span>Sumber ikon</span><div class="row-gap"><label class="btn btn-ghost btn-sm">${ic('upload')} Unggah gambar<input type="file" accept="image/*" id="ik-file" hidden></label><input id="ik-url" placeholder="atau URL https://…/ikon.png" style="flex:1;min-width:200px"><button type="button" class="btn btn-ghost btn-sm" id="ik-url-go">Pakai URL</button></div></div>
-      <div class="field"><span>Bentuk & latar</span><div class="row-gap"><label class="check"><input type="checkbox" id="ik-round" checked> Sudut membulat</label><label class="check"><input type="checkbox" id="ik-bgon"> Latar warna</label><input type="color" id="ik-bg" value="#0f766e"><label class="check"><input type="checkbox" id="ik-pad"> Beri jarak tepi</label></div></div>
+      <div class="field"><span>Bentuk & latar</span><div class="row-gap"><label class="check"><input type="checkbox" id="ik-round" checked> Sudut membulat</label><label class="check"><input type="checkbox" id="ik-bgon"> Latar warna</label><input type="color" id="ik-bg" value="#0f766e"><label class="check"><input type="checkbox" id="ik-pad"> Beri jarak tepi</label><label class="check" title="Bila dicentang, gambar memenuhi kotak dan tepinya terpotong"><input type="checkbox" id="ik-cover"> Isi penuh (potong tepi)</label></div></div>
     </div>
     <div class="icon-prev" id="ik-prev"></div>
     <div class="row-gap" style="margin-top:10px"><button type="button" class="btn btn-ghost" id="ik-reset">Kembalikan ikon bawaan</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="ik-save" disabled>${ic('check')} Simpan ikon</button></div>
@@ -91,7 +94,7 @@ export function viewTampilan(main) {
 
   let brand = t.brand, accent = t.accent;
   const val = (n) => $(`input[name=${n}]:checked`, main)?.value;
-  const read = () => ({ preset: val('preset'), model: val('model'), efek: val('efek'), font: val('font'), fHead: $('#tm-fhead').value, fBody: $('#tm-fbody').value, fx: { cursor: val('cursor') || 'off', size: Number($('#tm-cs').value) || 1, click: $('#tm-click').value, ikon: $('#tm-ikon').value, scope: $('#tm-scope').value, magnetic: $('#tm-mag').checked, hideNative: $('#tm-hide').checked }, radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
+  const read = () => ({ preset: val('preset'), model: val('model'), baca: val('baca') || 'kartu', efek: val('efek'), font: val('font'), fHead: $('#tm-fhead').value, fBody: $('#tm-fbody').value, fx: { cursor: val('cursor') || 'off', size: Number($('#tm-cs').value) || 1, click: $('#tm-click').value, ikon: $('#tm-ikon').value, scope: $('#tm-scope').value, magnetic: $('#tm-mag').checked, hideNative: $('#tm-hide').checked }, radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
   const mark = () => $$('.choice', main).forEach((c) => c.classList.toggle('on', !!c.querySelector('input')?.checked));
   // pratinjau di dasbor: animasi diterapkan walau cakupan "publik saja" (agar bisa dicoba di halaman ini)
   const preview = () => { mark(); const r = read(); applyTheme(r); applyFx({ ...r.fx, scope: 'semua' }, 'admin'); const v = $('#tm-cs-v'); if (v) v.textContent = `${Math.round(r.fx.size * 100)}%`; };
@@ -133,30 +136,37 @@ export function viewTampilan(main) {
   $('#tm-lay-reset').onclick = async () => { if (!await confirmDialog('Kembalikan susunan semua panel (beranda & dasbor) ke bawaan?', { okText: 'Reset' })) return; await cfgUpdate({ layout: {} }); state.config.layout = {}; logAudit('tampilan', 'layout_reset', 'Mengembalikan semua tata letak ke bawaan'); toast('Tata letak dikembalikan', 'success'); };
 
   // ---- ikon
-  let src = null; let rawSrc = null;
+  let src = null; let rawSrc = null; let maskable = '';
   const prevIcon = (u) => {
     const s = u || ikon.src || 'icons/icon-512.png';
     $('#ik-prev').innerHTML = `<div class="tab-mock"><img src="${esc(s)}" alt=""> <span>${esc(state.config.namaDesa || 'Serenity')} — Portal Data</span></div>
       <figure><img src="${esc(s)}" width="16" height="16" alt=""><figcaption>16 px</figcaption></figure>
       <figure><img src="${esc(s)}" width="32" height="32" alt=""><figcaption>32 px (tab)</figcaption></figure>
       <figure><img src="${esc(s)}" width="60" height="60" alt=""><figcaption>Layar ponsel</figcaption></figure>
-      <figure><img src="${esc(s)}" width="96" height="96" alt=""><figcaption>Desktop / PWA</figcaption></figure>`;
+      <figure><img src="${esc(s)}" width="96" height="96" alt=""><figcaption>Desktop / PWA</figcaption></figure>
+      ${maskable ? `<figure><img class="ik-app" src="${esc(maskable)}" width="60" height="60" alt=""><figcaption>Ikon aplikasi ponsel</figcaption></figure>` : ''}`;
   };
   prevIcon();
   const build = async () => {
     if (!rawSrc) return;
     try {
-      src = await makeIconPng(rawSrc, { size: 256, rounded: $('#ik-round').checked, bg: $('#ik-bgon').checked ? $('#ik-bg').value : '', padding: $('#ik-pad').checked ? 28 : 0 });
+      src = await makeIconPng(rawSrc, { size: 256, rounded: $('#ik-round').checked, bg: $('#ik-bgon').checked ? $('#ik-bg').value : '', padding: $('#ik-pad').checked ? 28 : 0, fit: $('#ik-cover').checked ? 'cover' : 'contain' });
+      // Versi ikon aplikasi (Android/iOS/PWA): sistem operasi tidak menampilkan transparansi pada ikon layar utama
+      // (Android memberi lingkaran putih, iOS latar hitam) → diberi latar warna tema/pilihan agar TIDAK putih
+      const mBg = $('#ik-bgon').checked ? $('#ik-bg').value : (getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#0f766e');
+      maskable = await makeIconPng(rawSrc, { size: 512, rounded: false, bg: mBg, padding: 72, fit: 'contain' });
+      if (maskable.length > 190000) maskable = await makeIconPng(rawSrc, { size: 320, rounded: false, bg: mBg, padding: 46, fit: 'contain' });
+      if (maskable.length > 190000) maskable = '';
       if (src.length > 190000) { toast('Ikon terlalu besar setelah diolah. Gunakan gambar yang lebih sederhana.', 'error'); src = null; return; }
       prevIcon(src); $('#ik-save').disabled = false;
     } catch (e) { toast(e.message.includes('tainted') ? 'URL gambar tidak mengizinkan diolah (CORS). Unduh gambarnya lalu unggah dari perangkat.' : e.message, 'error'); }
   };
   $('#ik-file').onchange = (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 5e6) return toast('Gambar maksimal 5 MB', 'error'); rawSrc = f; build(); };
   $('#ik-url-go').onclick = () => { const u = $('#ik-url').value.trim(); if (!/^https:\/\//.test(u)) return toast('URL harus diawali https://', 'error'); rawSrc = u; build(); };
-  ['ik-round', 'ik-bgon', 'ik-bg', 'ik-pad'].forEach((id) => { $(`#${id}`).addEventListener('input', debounce(build, 150)); });
+  ['ik-round', 'ik-bgon', 'ik-bg', 'ik-pad', 'ik-cover'].forEach((id) => { $(`#${id}`).addEventListener('input', debounce(build, 150)); });
   $('#ik-save').onclick = async () => {
     if (!src) return;
-    try { await cfgUpdate({ ikon: { src, updatedAt: new Date().toISOString(), updatedBy: state.user.email } }); applyIcon({ src }); logAudit('tampilan', 'ikon', 'Mengganti ikon aplikasi (tab browser & layar utama)'); toast('Ikon aplikasi disimpan', 'success'); $('#ik-save').disabled = true; }
+    try { await cfgUpdate({ ikon: { src, ...(maskable ? { maskable } : {}), updatedAt: new Date().toISOString(), updatedBy: state.user.email } }); applyIcon({ src, maskable }); logAudit('tampilan', 'ikon', 'Mengganti ikon aplikasi (tab browser & layar utama)'); toast('Ikon aplikasi disimpan', 'success'); $('#ik-save').disabled = true; }
     catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };
   $('#ik-reset').onclick = async () => {

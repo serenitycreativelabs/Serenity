@@ -263,7 +263,7 @@ async function send(ta) {
     }, { merge: true });
     await b.commit();
     const to = person(other); const toLabel = to.role === 'superadmin' ? 'Super Admin' : `${roleText(to)} ${to.nama || ''}`.trim();
-    logAudit('chat', 'kirim', `Pesan chat ke ${toLabel}`.slice(0, 300), { target: toLabel, targetId: cid, detail: text });
+    logAudit('chat', 'kirim', `Pesan chat ke ${toLabel}`.slice(0, 300), { target: toLabel, targetId: cid, detail: text, to: other, toNama: toLabel });
   } catch (e) {
     ta.value = text; ta.dispatchEvent(new Event('input'));
     toast(/permission|insufficient/i.test(`${e.code} ${e.message}`) ? 'Pesan tidak terkirim: akun penerima tidak aktif atau akses Anda berubah.' : 'Pesan gagal dikirim: ' + humanErr(e), 'error');

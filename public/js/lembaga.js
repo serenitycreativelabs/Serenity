@@ -7,6 +7,7 @@ import { slugify } from './fields.js';
 import { guard } from './layout.js';
 import { richRender, bindRich, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, safeUrl, downloadUrl, mediaKind } from './rich.js';
 import { exportExcel, exportPdf } from './exporter.js';
+import { readerPage, readMins } from './reader.js';
 
 // ---------------------------------------------------------------- struktur bawaan
 export const KATEGORI = [
@@ -106,21 +107,22 @@ function beritaDetail(lid, bid) {
   const l = state.lembaga.find((x) => x.id === lid && x.published !== false);
   const list = l?.berita || []; const b = list.find((x, i) => beritaId(x, i) === bid);
   if (!l || !b) return `<section class="section reader">${emptyBox('Berita tidak ditemukan.')}</section>`;
-  const words = plainText(b.isi || '').split(/\s+/).filter(Boolean).length;
   const url = `${location.origin}${location.pathname}#/lembaga/${l.id}/berita/${bid}`;
   const msg = `*${String(l.singkatan || l.nama).toUpperCase()}*\n\n*${b.judul}*\n${b.tanggal ? '📅 ' + fmtDate(b.tanggal) + '\n' : ''}\n${plainText(b.isi || '').slice(0, 600)}\n\nSelengkapnya: ${url}`;
-  const others = list.filter((x) => x !== b).sort((a, c) => String(c.tanggal || '').localeCompare(String(a.tanggal || ''))).slice(0, 3);
-  return `<article class="section reader">
-    <a href="#/lembaga/${esc(l.id)}" class="link reader-back">← ${esc(l.singkatan || l.nama)}</a>
-    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(katOf(l.kategori).short)}</span><span class="badge badge-muted">${esc(l.singkatan || l.nama)}</span></div>
-      <h1>${esc(b.judul)}</h1>
-      <p class="reader-meta">${ic('cal')} ${esc(fmtDate(b.tanggal))} <span>·</span> ${Math.max(1, Math.round(words / 200))} menit baca</p>
-      ${b.penulis ? `<div class="byline">${avatar(b.penulis, 'sm')}<span>Diterbitkan oleh <b>${esc(penulisLabel(b.penulis))}</b>${badgeRow(b.penulis.badges, 6)}</span></div>` : ''}</header>
-    ${b.isi ? `<div class="article-body rich">${richRender(b.isi)}</div>` : ''}
-    ${(b.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${b.media.map(mediaEmbed).join('')}</div>` : ''}
-    <div class="info-actions reader-actions"><a class="btn btn-wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${ic('wa')} Bagikan ke WhatsApp</a><a class="btn btn-ghost" href="#/lembaga/${esc(l.id)}">${ic('shield')} Profil lembaga</a></div>
-    ${others.length ? `<h3 class="reader-sub">Berita lain dari ${esc(l.singkatan || l.nama)}</h3><div class="cards">${others.map((x) => beritaCard(l, x)).join('')}</div>` : ''}
-  </article>`;
+  const share = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  const others = list.map((x, i) => ({ x, id: beritaId(x, i) })).filter((o) => o.x !== b).sort((a, c) => String(c.x.tanggal || '').localeCompare(String(a.x.tanggal || ''))).slice(0, 4);
+  return readerPage({
+    back: { href: `#/lembaga/${l.id}`, label: l.singkatan || l.nama },
+    badges: `<span class="badge">${esc(katOf(l.kategori).short)}</span><span class="badge badge-muted">${esc(l.singkatan || l.nama)}</span>`,
+    title: b.judul, date: fmtDate(b.tanggal), mins: readMins(plainText(b.isi || '')),
+    byline: b.penulis ? `<div class="byline">${avatar(b.penulis, 'sm')}<span>Diterbitkan oleh <b>${esc(penulisLabel(b.penulis))}</b>${badgeRow(b.penulis.badges, 6)}</span></div>` : '',
+    author: b.penulis ? penulisLabel(b.penulis) : (l.singkatan || l.nama), cover: b.gambar || '',
+    body: b.isi ? `<div class="article-body rich">${richRender(b.isi)}</div>` : '',
+    media: (b.media || []).length ? b.media.map(mediaEmbed).join('') : '',
+    actions: `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(share)}">${ic('wa')} Bagikan ke WhatsApp</a><button class="btn btn-ghost" data-copy-link="${esc(url)}">${ic('copy')} Salin tautan</button><a class="btn btn-ghost" href="#/lembaga/${esc(l.id)}">${ic('shield')} Profil lembaga</a>`,
+    share: { href: share, label: 'Bagikan ke WhatsApp' },
+    othersTitle: `Berita lain dari ${l.singkatan || l.nama}`, others: others.map((o) => ({ href: `#/lembaga/${l.id}/berita/${o.id}`, title: o.x.judul, sub: fmtDate(o.x.tanggal) })),
+  });
 }
 const docTable = (docs) => `<div class="table-wrap"><table class="table"><thead><tr><th>Dokumen</th><th>Jenis</th><th>Tahun</th><th class="actions-col">Berkas</th></tr></thead><tbody>${docs.map((d) => `<tr><td><b>${esc(d.judul)}</b></td><td>${esc(d.jenis || '-')}</td><td>${esc(d.tahun || '-')}</td><td class="actions-col">${safeUrl(d.url) ? `<a class="btn btn-sm btn-ghost" href="${esc(safeUrl(d.url))}" target="_blank" rel="noopener">${ic('eye')} Lihat</a> <a class="btn btn-sm btn-primary" href="${esc(downloadUrl(d.url))}" target="_blank" rel="noopener">${ic('download')} Unduh</a>` : '-'}</td></tr>`).join('')}</tbody></table></div>`;
 export function bindLembagaPublic() {

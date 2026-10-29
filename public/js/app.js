@@ -21,6 +21,8 @@ import {
 } from './core.js';
 import * as Sync from './sync.js';
 import { mountChat, unmountChat } from './chat.js';
+import { setMarqueeTitle } from './title.js';
+import { readerPage, readMins } from './reader.js';
 import { recordVisit, startPresence, stopPresence, mountVisitorWidget, unmountVisitorWidget, startUsageFlush, flushUsage } from './analytics.js';
 import { lembagaNewsPanel, startNewsScroller, viewWidget, widgetCfg } from './widgets.js';
 import { viewMonitor } from './monitor.js';
@@ -206,8 +208,10 @@ function registerSW() {
 }
 
 function applyBranding() {
-  const nm = state.config.namaDesa ? `${desaJenis()} ${desaName()}` : '';
-  document.title = state.route?.parts[0] === 'admin' ? `Admin${nm ? ' — ' + nm : ''} | ${APP.name}` : nm ? `${nm} | ${APP.name}` : APP.fullName;
+  // v2.9: judul tab resmi yang bergerak perlahan dari kanan ke kiri (desktop, ponsel, tablet, PWA)
+  const nm = state.config.namaDesa ? `${desaJenis()} ${desaName()}`.trim() : `Gampong ${APP.owner}`;
+  const official = `Portal Resmi ${nm} Powered by © 2026 Serenity Creativa Labs.`;
+  setMarqueeTitle(state.route?.parts[0] === 'admin' ? `Dasbor Admin — ${official}` : official);
 }
 
 function subscribeInfo(all) {
@@ -451,7 +455,7 @@ function render(soft = false) {
   return renderPublic(r, soft);
 }
 const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${logoImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : APP.name)}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
-const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="">` : `<img src="icons/icon-192.png" alt="">`;
+const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="" data-logo>` : `<img src="icons/icon-192.png" alt="">`;
 
 // ================================================================ PUBLIK
 function renderPublic(r, soft) {
@@ -728,22 +732,18 @@ function pubInfoDetail(id) {
     }).catch(() => {});
     return `<section class="section narrow">${emptyBox('Memuat informasi… Jika tidak muncul, informasi mungkin sudah dihapus.')}</section>`;
   }
-  const words = plainText(i.isi).split(/\s+/).filter(Boolean).length;
-  return `<article class="section reader">
-    <a href="#/informasi" class="link reader-back">← Papan Informasi</a>
-    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(i.kategori || 'Informasi')}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}</div>
-      <h1>${esc(i.judul)}</h1>
-      <p class="reader-meta">${ic('cal')} ${esc(fmtDate(i.createdAt, true))} <span>·</span> ${Math.max(1, Math.round(words / 200))} menit baca</p>
-      ${penulisSign(i, true)}</header>
-    ${(i.tanggalAcara || i.lokasi) ? `<div class="event-box">${i.tanggalAcara ? `<span>${ic('cal')} ${esc(fmtDate(i.tanggalAcara))}${i.waktu ? ' • ' + esc(i.waktu) : ''}</span>` : ''}${i.lokasi ? `<span>${ic('loc')} ${esc(i.lokasi)}</span>` : ''}</div>` : ''}
-    ${i.gambar ? `<img class="article-img" src="${esc(i.gambar)}" alt="">` : ''}
-    <div class="article-body rich">${richRender(i.isi)}</div>
-    ${(i.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${i.media.map(mediaEmbed).join('')}</div>` : ''}
-    <div class="info-actions reader-actions">
-      <a class="btn btn-wa" href="${esc(waShareLink(infoMessage(i)))}" target="_blank" rel="noopener">${ic('wa')} Bagikan ke WhatsApp</a>
-      <button class="btn btn-ghost" data-copy-link="${esc(appLink('/informasi/' + i.id))}">${ic('copy')} Salin tautan</button>
-    </div>
-  </article>`;
+  const ev = [i.tanggalAcara && { icon: 'cal', text: fmtDate(i.tanggalAcara) + (i.waktu ? ' • ' + i.waktu : '') }, i.lokasi && { icon: 'loc', text: i.lokasi }];
+  const share = waShareLink(infoMessage(i));
+  return readerPage({
+    back: { href: '#/informasi', label: 'Papan Informasi' },
+    badges: `<span class="badge">${esc(i.kategori || 'Informasi')}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}`,
+    title: i.judul, date: fmtDate(i.createdAt, true), mins: readMins(plainText(i.isi)), byline: penulisSign(i, true), author: i.penulis?.nama ? penulisLabel(i.penulis) : '',
+    event: ev, cover: i.gambar, body: `<div class="article-body rich">${richRender(i.isi)}</div>`,
+    media: (i.media || []).length ? i.media.map(mediaEmbed).join('') : '',
+    actions: `<a class="btn btn-wa" href="${esc(share)}" target="_blank" rel="noopener">${ic('wa')} Bagikan ke WhatsApp</a><button class="btn btn-ghost" data-copy-link="${esc(appLink('/informasi/' + i.id))}">${ic('copy')} Salin tautan</button>`,
+    share: { href: share, label: 'Bagikan ke WhatsApp' },
+    othersTitle: 'Informasi lainnya', others: pubInfo().filter((x) => x.id !== i.id).slice(0, 4).map((x) => ({ href: `#/informasi/${x.id}`, title: x.judul, sub: [x.kategori, fmtDate(x.createdAt)].filter(Boolean).join(' · ') })),
+  });
 }
 
 function bindPublic() {

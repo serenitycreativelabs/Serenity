@@ -3,6 +3,7 @@ import { APP } from './config.js';
 import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, confirmDelete, can, logAudit, diff, insightsFromStats, pct } from './core.js';
 import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage, parseNum, fmtThousand, bindThousands } from './ui.js';
 import { exportExcel } from './exporter.js';
+import { readerPage, readMins } from './reader.js';
 import { richRender, bindRich, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText } from './rich.js';
 import { prayerTimes, PRAYER_NAMES, DEFAULT_SHOLAT, fmtMin, nowMinutes, dateInTz, hijriDate } from './praytimes.js';
 
@@ -223,14 +224,18 @@ export function renderKegiatanPublic(id) {
   const k = list.find((x) => x.id === id);
   if (!k) return `<section class="section reader">${emptyBox('Kegiatan tidak ditemukan atau sudah tidak aktif.')}</section>`;
   const msg = [`*KEGIATAN RUTIN — ${desaJenis().toUpperCase()} ${desaName().toUpperCase()}*`, '', `*${k.nama}*`, `📅 ${kgJadwal(k)}`, k.tempat ? `📍 ${k.tempat}` : '', k.pj ? `👤 PJ: ${k.pj}${k.hp ? ' (' + k.hp + ')' : ''}` : '', '', plainText(k.keterangan || '')].filter((x, i, a) => x || a[i - 1]).join('\n');
-  return `<article class="section reader">
-    <a href="#/kegiatan" class="link reader-back">← Kegiatan Rutin</a>
-    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(k.kategori || 'Kegiatan Rutin')}</span>${kegiatanToday(k, dateInTz(sholatCfg().tz)) ? '<span class="badge badge-ok">Hari ini</span>' : ''}</div><h1>${esc(k.nama)}</h1></header>
-    <div class="event-box"><span>${ic('cal')} ${esc(kgJadwal(k))}</span>${k.tempat ? `<span>${ic('loc')} ${esc(k.tempat)}</span>` : ''}${k.pj ? `<span>${ic('users')} PJ: ${esc(k.pj)}</span>` : ''}</div>
-    ${k.keterangan ? `<div class="article-body rich">${richRender(k.keterangan)}</div>` : '<p class="muted">Belum ada keterangan tambahan untuk kegiatan ini.</p>'}
-    ${(k.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${k.media.map(mediaEmbed).join('')}</div>` : ''}
-    <div class="info-actions reader-actions">${waNumber(k.hp) ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(k.hp, `Assalamu'alaikum, saya ingin bertanya tentang kegiatan ${k.nama}.`))}">${ic('wa')} Hubungi PJ</a>` : ''}<a class="btn btn-ghost" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${ic('send')} Bagikan</a></div>
-  </article>`;
+  const share = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  return readerPage({
+    back: { href: '#/kegiatan', label: 'Kegiatan Rutin' },
+    badges: `<span class="badge">${esc(k.kategori || 'Kegiatan Rutin')}</span>${kegiatanToday(k, dateInTz(sholatCfg().tz)) ? '<span class="badge badge-ok">Hari ini</span>' : ''}`,
+    title: k.nama, mins: k.keterangan ? readMins(plainText(k.keterangan)) : 0, author: k.pj ? `PJ: ${k.pj}` : '',
+    event: [{ icon: 'cal', text: kgJadwal(k) }, k.tempat && { icon: 'loc', text: k.tempat }, k.pj && { icon: 'users', text: `PJ: ${k.pj}` }],
+    body: k.keterangan ? `<div class="article-body rich">${richRender(k.keterangan)}</div>` : '<p class="muted">Belum ada keterangan tambahan untuk kegiatan ini.</p>',
+    media: (k.media || []).length ? k.media.map(mediaEmbed).join('') : '',
+    actions: `${waNumber(k.hp) ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(k.hp, `Assalamu'alaikum, saya ingin bertanya tentang kegiatan ${k.nama}.`))}">${ic('wa')} Hubungi PJ</a>` : ''}<a class="btn btn-ghost" target="_blank" rel="noopener" href="${esc(share)}">${ic('send')} Bagikan</a>`,
+    share: { href: share, label: 'Bagikan kegiatan' },
+    othersTitle: 'Kegiatan lainnya', others: list.filter((x) => x.id !== k.id).slice(0, 4).map((x) => ({ href: `#/kegiatan/${x.id}`, title: x.nama, sub: kgJadwal(x) })),
+  });
 }
 
 export function startPublicTickers() {

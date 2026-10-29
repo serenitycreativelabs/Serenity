@@ -318,6 +318,14 @@ export async function copyText(t) {
 }
 
 // Kompres gambar ke dataURL JPEG agar muat di dokumen Firestore (tanpa Storage berbayar)
+// Apakah gambar memiliki piksel transparan (dicek sampel agar cepat)
+function hasAlpha(ctx, w, h) {
+  try {
+    const d = ctx.getImageData(0, 0, w, h).data; const step = Math.max(1, Math.floor((w * h) / 40000)) * 4;
+    for (let i = 3; i < d.length; i += step) if (d[i] < 250) return true;
+  } catch { /* */ }
+  return false;
+}
 export function compressImage(file, maxW = 1100, quality = 0.72) {
   track('ul', 1, 'gambar');
   return new Promise((resolve, reject) => {
@@ -328,11 +336,25 @@ export function compressImage(file, maxW = 1100, quality = 0.72) {
       if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
-      let q = quality, out = c.toDataURL('image/jpeg', q);
-      while (out.length > 700_000 && q > 0.35) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
       URL.revokeObjectURL(url);
+      // Gambar berlatar transparan (PNG/WebP/GIF/SVG) tetap transparan — TIDAK diberi latar putih
+      if (/png|webp|gif|svg/i.test(file.type || '') && hasAlpha(ctx, w, h)) {
+        let out = c.toDataURL('image/png'), cw = w, ch = h;
+        // perkecil bertahap bila PNG terlalu besar (tetap transparan)
+        while (out.length > 700_000 && cw > 160) {
+          cw = Math.round(cw * 0.8); ch = Math.round(ch * 0.8);
+          const c2 = document.createElement('canvas'); c2.width = cw; c2.height = ch; c2.getContext('2d').drawImage(img, 0, 0, cw, ch); out = c2.toDataURL('image/png');
+        }
+        if (out.length <= 700_000) return resolve(out);
+        // cadangan terakhir: WebP transparan (browser yang tidak mendukung akan memberi PNG)
+        const wp = c.toDataURL('image/webp', 0.86); if (wp.startsWith('data:image/webp') && wp.length <= 700_000) return resolve(wp);
+      }
+      // Foto biasa → JPEG (latar putih hanya untuk gambar yang memang tidak transparan)
+      const j = document.createElement('canvas'); j.width = w; j.height = h; const jx = j.getContext('2d');
+      jx.fillStyle = '#fff'; jx.fillRect(0, 0, w, h); jx.drawImage(c, 0, 0);
+      let q = quality, out = j.toDataURL('image/jpeg', q);
+      while (out.length > 700_000 && q > 0.35) { q -= 0.1; out = j.toDataURL('image/jpeg', q); }
       resolve(out);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Berkas bukan gambar yang valid')); };

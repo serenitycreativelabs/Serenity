@@ -1,6 +1,6 @@
 # Serenity — Sistem Informasi Gampong Digital
 
-![versi](https://img.shields.io/badge/versi-2.8.1-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.9.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -8,6 +8,12 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 
 ---
 
+
+## Baru di v2.9.0 “Kirana”
+- 📰 **3 model tampilan baca** — A Kartu Baca, B Lembar Kertas, C Dua Kolom — dipilih Super Admin, rapi di desktop, tablet, ponsel & PWA.
+- 🖼️ Logo & ikon PNG transparan **tanpa latar putih**; layar pembuka PWA & pemuatan halaman mengikuti warna tema.
+- 🏷️ Judul tab resmi yang bergerak perlahan: “Portal Resmi Gampong Deah Glumpang Powered by © 2026 Serenity Creativa Labs.”
+- 💬 **Riwayat Chat Staf** di Audit Log: Super Admin membaca seluruh percakapan utuh + ekspor PDF/Excel.
 
 ## Baru di v2.8.0 “Nadi”
 - 💬 **Chat Staf privat** 1-lawan-1 untuk Kepala Dusun, Pengelola Lembaga, Admin & Super Admin — notifikasi pesan masuk di kanan bawah, lencana belum dibaca, tanda “Dibaca”, notifikasi perangkat.

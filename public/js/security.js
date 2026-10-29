@@ -189,9 +189,12 @@ function adminForm(u, main, preset = {}) {
 }
 
 // ---------------------------------------------------------------- Audit Log
-const auditState = { rows: [], last: null, done: false, f: { q: '', user: '', cat: '', from: '', to: '' } };
+const auditState = { rows: [], last: null, done: false, tab: 'semua', f: { q: '', user: '', cat: '', from: '', to: '' } };
+const auditTabs = (cur) => `<div class="tabs au-tabs"><button class="tab ${cur === 'semua' ? 'active' : ''}" data-autab="semua">${ic('log')} Semua Aktivitas</button><button class="tab ${cur === 'chat' ? 'active' : ''}" data-autab="chat">${ic('chat')} Riwayat Chat Staf</button></div>`;
+function bindAuditTabs(main) { $$('[data-autab]', main).forEach((b) => b.onclick = () => { auditState.tab = b.dataset.autab; viewAudit(main); }); }
 export function viewAudit(main) {
   state.view = 'form';
+  if (auditState.tab === 'chat') return viewChatHistory(main);
   main.innerHTML = loadingBox();
   auditState.rows = []; auditState.last = null; auditState.done = false;
   loadAudit().then(() => drawAudit(main)).catch((e) => { main.innerHTML = emptyBox('Gagal memuat audit log: ' + e.message); });
@@ -225,7 +228,7 @@ function drawAudit(main) {
   const logins = auditState.rows.filter((r) => r.action === 'login' && (toDate(r.at)?.getTime() || 0) > week).length;
   const fails = auditState.rows.filter((r) => /gagal|ditolak/.test(r.action) && (toDate(r.at)?.getTime() || 0) > week).length;
   const exp = auditState.rows.filter((r) => r.cat === 'export' && (toDate(r.at)?.getTime() || 0) > week).length;
-  main.innerHTML = `
+  main.innerHTML = `${auditTabs('semua')}
   <div class="stat-grid">
     <div class="stat"><span class="stat-ic">${ic('log')}</span><div><span class="stat-label">Aktivitas 24 jam</span><b class="stat-val">${fmtNum(r24.length)}</b><small class="muted">${fmtNum(auditState.rows.length)} catatan dimuat</small></div></div>
     <div class="stat"><span class="stat-ic">${ic('lock')}</span><div><span class="stat-label">Login 7 hari</span><b class="stat-val">${fmtNum(logins)}</b><small class="muted">${users.length} pengguna aktif tercatat</small></div></div>
@@ -249,7 +252,7 @@ function drawAudit(main) {
       <td class="small nowrap">${esc(fmtDate(r.at, true))}</td>
       <td class="small"><b>${esc(r.nama || '-')}</b><br><span class="muted">${esc(r.email)}</span> <span class="badge ${r.role === 'superadmin' ? 'badge-warn' : ''}">${esc(ROLE_LABEL[r.role] || r.role || '')}</span></td>
       <td><span class="badge badge-muted">${esc(AUDIT_CATS[r.cat] || r.cat)}</span></td>
-      <td>${esc(r.label)}${r.target ? `<br><small class="muted">${esc(String(r.target).slice(0, 120))}</small>` : ''}${r.changes ? `<br><small class="muted">${Object.keys(r.changes).length} perubahan field</small>` : ''}</td>
+      <td>${esc(r.label)}${r.cat === 'chat' && r.detail ? `<br><span class="au-chat-msg">“${esc(String(r.detail).slice(0, 220))}${String(r.detail).length > 220 ? '…' : ''}”</span>` : r.target ? `<br><small class="muted">${esc(String(r.target).slice(0, 120))}</small>` : ''}${r.changes ? `<br><small class="muted">${Object.keys(r.changes).length} perubahan field</small>` : ''}</td>
       <td class="small muted">${esc(r.device || '')}</td></tr>`).join('') || `<tr><td colspan="5">${emptyBox('Tidak ada aktivitas sesuai saringan')}</td></tr>`}</tbody></table></div>${rows.length > 600 ? '<p class="muted small">Menampilkan 600 teratas — persempit saringan atau ekspor untuk semua.</p>' : ''}`;
     $$('[data-au]').forEach((tr) => tr.onclick = () => auditDetail(auditState.rows.find((x) => x.id === tr.dataset.au)));
   };
@@ -265,15 +268,132 @@ function drawAudit(main) {
   const body = () => filteredAudit().map((r) => [fmtDate(r.at, true), r.nama || '', r.email || '', ROLE_LABEL[r.role] || r.role || '', AUDIT_CATS[r.cat] || r.cat, r.label, r.target || '', r.detail || '', r.changes ? Object.entries(r.changes).map(([k, [a, b]]) => `${k}: ${a} → ${b}`).join('; ') : '', r.device || '', r.session || '']);
   $('#au-xls').onclick = () => { logAudit('export', 'audit_xls', 'Mengekspor audit log (Excel)'); exportExcel(`Audit_Log_${todayISO()}`, [{ name: 'Audit Log', title: 'Audit Log Aktivitas', head, body: body() }]); };
   $('#au-pdf').onclick = () => { logAudit('export', 'audit_pdf', 'Mengekspor audit log (PDF)'); exportPdf({ filename: `Audit_Log_${todayISO()}`, title: 'Audit Log Aktivitas', subtitle: `${filteredAudit().length} aktivitas`, sections: [{ head: ['Waktu', 'Pengguna', 'Kategori', 'Aktivitas', 'Objek', 'Perangkat'], body: filteredAudit().map((r) => [fmtDate(r.at, true), `${r.nama || ''} (${r.email})`, AUDIT_CATS[r.cat] || r.cat, r.label, String(r.target || '').slice(0, 80), r.device || '']) }] }); };
+  bindAuditTabs(main);
   draw();
 }
 function auditDetail(r) {
   if (!r) return;
   modal({
     title: 'Detail Aktivitas', size: 'lg',
-    body: `<dl class="detail"><dt>Waktu</dt><dd>${esc(fmtDate(r.at, true))}</dd><dt>Pengguna</dt><dd>${esc(r.nama || '')} — ${esc(r.email)} (${esc(ROLE_LABEL[r.role] || r.role || '')})</dd><dt>Kategori</dt><dd>${esc(AUDIT_CATS[r.cat] || r.cat)}</dd><dt>Kode aksi</dt><dd><code>${esc(r.action)}</code></dd><dt>Aktivitas</dt><dd>${esc(r.label)}</dd>${r.target ? `<dt>Objek</dt><dd>${esc(r.target)}</dd>` : ''}${r.count != null ? `<dt>Jumlah</dt><dd>${esc(r.count)}</dd>` : ''}${r.detail ? `<dt>Rincian</dt><dd style="white-space:pre-wrap">${esc(r.detail)}</dd>` : ''}<dt>Perangkat</dt><dd>${esc(r.device || '')}</dd><dt>Halaman</dt><dd><code>${esc(r.path || '')}</code></dd><dt>ID sesi</dt><dd><code>${esc(r.session || '')}</code></dd><dt>ID log</dt><dd><code>${esc(r.id)}</code></dd></dl>
+    body: `<dl class="detail"><dt>Waktu</dt><dd>${esc(fmtDate(r.at, true))}</dd><dt>Pengguna</dt><dd>${esc(r.nama || '')} — ${esc(r.email)} (${esc(ROLE_LABEL[r.role] || r.role || '')})</dd><dt>Kategori</dt><dd>${esc(AUDIT_CATS[r.cat] || r.cat)}</dd><dt>Kode aksi</dt><dd><code>${esc(r.action)}</code></dd><dt>Aktivitas</dt><dd>${esc(r.label)}</dd>${r.cat === 'chat' ? `<dt>Penerima</dt><dd>${esc(r.toNama || r.target || '')}</dd>` : ''}${r.target ? `<dt>Objek</dt><dd>${esc(r.target)}</dd>` : ''}${r.count != null ? `<dt>Jumlah</dt><dd>${esc(r.count)}</dd>` : ''}${r.detail ? `<dt>${r.cat === 'chat' ? 'Isi pesan' : 'Rincian'}</dt><dd style="white-space:pre-wrap">${esc(r.detail)}</dd>` : ''}<dt>Perangkat</dt><dd>${esc(r.device || '')}</dd><dt>Halaman</dt><dd><code>${esc(r.path || '')}</code></dd><dt>ID sesi</dt><dd><code>${esc(r.session || '')}</code></dd><dt>ID log</dt><dd><code>${esc(r.id)}</code></dd></dl>
       ${r.changes ? `<h4 class="detail-h">Perubahan Data</h4><div class="table-wrap"><table class="table small"><thead><tr><th>Field</th><th>Sebelum</th><th>Sesudah</th></tr></thead><tbody>${Object.entries(r.changes).map(([k, [a, b]]) => `<tr><td>${esc(k)}</td><td class="diff-old">${esc(a)}</td><td class="diff-new">${esc(b)}</td></tr>`).join('')}</tbody></table></div>` : ''}`,
   });
+}
+
+// ---------------------------------------------------------------- Riwayat Chat Staf (v2.9, khusus Super Admin)
+// Disusun ulang dari Audit Log (kategori "chat"): setiap pesan yang terkirim tersalin utuh ke sini — termasuk
+// percakapan yang tidak melibatkan Super Admin. Audit Log tidak bisa diubah/dihapus siapa pun.
+const chatH = { rows: [], last: null, done: false, sel: '', q: '', user: '', from: '', to: '', mode: '' };
+async function loadChatAudit() {
+  try {
+    const parts = [F.collection(F.db, 'audit'), F.where('cat', '==', 'chat'), F.orderBy('at', 'desc')];
+    if (chatH.last) parts.push(F.startAfter(chatH.last));
+    parts.push(F.limit(1000));
+    const s = await F.getDocs(F.query(...parts));
+    chatH.rows.push(...s.docs.map((d) => ({ id: d.id, ...d.data() })));
+    chatH.last = s.docs[s.docs.length - 1] || chatH.last; chatH.done = s.docs.length < 1000; chatH.mode = 'index';
+  } catch (e) {
+    // Indeks belum siap (baru di-deploy) → baca audit log biasa lalu saring kategori chat
+    console.warn('riwayat chat via indeks', e?.code || e);
+    let last = null, n = 0; chatH.rows = [];
+    do {
+      const parts = [F.collection(F.db, 'audit'), F.orderBy('at', 'desc')]; if (last) parts.push(F.startAfter(last)); parts.push(F.limit(1000));
+      const s = await F.getDocs(F.query(...parts)); s.docs.forEach((d) => { const r = d.data(); if (r.cat === 'chat') chatH.rows.push({ id: d.id, ...r }); });
+      last = s.docs[s.docs.length - 1]; n++; if (s.docs.length < 1000) break;
+    } while (n < 5);
+    chatH.done = true; chatH.mode = 'scan';
+  }
+}
+function chatThreads() {
+  const people = new Map(); // uid → { nama, email, role }
+  for (const r of chatH.rows) if (r.uid) people.set(r.uid, { nama: r.role === 'superadmin' ? `Super Admin${r.nama && r.nama !== 'Super Admin' ? ' (' + r.nama + ')' : ''}` : r.nama || r.email || 'Staf', email: r.email || '', role: r.role || '' });
+  const threads = new Map();
+  for (const r of chatH.rows) {
+    const cid = r.targetId || [r.uid, r.to].filter(Boolean).sort().join('_'); if (!cid) continue;
+    const t = threads.get(cid) || { cid, msgs: [], uids: cid.split('_'), names: {} };
+    t.msgs.push(r);
+    const other = r.to || t.uids.find((u) => u !== r.uid);
+    if (other && !t.names[other] && r.toNama) t.names[other] = r.toNama;
+    threads.set(cid, t);
+  }
+  for (const t of threads.values()) {
+    t.msgs.sort((a, b) => (toDate(a.at)?.getTime() || 0) - (toDate(b.at)?.getTime() || 0));
+    t.who = t.uids.map((u) => ({ uid: u, ...(people.get(u) || { nama: t.names[u] || 'Staf', email: '', role: '' }) }));
+    t.lastAt = toDate(t.msgs[t.msgs.length - 1]?.at)?.getTime() || 0;
+  }
+  return { threads: [...threads.values()].sort((a, b) => b.lastAt - a.lastAt), people };
+}
+function viewChatHistory(main) {
+  main.innerHTML = auditTabs('chat') + loadingBox();
+  bindAuditTabs(main);
+  chatH.rows = []; chatH.last = null; chatH.done = false;
+  loadChatAudit().then(() => drawChatHistory(main)).catch((e) => { main.innerHTML = auditTabs('chat') + emptyBox('Gagal memuat riwayat chat: ' + humanErr(e)); bindAuditTabs(main); });
+  logAudit('akses', 'lihat_riwayat_chat', 'Membuka Riwayat Chat Staf di Audit Log');
+}
+const whoLabel = (p) => `${p.nama}${p.role && p.role !== 'superadmin' ? ` · ${ROLE_LABEL[p.role] || p.role}` : ''}`;
+function drawChatHistory(main) {
+  const { threads, people } = chatThreads();
+  const from = chatH.from ? new Date(chatH.from + 'T00:00:00').getTime() : 0, to = chatH.to ? new Date(chatH.to + 'T23:59:59').getTime() : Infinity;
+  const q = norm(chatH.q);
+  const list = threads.filter((t) => (!chatH.user || t.uids.includes(chatH.user))
+    && t.msgs.some((m) => { const ts = toDate(m.at)?.getTime() || 0; return ts >= from && ts <= to; })
+    && (!q || norm(t.who.map((w) => w.nama + ' ' + w.email).join(' ') + ' ' + t.msgs.map((m) => m.detail).join(' ')).includes(q)));
+  if (chatH.sel && !list.find((t) => t.cid === chatH.sel)) chatH.sel = '';
+  const sel = list.find((t) => t.cid === chatH.sel);
+  const total = chatH.rows.length;
+  main.innerHTML = `${auditTabs('chat')}
+  <div class="callout">${ic('lock')}<div><b>Riwayat Chat Staf — khusus Super Admin</b><p>Seluruh isi pesan chat antar Kepala Dusun, Pengelola, Admin & Super Admin tersalin otomatis ke Audit Log sejak fitur chat aktif. Catatan ini permanen (tidak bisa diubah atau dihapus siapa pun) dan setiap kali halaman ini dibuka juga tercatat.</p></div></div>
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-ic">${ic('chat')}</span><div><span class="stat-label">Percakapan</span><b class="stat-val">${fmtNum(threads.length)}</b><small class="muted">antar ${fmtNum(people.size)} staf</small></div></div>
+    <div class="stat"><span class="stat-ic">${ic('send')}</span><div><span class="stat-label">Pesan tercatat</span><b class="stat-val">${fmtNum(total)}</b><small class="muted">${chatH.done ? 'semua dimuat' : 'sebagian dimuat'}</small></div></div>
+    <div class="stat"><span class="stat-ic">${ic('cal')}</span><div><span class="stat-label">Pesan 24 jam</span><b class="stat-val">${fmtNum(chatH.rows.filter((r) => (toDate(r.at)?.getTime() || 0) > Date.now() - 864e5).length)}</b><small class="muted">terakhir ${threads[0] ? esc(fmtDate(new Date(threads[0].lastAt), true)) : '–'}</small></div></div>
+  </div>
+  <div class="toolbar">
+    <div class="search">${ic('search')}<input id="ch-q" placeholder="Cari nama staf atau isi pesan…" value="${esc(chatH.q)}"></div>
+    <select id="ch-user" title="Saring per staf"><option value="">Semua staf</option>${[...people.entries()].sort((a, b) => a[1].nama.localeCompare(b[1].nama)).map(([u, p]) => `<option value="${esc(u)}" ${chatH.user === u ? 'selected' : ''}>${esc(whoLabel(p))}</option>`).join('')}</select>
+    <input type="date" id="ch-from" value="${esc(chatH.from)}" title="Dari tanggal"><input type="date" id="ch-to" value="${esc(chatH.to)}" title="Sampai tanggal">
+    <button class="btn btn-ghost btn-sm" id="ch-ref">${ic('refresh')} Muat ulang</button>
+  </div>
+  <div class="ch-wrap${sel ? ' has-sel' : ''}">
+    <div class="ch-list">${list.length ? list.map((t) => { const lm = t.msgs[t.msgs.length - 1]; return `<button type="button" class="ch-item${t.cid === chatH.sel ? ' on' : ''}" data-ch="${esc(t.cid)}">
+        <b>${t.who.map((w) => esc(w.nama)).join(' <span class="ch-x">⇄</span> ')}</b>
+        <small>${t.who.map((w) => esc(w.role ? ROLE_LABEL[w.role] || w.role : '')).filter(Boolean).join(' · ')}</small>
+        <span class="ch-prev"><i>${esc((people.get(lm.uid)?.nama || lm.nama || '').split(' (')[0])}:</i> ${esc(String(lm.detail || '').replace(/\s+/g, ' ').slice(0, 90))}</span>
+        <span class="ch-meta">${fmtNum(t.msgs.length)} pesan · ${esc(fmtDate(new Date(t.lastAt), true))}</span></button>`; }).join('') : emptyBox(total ? 'Tidak ada percakapan sesuai saringan.' : 'Belum ada pesan chat yang tercatat.')}
+      ${chatH.done ? '' : '<button class="btn btn-ghost btn-sm btn-block" id="ch-more">Muat 1.000 pesan sebelumnya</button>'}</div>
+    <div class="ch-view">${sel ? chatTranscript(sel, from, to) : `<div class="ch-empty">${ic('chat')}<p>Pilih percakapan di sebelah kiri untuk membaca seluruh isinya.</p></div>`}</div>
+  </div>
+  ${chatH.mode === 'scan' ? '<p class="muted small">Catatan: indeks pencarian riwayat chat sedang disiapkan — sementara dibaca dari 5.000 aktivitas audit terbaru.</p>' : ''}`;
+  bindAuditTabs(main);
+  const re = () => drawChatHistory(main);
+  $('#ch-q').oninput = debounce((e) => { chatH.q = e.target.value; re(); $('#ch-q')?.focus(); const el = $('#ch-q'); if (el) el.setSelectionRange(el.value.length, el.value.length); }, 250);
+  $('#ch-user').onchange = (e) => { chatH.user = e.target.value; re(); };
+  $('#ch-from').onchange = (e) => { chatH.from = e.target.value; re(); };
+  $('#ch-to').onchange = (e) => { chatH.to = e.target.value; re(); };
+  $('#ch-ref').onclick = () => viewChatHistory(main);
+  $('#ch-more')?.addEventListener('click', async () => { await loadChatAudit(); re(); });
+  $$('[data-ch]', main).forEach((b) => b.onclick = () => { chatH.sel = b.dataset.ch; re(); $('.ch-view', main)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+  $('#ch-back')?.addEventListener('click', () => { chatH.sel = ''; re(); });
+  if (sel) {
+    const box = $('.ch-msgs', main); if (box) box.scrollTop = box.scrollHeight;
+    const rows = () => sel.msgs.map((m) => [fmtDate(m.at, true), (people.get(m.uid)?.nama || m.nama || ''), m.email || '', ROLE_LABEL[m.role] || m.role || '', m.toNama || m.target || '', m.detail || '', m.device || '']);
+    const title = `Riwayat Chat — ${sel.who.map((w) => w.nama).join(' & ')}`;
+    $('#ch-xls').onclick = () => { logAudit('export', 'chat_xls', `Mengekspor riwayat chat (Excel): ${sel.who.map((w) => w.nama).join(' & ')}`); exportExcel(`Riwayat_Chat_${todayISO()}`, [{ name: 'Riwayat Chat', title, head: ['Waktu', 'Pengirim', 'Email', 'Peran', 'Penerima', 'Isi pesan', 'Perangkat'], body: rows() }]); };
+    $('#ch-pdf').onclick = () => { logAudit('export', 'chat_pdf', `Mengekspor riwayat chat (PDF): ${sel.who.map((w) => w.nama).join(' & ')}`); exportPdf({ filename: `Riwayat_Chat_${todayISO()}`, title, subtitle: `${sel.msgs.length} pesan`, sections: [{ head: ['Waktu', 'Pengirim', 'Penerima', 'Isi pesan'], body: rows().map((r) => [r[0], r[1], r[4], r[5]]) }] }); };
+  }
+}
+function chatTranscript(t, from, to) {
+  const left = t.who[0]?.uid; let day = '';
+  const msgs = t.msgs.filter((m) => { const ts = toDate(m.at)?.getTime() || 0; return ts >= from && ts <= to; });
+  return `<div class="ch-head"><button type="button" class="icon-btn ch-back" id="ch-back" aria-label="Kembali ke daftar">${ic('back')}</button>
+      <div><b>${t.who.map((w) => esc(w.nama)).join(' ⇄ ')}</b><small>${t.who.map((w) => esc([ROLE_LABEL[w.role] || w.role, w.email].filter(Boolean).join(' · '))).join('  |  ')}</small></div>
+      <span class="spacer"></span><button class="btn btn-ghost btn-sm" id="ch-xls">${ic('download')} Excel</button><button class="btn btn-ghost btn-sm" id="ch-pdf">${ic('file')} PDF</button></div>
+    <div class="ch-msgs">${msgs.map((m) => {
+      const d = toDate(m.at) || new Date(); const dk = d.toDateString();
+      const sep = dk !== day ? `<div class="ct-day"><span>${esc(d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</span></div>` : ''; day = dk;
+      const mine = m.uid !== left;
+      return `${sep}<div class="ct-msg${mine ? ' me' : ''}"><div class="ct-bub"><span class="ch-from">${esc((m.role === 'superadmin' ? 'Super Admin' : m.nama) || m.email || '')}</span>${esc(m.detail || '(pesan tanpa isi tercatat)').replace(/\n/g, '<br>')}<time>${esc(d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }))} · ${esc(m.device || '')}</time></div></div>`;
+    }).join('') || emptyBox('Tidak ada pesan pada rentang tanggal ini.')}</div>`;
 }
 
 // ---------------------------------------------------------------- Cadangan & Pemulihan

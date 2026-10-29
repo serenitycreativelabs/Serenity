@@ -36,6 +36,12 @@ export const MODELS = {
   majalah: { label: 'Majalah — berita utama ditonjolkan dengan gambar besar', icon: '▤' },
 };
 // Efek visual (ringan: blur hanya pada header, footer, panel samping & dialog; latar beranimasi memakai GPU)
+// v2.9: model tampilan baca (Papan Informasi, Berita Lembaga, Kegiatan Rutin) — dipilih Super Admin
+export const READ_MODELS = {
+  kartu: { label: 'A · Kartu Baca', desc: 'Satu kartu rapi mengikuti warna tema, sampul tipis, tombol di bilah bawah' },
+  kertas: { label: 'B · Lembar Kertas', desc: 'Ala koran/majalah: kertas krem lembut, judul di tengah, huruf serif, huruf awal besar' },
+  duakolom: { label: 'C · Dua Kolom', desc: 'Kartu tulisan + panel info & tulisan lainnya di samping (otomatis satu kolom di layar sempit)' },
+};
 export const EFFECTS = {
   solid: { label: 'Solid & Bersih', desc: 'Tanpa efek, paling ringan' },
   glass: { label: 'Glassy', desc: 'Panel kaca bening (glassmorphism)' },
@@ -133,7 +139,7 @@ export const STYLE_PRESETS = {
   genzacid: { label: 'Gen Z Acid', desc: 'Indigo × lime, Syne + Space Grotesk', badge: 'BARU', tema: { preset: 'acid', efek: 'genz', font: 'modern', fHead: 'syne', fBody: 'spacegrotesk', mode: 'light', radius: 'kapsul', model: 'kartu', fx: { cursor: 'trail', ikon: 'sedang', click: 'confetti', magnetic: true } } },
   genzsunset: { label: 'Gen Z Sunset', desc: 'Oranye-magenta, Bebas Neue + Outfit', badge: 'BARU', tema: { preset: 'sunset', efek: 'genz', font: 'modern', fHead: 'bebas', fBody: 'outfit', mode: 'light', radius: 'bulat', model: 'kartu', fx: { cursor: 'blob', ikon: 'sedang', click: 'sparkle', magnetic: true } } },
 };
-export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', fHead: '', fBody: '', radius: 'sedang', mode: 'auto', toggle: true };
+export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', fHead: '', fBody: '', radius: 'sedang', mode: 'auto', toggle: true, baca: 'kartu' };
 
 // Muat huruf Google Fonts sesuai kebutuhan (tidak membebani halaman bila tidak dipakai)
 export function ensureFonts(keys) {
@@ -180,15 +186,20 @@ export function applyTheme(tema, { fromServer = false } = {}) {
   html.dataset.model = MODELS[currentTema.model] ? currentTema.model : 'klasik';
   html.dataset.font = currentTema.font; html.dataset.efek = EFFECTS[currentTema.efek] ? currentTema.efek : 'solid';
   html.dataset.mono = fp.mono ? '1' : '';
+  html.dataset.baca = READ_MODELS[currentTema.baca] ? currentTema.baca : 'kartu';
   html.dataset.theme = resolvedMode();
+  // Warna dasar halaman ditempel langsung di <html> → tidak ada kilatan layar putih saat memuat (desktop, ponsel, PWA)
+  const pageBg = html.dataset.theme === 'dark' ? (p.bgDark || '#0d1117') : (p.bg || '#f5f6f8');
+  html.style.backgroundColor = pageBg; html.style.colorScheme = html.dataset.theme;
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', html.dataset.theme === 'dark' ? (p.bgDark || '#0f1419') : (p.surface || '#ffffff'));
   // Simpan cuplikan tema yang sudah diterapkan → dipakai skrip awal di index.html (sebelum JavaScript utama berjalan)
   if (fromServer) {
     try {
       localStorage.setItem('dd:tema', JSON.stringify(tema || {}));
-      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono, fh: html.dataset.fh, ican: html.dataset.ican }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, links: [fp.gf ? `https://fonts.googleapis.com/css2?${fp.gf}&display=swap` : '', fontUrl(fB), fontUrl(fH)].filter(Boolean), meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
+      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/(color-scheme|background-color)[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono, fh: html.dataset.fh, ican: html.dataset.ican, baca: html.dataset.baca }, bgL: p.bg || '#f5f6f8', bgD: p.bgDark || '#0d1117', metaL: p.surface || '#ffffff', metaD: p.bgDark || '#0f1419', mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, links: [fp.gf ? `https://fonts.googleapis.com/css2?${fp.gf}&display=swap` : '', fontUrl(fB), fontUrl(fH)].filter(Boolean), meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
     } catch { /* */ }
   }
+  refreshManifest();
   $$('[data-theme-toggle]').forEach((b) => { b.hidden = currentTema.toggle === false; b.innerHTML = themeIcon(); b.title = html.dataset.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'; });
 }
 mq.addEventListener?.('change', () => applyTheme(currentTema));
@@ -203,47 +214,69 @@ export function toggleTheme() {
 document.addEventListener('click', (e) => { if (e.target.closest('[data-theme-toggle]')) toggleTheme(); });
 
 // ---------------------------------------------------------------- ikon aplikasi (tab browser & layar utama)
-const DEFAULT_ICONS = { svg: 'icons/favicon.svg', png: 'icons/icon-192.png', apple: 'icons/apple-touch-icon.png' };
-let iconKey = null, manifestUrl = '';
+const DEFAULT_ICONS = { svg: 'icons/favicon.svg', png: 'icons/icon-192.png', apple: 'icons/apple-touch-icon.png', maskable: 'icons/maskable-512.png' };
+let iconKey = null, manifestUrl = '', iconState = { src: '', maskable: '', appName: '' }, manT = 0;
 export function applyIcon(ikon, appName = '') {
-  const src = ikon?.src && (ikon.src.startsWith('data:image/') || /^https:\/\//.test(ikon.src)) ? ikon.src : '';
+  const ok = (u) => u && (u.startsWith('data:image/') || /^https:\/\//.test(u));
+  const src = ok(ikon?.src) ? ikon.src : ''; const maskable = ok(ikon?.maskable) ? ikon.maskable : '';
+  iconState = { src, maskable, appName: appName || iconState.appName };
   const key = src ? src.length + src.slice(-40) : '';
-  if (key === iconKey) return; iconKey = key;
-  try { if (src && src.length < 250000) localStorage.setItem('dd:icon', src); else localStorage.removeItem('dd:icon'); } catch { /* */ }
-  const head = document.head;
-  head.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="shortcut icon"]').forEach((el) => el.remove());
-  const add = (rel, href, type = '', sizes = '') => { const el = document.createElement('link'); el.rel = rel; el.href = href; if (type) el.type = type; if (sizes) el.setAttribute('sizes', sizes); head.appendChild(el); };
-  if (src) { add('icon', src); add('apple-touch-icon', src); }
-  else { add('icon', DEFAULT_ICONS.svg, 'image/svg+xml'); add('icon', DEFAULT_ICONS.png, 'image/png', '192x192'); add('apple-touch-icon', DEFAULT_ICONS.apple); }
-  // Manifest dinamis agar ikon "Pasang aplikasi" ikut berubah
-  const man = head.querySelector('link[rel="manifest"]');
-  if (!man) return;
-  if (manifestUrl) { URL.revokeObjectURL(manifestUrl); manifestUrl = ''; }
-  if (!src) { man.href = 'manifest.webmanifest'; return; }
-  fetch('manifest.webmanifest').then((r) => r.json()).then((m) => {
-    const base = new URL('./', location.href).href;
-    const abs = (u) => new URL(u, base).href;
-    const icons = [{ src, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src, sizes: '192x192', type: 'image/png', purpose: 'any' }];
-    const out = { ...m, name: appName ? `${appName} — ${m.name.split(' — ')[1] || ''}`.trim() : m.name, id: abs(m.id || './'), start_url: abs(m.start_url || './'), scope: abs(m.scope || './'), icons,
-      shortcuts: (m.shortcuts || []).map((s) => ({ ...s, url: abs(s.url), icons: [{ src, sizes: '192x192' }] })) };
-    manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/manifest+json' }));
-    man.href = manifestUrl;
-  }).catch(() => {});
+  if (key !== iconKey) {
+    iconKey = key;
+    try { if (src && src.length < 250000) localStorage.setItem('dd:icon', src); else localStorage.removeItem('dd:icon'); } catch { /* */ }
+    const head = document.head;
+    head.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="shortcut icon"]').forEach((el) => el.remove());
+    const add = (rel, href, type = '', sizes = '') => { const el = document.createElement('link'); el.rel = rel; el.href = href; if (type) el.type = type; if (sizes) el.setAttribute('sizes', sizes); head.appendChild(el); };
+    // PNG transparan dipakai apa adanya di tab browser (tanpa latar putih). Ikon layar utama iOS memakai versi berlatar warna tema.
+    if (src) { add('icon', src, 'image/png'); add('apple-touch-icon', maskable || src); }
+    else { add('icon', DEFAULT_ICONS.svg, 'image/svg+xml'); add('icon', DEFAULT_ICONS.png, 'image/png', '192x192'); add('apple-touch-icon', DEFAULT_ICONS.apple); }
+  }
+  refreshManifest();
 }
-// Olah gambar unggahan menjadi ikon PNG persegi (default 256 px) — bisa diberi latar & sudut membulat
-export async function makeIconPng(fileOrUrl, { size = 256, bg = '', rounded = true, padding = 0 } = {}) {
+// Manifest dinamis: ikon kustom + warna latar/tema mengikuti tema website → layar pembuka PWA tidak putih
+export function refreshManifest() {
+  clearTimeout(manT);
+  manT = setTimeout(() => {
+    const man = document.head.querySelector('link[rel="manifest"]'); if (!man) return;
+    const html = document.documentElement; const cs = getComputedStyle(html);
+    const bg = html.style.backgroundColor || cs.getPropertyValue('--bg').trim() || '#f5f6f8';
+    const theme = document.querySelector('meta[name=theme-color]')?.getAttribute('content') || cs.getPropertyValue('--brand').trim();
+    const { src, maskable, appName } = iconState;
+    fetch('manifest.webmanifest').then((r) => r.json()).then((m) => {
+      const base = new URL('./', location.href).href; const abs = (u) => new URL(u, base).href;
+      const icons = src
+        ? [{ src, sizes: '512x512', type: 'image/png', purpose: 'any' }, { src, sizes: '192x192', type: 'image/png', purpose: 'any' }, ...(maskable ? [{ src: maskable, sizes: '512x512', type: 'image/png', purpose: 'maskable' }] : [])]
+        : (m.icons || []).map((i) => ({ ...i, src: abs(i.src) }));
+      const sc = src ? [{ src: maskable || src, sizes: '192x192' }] : null;
+      const out = { ...m, name: appName ? `${appName} — ${m.name.split(' — ')[1] || ''}`.trim() : m.name, id: abs(m.id || './'), start_url: abs(m.start_url || './'), scope: abs(m.scope || './'), icons,
+        background_color: bg, theme_color: bg || theme || m.theme_color,
+        shortcuts: (m.shortcuts || []).map((s) => ({ ...s, url: abs(s.url), icons: sc || (s.icons || []).map((i) => ({ ...i, src: abs(i.src) })) })) };
+      if (manifestUrl) URL.revokeObjectURL(manifestUrl);
+      manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/manifest+json' }));
+      man.href = manifestUrl;
+    }).catch(() => {});
+  }, 300);
+}
+// Olah gambar unggahan menjadi ikon PNG persegi (default 256 px).
+// fit 'contain' = logo utuh tanpa terpotong (bagian kosong tetap TRANSPARAN), 'cover' = isi penuh (tepi terpotong)
+export async function makeIconPng(fileOrUrl, { size = 256, bg = '', rounded = true, padding = 0, fit = 'contain' } = {}) {
   const img = await new Promise((res, rej) => {
     const im = new Image(); im.crossOrigin = 'anonymous';
     im.onload = () => res(im); im.onerror = () => rej(new Error('Gambar tidak bisa dibaca (pastikan file gambar / URL bisa diakses publik).'));
     im.src = typeof fileOrUrl === 'string' ? fileOrUrl : URL.createObjectURL(fileOrUrl);
   });
   const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d');
+  x.clearRect(0, 0, size, size);
   const rad = rounded ? size * 0.22 : 0;
-  x.beginPath(); x.roundRect ? x.roundRect(0, 0, size, size, rad) : x.rect(0, 0, size, size); x.closePath(); x.clip();
-  if (bg) { x.fillStyle = bg; x.fillRect(0, 0, size, size); }
-  const inner = size - padding * 2; const sc = Math.max(inner / img.width, inner / img.height);
+  if (bg) { x.save(); x.beginPath(); x.roundRect ? x.roundRect(0, 0, size, size, rad) : x.rect(0, 0, size, size); x.closePath(); x.clip(); x.fillStyle = bg; x.fillRect(0, 0, size, size); x.restore(); }
+  const inner = size - padding * 2;
+  const sc = fit === 'cover' ? Math.max(inner / img.width, inner / img.height) : Math.min(inner / img.width, inner / img.height);
   const w = img.width * sc, h = img.height * sc;
+  x.save();
+  if (rounded && (bg || fit === 'cover')) { x.beginPath(); x.roundRect ? x.roundRect(0, 0, size, size, rad) : x.rect(0, 0, size, size); x.closePath(); x.clip(); }
+  x.imageSmoothingQuality = 'high';
   x.drawImage(img, padding + (inner - w) / 2, padding + (inner - h) / 2, w, h);
+  x.restore();
   return c.toDataURL('image/png');
 }
 

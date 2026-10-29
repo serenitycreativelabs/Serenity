@@ -1,5 +1,29 @@
 # Catatan Perubahan
 
+## v2.9.0 “Kirana” — 2026.10.29 (Build 2026.10.29 · R16 · Stable)
+### Model Tampilan Baca (Super Admin › Tampilan & Tema)
+- Tiga model untuk halaman baca **Papan Informasi**, **Berita & Kegiatan Lembaga**, dan **Kegiatan Rutin**:
+  - **A · Kartu Baca** (bawaan) — satu kartu pekat mengikuti warna tema, sampul tipis di atas, judul & huruf lebih ringkas, subjudul beraksen, tombol bagikan di bilah bawah kartu.
+  - **B · Lembar Kertas** — ala koran/majalah: kertas krem lembut (arang hangat di mode gelap), judul di tengah, huruf serif, huruf awal besar.
+  - **C · Dua Kolom** — kartu tulisan + panel samping (tanggal, waktu baca, penulis, info acara, tombol bagikan, tulisan lainnya) yang menempel saat digulir. Otomatis menjadi satu kolom bila ruang baca sempit (ponsel, tablet, atau tata letak dengan panel samping).
+- Ukuran menyesuaikan **lebar ruang baca** (container query), bukan lebar layar → rapi di desktop, tablet, ponsel & PWA serta di semua model tata letak.
+- Tulisan selalu berada di atas kartu pekat sehingga **kontras tetap jelas** di atas efek Gen Z, Aurora, Kaca, macOS, maupun foto/video latar belakang.
+- Daftar “tulisan lainnya” ringkas di bawah setiap tulisan; tombol **Salin tautan** kini juga ada di berita lembaga.
+### Logo & ikon transparan — tanpa latar putih
+- Gambar PNG/WebP/GIF/SVG berlatar transparan **tetap transparan** saat diunggah (logo desa, logo lembaga, foto, dll.). Sebelumnya semua gambar diubah menjadi JPEG berlatar putih. Foto biasa tetap JPEG agar hemat ukuran.
+- Kotak logo di header, menu admin, layar login & layar memuat tidak lagi memberi latar; logo ditampilkan utuh (tidak terpotong).
+- **Ikon Aplikasi**: logo kini ditampilkan utuh tanpa terpotong (opsi baru “Isi penuh (potong tepi)”), bagian kosong tetap transparan di tab browser desktop, ponsel & tablet. Otomatis dibuat juga **ikon aplikasi berlatar warna tema** untuk layar utama Android/iOS & PWA (sistem operasi ponsel tidak menampilkan ikon transparan — Android memberi lingkaran putih), sehingga tidak ada latar putih.
+- **Tanpa kilatan layar putih**: warna dasar tema dipasang sebelum halaman dimuat, dan layar pembuka PWA (warna latar & tema manifest) mengikuti tema website, termasuk mode gelap.
+### Judul tab browser berjalan
+- Judul tab kini **“Portal Resmi Gampong Deah Glumpang Powered by © 2026 Serenity Creativa Labs.”** dan bergerak perlahan dari kanan ke kiri (1 karakter tiap 0,28 detik, jeda singkat di awal tiap putaran) di desktop, ponsel, tablet, dan bilah judul jendela PWA. Dasbor admin: “Dasbor Admin — …”.
+### Riwayat Chat Staf (Audit Log › tab baru, khusus Super Admin)
+- Seluruh isi chat antar Kepala Dusun, Pengelola, Admin & Super Admin dapat **dibaca utuh per percakapan** (gelembung pesan, pengirim, penerima, tanggal, jam, perangkat), dengan pencarian isi pesan, saringan per staf & rentang tanggal, serta **ekspor PDF/Excel** per percakapan.
+- Tabel Audit Log kini menampilkan **isi pesan** langsung pada baris Chat Staf; detail aktivitas menampilkan penerima & isi pesan.
+- Setiap pembukaan Riwayat Chat dan ekspornya juga tercatat di Audit Log.
+### Firestore
+- Rules: ikon aplikasi boleh menyimpan versi ikon layar utama (`ikon.maskable`).
+- Indeks baru `audit (cat, at)` untuk Riwayat Chat (bila belum siap, otomatis membaca dari audit log terbaru).
+
 ## v2.8.1 “Nadi” — 2026.10.29 (Build 2026.10.29 · R15 · Stable)
 ### Perbaikan
 - **Dasbor kadang tertahan di animasi loading.** Penyebab: saat versi data di cache browser sama persis dengan server, Firestore tidak mengirim kabar “sudah dikonfirmasi server”, sehingga sinkron bertahap menunggu selamanya. Kini pemantau versi juga menerima kabar konfirmasi tersebut (tanpa tambahan read), ditambah pengaman: bila dalam 6 detik versi belum tiba, data langsung dimuat.

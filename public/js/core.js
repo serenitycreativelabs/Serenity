@@ -186,6 +186,9 @@ export function logAudit(cat, action, label, extra = {}) {
     targetId: extra.targetId, count: extra.count,
     changes: extra.changes && Object.keys(extra.changes).length ? extra.changes : undefined,
     detail: extra.detail ? String(extra.detail).slice(0, cat === 'chat' ? 2600 : 1000) : undefined,
+    // v2.9 riwayat chat: penerima pesan (agar Super Admin dapat membaca percakapan utuh di Audit Log)
+    to: cat === 'chat' && extra.to ? String(extra.to).slice(0, 128) : undefined,
+    toNama: cat === 'chat' && extra.toNama ? String(extra.toNama).slice(0, 160) : undefined,
     device: deviceInfo(), session: SESSION_ID, path: location.hash.slice(0, 120),
   });
   return F.addDoc(F.collection(F.db, 'audit'), data).catch((e) => console.warn('audit', e));

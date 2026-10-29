@@ -102,7 +102,7 @@ service cloud.firestore {
       return resource == null ? !data().keys().hasAny(protectedCfg())
                               : !data().diff(resource.data).affectedKeys().hasAny(protectedCfg());
     }
-    function ikonOk() { return !('ikon' in data()) || (data().ikon is map && data().ikon.size() <= 5 && (!('src' in data().ikon) || str(data().ikon.src, 200000))); }
+    function ikonOk() { return !('ikon' in data()) || (data().ikon is map && data().ikon.size() <= 6 && (!('src' in data().ikon) || str(data().ikon.src, 200000)) && (!('maskable' in data().ikon) || str(data().ikon.maskable, 200000))); }
     function latarOk() {
       return !('latar' in data()) || (data().latar is map && data().latar.size() <= 14
         && (!('url' in data().latar) || (str(data().latar.url, 1000) && (data().latar.url == '' || data().latar.url.matches('^https://.*'))))
