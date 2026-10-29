@@ -12,14 +12,16 @@
 export const APP = {
   name: 'Serenity',
   fullName: 'Serenity — Sistem Informasi Gampong Digital',
-  version: '2.3.0',
-  build: '2026.10.27',
-  revision: 'R7',               // nomor revisi rilis (naik otomatis lewat scripts/bump-version.mjs)
-  codename: 'Aurora',
+  version: '2.4.0',
+  build: '2026.10.29',
+  revision: 'R8',               // nomor revisi rilis (naik otomatis lewat scripts/bump-version.mjs)
+  codename: 'Nebula',
   channel: 'Stable',
   owner: 'Deah Glumpang',
   copyright: 'Powered by Serenity Creativa Labs. © 2026 All Rights Reserved',
   get credit() { return `${this.owner} ◦ ${this.copyright}`; },
+  // Kredit pada dokumen hasil ekspor PDF & Excel (tanpa nomor versi aplikasi)
+  get exportCredit() { return `${this.owner} ${this.copyright}`; },
   get versionLabel() { return `v${this.version}`; },
   get buildLabel() { return `v${this.version} “${this.codename}” • Build ${this.build} • Rev ${this.revision} • ${this.channel}`; },
 

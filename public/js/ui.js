@@ -1,4 +1,5 @@
 // Utilitas UI: escape, toast, modal, autocomplete, WhatsApp, gambar, dll.
+import { track } from './usage.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (s, r = document) => r.querySelector(s);
@@ -163,7 +164,22 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
   input.setAttribute('autocomplete', 'off');
   input.setAttribute('role', 'combobox');
 
-  let items = [], active = -1, seq = 0, isOpen = false;
+  let items = [], active = -1, seq = 0, isOpen = false, floating = false;
+  // v2.4: bila kolom berada di dalam wadah yang memotong isi (tabel bergulir, dialog, panel), daftar saran
+  // "melayang" di atas halaman (dipindah ke <body>, posisi tetap) sehingga tidak tertutup / terpotong.
+  const clipped = () => { for (let el = wrap.parentElement; el && el !== document.body; el = el.parentElement) { const cs = getComputedStyle(el); if (/(auto|scroll|hidden|clip)/.test(cs.overflowX + cs.overflowY)) return true; } return false; };
+  const place = () => {
+    if (!floating) return;
+    const r = input.getBoundingClientRect(); const vh = window.innerHeight; const below = vh - r.bottom; const h = Math.min(280, list.scrollHeight || 280);
+    const up = below < h + 12 && r.top > below;
+    Object.assign(list.style, { left: `${Math.max(6, Math.min(r.left, window.innerWidth - Math.max(r.width, 260) - 6))}px`, width: `${Math.max(r.width, 260)}px`, top: up ? 'auto' : `${r.bottom + 4}px`, bottom: up ? `${vh - r.top + 4}px` : 'auto' });
+  };
+  const float = (on) => {
+    if (on === floating) return;
+    floating = on;
+    if (on) { list.classList.add('ac-float'); document.body.appendChild(list); place(); window.addEventListener('scroll', place, true); window.addEventListener('resize', place); }
+    else { list.classList.remove('ac-float'); Object.assign(list.style, { left: '', width: '', top: '', bottom: '' }); wrap.appendChild(list); window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); }
+  };
   const load = async () => {
     const s = typeof source === 'function' ? await source() : source;
     return (s || []).map((x) => (typeof x === 'string' ? { label: x } : x));
@@ -174,7 +190,7 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
     if (i < 0) return esc(label);
     return esc(label.slice(0, i)) + '<mark>' + esc(label.slice(i, i + q.length)) + '</mark>' + esc(label.slice(i + q.length));
   };
-  const close = () => { list.classList.remove('open'); isOpen = false; active = -1; };
+  const close = () => { list.classList.remove('open'); isOpen = false; active = -1; float(false); };
   const paint = () => {
     $$('.ac-item', list).forEach((el, i) => el.classList.toggle('active', i === active));
     list.querySelector('.ac-item.active')?.scrollIntoView({ block: 'nearest' });
@@ -185,7 +201,7 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
     const raw = input.value.trim();
     const q = norm(raw);
     let all;
-    try { list.innerHTML = '<div class="ac-empty">Memuat…</div>'; if (fromFocus || q) list.classList.add('open'); all = await load(); }
+    try { list.innerHTML = '<div class="ac-empty">Memuat…</div>'; if (fromFocus || q) { if (input.isConnected && clipped()) float(true); list.classList.add('open'); place(); } all = await load(); }
     catch { all = []; }
     if (my !== seq) return;
     let res = [];
@@ -212,7 +228,7 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
       if (res.length > items.length) html += `<div class="ac-more">+${res.length - items.length} lainnya — ketik lebih spesifik</div>`;
     }
     list.innerHTML = html;
-    if (html) { list.classList.add('open'); isOpen = true; } else close();
+    if (html && input.isConnected) { if (clipped()) float(true); list.classList.add('open'); isOpen = true; place(); } else close();
   }
   const debounced = debounce(() => update(false), 90);
   function choose(i) {
@@ -257,6 +273,7 @@ export function loadScript(src) {
 }
 
 export function downloadBlob(blob, filename) {
+  track('dl', 1, 'unduhan');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = filename;
   document.body.appendChild(a); a.click();
@@ -270,6 +287,7 @@ export async function copyText(t) {
 
 // Kompres gambar ke dataURL JPEG agar muat di dokumen Firestore (tanpa Storage berbayar)
 export function compressImage(file, maxW = 1100, quality = 0.72) {
+  track('ul', 1, 'gambar');
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);

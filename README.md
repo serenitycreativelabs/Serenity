@@ -1,6 +1,6 @@
 # Serenity — Sistem Informasi Gampong Digital
 
-![versi](https://img.shields.io/badge/versi-2.3.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.4.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -8,6 +8,20 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 
 ---
 
+
+## Baru di v2.4.0 “Nebula”
+- ⚡ **Sinkron Bertahap (delta sync)** — data disimpan di perangkat; saat dibuka hanya dokumen yang berubah yang dibaca. Kunjungan ulang beranda: **±3 read** (sebelumnya puluhan–ratusan). Data admin dienkripsi AES-GCM 256-bit.
+- 📊 **Widget pengunjung realtime** (kiri bawah beranda) & menu **Sistem › Monitor & Analitik** (read/write/delete/download/upload, kuota gratis, kunjungan 30 hari) — khusus Super Admin.
+- 📰 **Berita & Kegiatan Lembaga** bergulir otomatis di bawah Kegiatan Rutin; kecepatan diatur di **Sistem › Widget Beranda** (Super Admin).
+- 🗂️ Data Master: **hapus kategori** (bawaan bisa dipulihkan), **geser ▲▼ antar kelompok**, bug hapus kategori diperbaiki.
+- 👥 Grup baru **Admin › Manajemen Akun** untuk admin bercentang hijau; akun Super Admin tak terlihat oleh siapa pun.
+- 💾 Cadangan **benar-benar lengkap** (hingga audit log), **pengingat tanggal 29**, notifikasi sukses hapus semua data.
+- 🧾 Ekspor PDF/Excel tanpa nomor versi: *tanggal, jam • Deah Glumpang Powered by Serenity Creativa Labs. © 2026 All Rights Reserved*.
+
+### Wajib setelah memperbarui ke v2.4.0
+1. Deploy sekaligus hosting, Rules, dan indeks: `npm run deploy` (atau `firebase deploy --only hosting,firestore:rules,firestore:indexes`). Indeks komposit butuh beberapa menit untuk siap — selama itu aplikasi otomatis memakai muat penuh (tetap berjalan normal).
+2. (Disarankan) Aktifkan **TTL** agar data kehadiran lama terhapus otomatis: Firebase Console → Firestore → *Time-to-live* → koleksi `presence`, field `exp`.
+3. Login sekali sebagai Super Admin agar dokumen versi sinkron (`meta/pub`, `meta/adm`) dibuat.
 
 ## Baru di v2.3.0 “Aurora”
 - Nama baru **Serenity**, ikon baru, dan **pengubah ikon** (Super Admin).

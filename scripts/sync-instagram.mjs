@@ -1,6 +1,7 @@
 // Sinkron Instagram → Firestore (dijalankan oleh GitHub Actions).
 // Token diambil dari dokumen Firestore private/instagram (diisi admin di aplikasi) atau secret IG_TOKEN.
-// © Serenity Creativa 2026
+// v2.4: menandai syncAt & menaikkan versi meta/pub agar pengunjung ikut menerima perubahan (delta sync)
+// Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 import admin from 'firebase-admin';
 
 const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -34,9 +35,10 @@ for (const p of posts) {
   batch.set(db.doc(`instagram/${p.id}`), {
     caption: p.caption || '', mediaType: p.media_type, mediaUrl: p.media_url || '', thumbnail: p.thumbnail_url || '',
     permalink: p.permalink, timestamp: p.timestamp, username: p.username || '', source: 'api',
-    syncedAt: admin.firestore.FieldValue.serverTimestamp(),
+    syncedAt: admin.firestore.FieldValue.serverTimestamp(), syncAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 }
 batch.set(db.doc('config/app'), { igLastSync: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+batch.set(db.doc('meta/pub'), { instagram: admin.firestore.FieldValue.serverTimestamp(), cfg_app: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 await batch.commit();
 console.log(`${posts.length} postingan disinkronkan.`);

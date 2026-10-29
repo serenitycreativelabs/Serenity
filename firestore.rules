@@ -1,6 +1,6 @@
 rules_version = '2';
 // =====================================================================
-//  Serenity v2.3.0 — Firestore Security Rules (diperketat)
+//  Serenity v2.4.0 “Nebula” — Firestore Security Rules (diperketat)
 //  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 //
 //  Prinsip:
@@ -11,7 +11,10 @@ rules_version = '2';
 //   • Validasi skema: field yang diizinkan, tipe data, dan ukuran maksimum (anti spam/abuse).
 //   • Kepala Dusun (kadus) DIKUNCI hanya pada warga dusunnya sendiri.
 //   • Audit log hanya bisa DITAMBAH — tidak bisa diubah/dihapus siapa pun.
-//   • Badge, penugasan pengelola lembaga, tema, ikon: hanya Super Admin.
+//   • Badge, penugasan pengelola lembaga, tema, ikon, widget: hanya Super Admin.
+//   • v2.4: akun Super Admin tidak dapat dibaca siapa pun selain Super Admin; admin bercentang hijau
+//     (Perangkat Gampong) dapat melihat akun Admin & Kadus; versi sinkron (meta), catatan hapus,
+//     analitik kunjungan, kehadiran & pemakaian divalidasi ketat (hanya penambahan bertahap).
 // =====================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -31,6 +34,8 @@ service cloud.firestore {
     function sameDusun(d) { return !isKadus() || d.dusun == me().dusun; }
     // Admin yang diangkat Super Admin sebagai pengelola lembaga tertentu (bukan kategori Pemerintahan)
     function pengelola(id) { return isStaff() && me().role == 'admin' && id in me().get('lembagaIds', []); }
+    // Admin yang diberi badge Centang Hijau — Perangkat Gampong oleh Super Admin
+    function isGreen() { return isStaff() && me().role == 'admin' && me().get('badges', []).hasAny([{ 'id': 'verified-green' }, 'verified-green']); }
 
     // ---------- Helper validasi
     function data() { return request.resource.data; }
@@ -38,6 +43,10 @@ service cloud.firestore {
     function str(v, max) { return v is string && v.size() <= max; }
     function optStr(k, max) { return !(k in data()) || str(data()[k], max); }
     function smallList() { return request.query.limit != null && request.query.limit <= 200; }
+    // Kunci hari WIB (UTC+7) — kemarin, hari ini, besok (toleransi jam perangkat)
+    function dk(t) { return string(t.year()) + '_' + string(t.month()) + '_' + string(t.day()); }
+    function wib() { return request.time + duration.value(7, 'h'); }
+    function dayKeys() { return [dk(wib() - duration.value(1, 'd')), dk(wib()), dk(wib() + duration.value(1, 'd'))]; }
 
     // Super Admin utama dibuat otomatis saat login pertama dengan email ini
     function bootstrapSuper(uid) {
@@ -66,9 +75,13 @@ service cloud.firestore {
         && !('lembagaIds' in data());
     }
     match /users/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus'));
-      // Admin pengelola Kadus hanya boleh query dengan filter where('role','==','kadus')
-      allow list: if isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus');
+      allow get: if signedIn() && (request.auth.uid == uid || isSuper()
+        || ((can('kelolaKadus') || isGreen()) && resource.data.role == 'kadus')
+        || (isGreen() && resource.data.role == 'admin'));
+      // Non-Super Admin wajib memfilter where('role','==','kadus' | 'admin') — dokumen Super Admin tak pernah terbaca
+      allow list: if isSuper()
+        || ((can('kelolaKadus') || isGreen()) && resource.data.role == 'kadus')
+        || (isGreen() && resource.data.role == 'admin');
       allow create: if userKeysOk() && (
         (isSuper() && data().role in ['admin', 'kadus'] && (data().role != 'kadus' || kadusDocOk()))
         || (can('kelolaKadus') && kadusDocOk() && noSuperFields())
@@ -84,7 +97,7 @@ service cloud.firestore {
     }
 
     // ================================================= /config
-    function protectedCfg() { return ['tema', 'layout', 'ikon', 'latar']; }
+    function protectedCfg() { return ['tema', 'layout', 'ikon', 'latar', 'widget']; }
     function noProtectedCfg() {
       return resource == null ? !data().keys().hasAny(protectedCfg())
                               : !data().diff(resource.data).affectedKeys().hasAny(protectedCfg());
@@ -135,11 +148,13 @@ service cloud.firestore {
     // ================================================= /master (pilihan dropdown)
     match /master/{id} {
       allow read: if isStaff();
-      allow write: if can('master') && (!('items' in data()) || (data().items is list && data().items.size() <= 1000));
+      // PERBAIKAN v2.4: hapus kategori sebelumnya selalu ditolak (request.resource bernilai null saat delete)
+      allow delete: if can('master');
+      allow create, update: if can('master') && (!('items' in data()) || (data().items is list && data().items.size() <= 1000));
       allow create, update: if (can('wargaEdit') || can('import') || can('informasi') || can('kegiatan') || can('dokumen') || can('lembaga'))
-        && data().keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom'])
+        && data().keys().hasOnly(['items', 'label', 'builtin', 'group', 'order', 'custom', 'deleted', 'syncAt'])
         && data().items is list && data().items.size() <= 1000
-        && (resource == null || changedOnly(['items', 'label']));
+        && (resource == null || changedOnly(['items', 'label', 'syncAt']));
     }
 
     // ================================================= Publikasi (dibaca publik, dibatasi per query)
@@ -153,7 +168,7 @@ service cloud.firestore {
       allow list: if isStaff() || (resource.data.published == true && smallList());
       allow create, update: if can('informasi') && infoOk();
       allow delete: if can('informasi');
-      allow update: if can('broadcast') && changedOnly(['broadcastCount', 'lastBroadcast']);
+      allow update: if can('broadcast') && changedOnly(['broadcastCount', 'lastBroadcast', 'syncAt']);
     }
     match /instagram/{id} {
       allow get: if true;
@@ -215,6 +230,78 @@ service cloud.firestore {
 
     match /private/{id} {
       allow read, write: if can('instagram');
+    }
+
+    // ================================================= v2.4 Sinkron bertahap (delta sync)
+    // meta/pub & meta/adm: cap waktu perubahan terakhir per koleksi. Nilai WAJIB = waktu server saat itu.
+    function metaVal(k) { return !(k in data()) || (resource != null && k in resource.data && data()[k] == resource.data[k]) || data()[k] == request.time; }
+    function metaPubOk() {
+      return data().keys().hasOnly(['informasi', 'lembaga', 'dokumen', 'kegiatan', 'halaman', 'instagram', 'cfg_app', 'cfg_stats'])
+        && metaVal('informasi') && metaVal('lembaga') && metaVal('dokumen') && metaVal('kegiatan') && metaVal('halaman')
+        && metaVal('instagram') && metaVal('cfg_app') && metaVal('cfg_stats');
+    }
+    function metaAdmOk() { return data().keys().hasOnly(['warga', 'dusun', 'master']) && metaVal('warga') && metaVal('dusun') && metaVal('master'); }
+    match /meta/{id} {
+      allow get: if id == 'pub' || (id == 'adm' && isStaff());
+      allow list: if false;
+      allow create, update: if isStaff() && ((id == 'pub' && metaPubOk()) || (id == 'adm' && metaAdmOk()));
+      allow delete: if false;
+    }
+    // Catatan ID yang dihapus (agar perangkat admin lain ikut menghapus tanpa memuat ulang semua data)
+    match /hapus/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && data().keys().hasOnly(['c', 'ids', 'at']) && data().at == request.time
+        && data().c in ['informasi', 'lembaga', 'dokumen', 'kegiatan', 'halaman', 'instagram', 'warga', 'dusun', 'master']
+        && data().ids is list && data().ids.size() <= 500;
+      allow update: if false;
+      allow delete: if isSuper();
+    }
+
+    // ================================================= v2.4 Analitik kunjungan (publik, tanpa data pribadi)
+    function visitStep(h0, h1, k) { return h1.get(k, 0) == h0.get(k, 0) || h1.get(k, 0) == h0.get(k, 0) + 1; }
+    function visitOk() {
+      return data().keys().hasOnly(['total', 'harian']) && data().harian is map
+        && data().total == resource.data.get('total', 0) + 1
+        && data().harian.diff(resource.data.get('harian', {})).affectedKeys().size() == 1
+        && data().harian.diff(resource.data.get('harian', {})).affectedKeys().hasOnly(dayKeys())
+        && visitStep(resource.data.get('harian', {}), data().harian, dayKeys()[0])
+        && visitStep(resource.data.get('harian', {}), data().harian, dayKeys()[1])
+        && visitStep(resource.data.get('harian', {}), data().harian, dayKeys()[2]);
+    }
+    match /analytics/{id} {
+      allow get: if id == 'summary';
+      allow list: if false;
+      allow create: if id == 'summary' && data().keys().hasOnly(['total', 'harian']) && data().total == 1
+        && data().harian is map && data().harian.size() == 1 && data().harian.keys().hasOnly(dayKeys());
+      allow update: if id == 'summary' && visitOk();
+      allow delete: if false;
+    }
+    // Kehadiran (online sekarang): hanya cap waktu. Hitungan memakai count aggregation (wajib limit ≤ 1000).
+    match /presence/{sid} {
+      allow get: if false;
+      allow list: if request.query.limit != null && request.query.limit <= 1000;
+      allow create, update: if sid.size() <= 40 && data().keys().hasOnly(['at', 'exp']) && data().at == request.time
+        && data().exp is timestamp && data().exp < request.time + duration.value(1, 'd');
+      allow delete: if isSuper();
+    }
+    // Pemakaian Firestore per hari (estimasi aplikasi) — hanya boleh bertambah, dengan batas per kiriman
+    function incOk(f, mx) {
+      return !(f in data()) || (data()[f] is int && (
+        (resource == null && data()[f] >= 0 && data()[f] <= mx)
+        || (resource != null && data()[f] >= resource.data.get(f, 0) && data()[f] <= resource.data.get(f, 0) + mx)));
+    }
+    match /usage/{day} {
+      allow read: if isSuper();
+      allow create, update: if day in dayKeys()
+        && data().keys().hasOnly(['day', 'n', 'r', 'w', 'd', 'dl', 'ul', 'sv', 'pr', 'ar'])
+        && str(data().day, 10)
+        && incOk('n', 1) && incOk('r', 100000) && incOk('w', 20000) && incOk('d', 20000)
+        && incOk('dl', 1000) && incOk('ul', 1000) && incOk('sv', 100000) && incOk('pr', 100000) && incOk('ar', 100000);
+      allow delete: if false;
+    }
+    // Pengaturan sistem (pengingat cadangan, dll.) — khusus Super Admin
+    match /sistem/{id} {
+      allow read, write: if isSuper();
     }
 
     // ================================================= /audit — hanya tambah, tidak bisa diubah/dihapus

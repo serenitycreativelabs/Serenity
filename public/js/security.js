@@ -1,6 +1,8 @@
 // Super Admin: login khusus, manajemen admin, audit log, cadangan & pemulihan (restore JSON)
 import { APP } from './config.js';
-import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, KADUS_PERMS, KADUS_DEFAULT, isSuper, can, avatar, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
+import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, KADUS_PERMS, KADUS_DEFAULT, isSuper, can, hasGreen, avatar, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
+import * as Sync from './sync.js';
+import { track } from './usage.js';
 import { esc, $, $$, norm, debounce, toDate, fmtDate, fmtNum, todayISO, toast, modal, confirmDialog, promptDialog, downloadBlob, authErrorMessage } from './ui.js';
 import { exportExcel, exportPdf } from './exporter.js';
 import { badgeRow, badgeDialog, normBadges, BADGES } from './badges.js';
@@ -22,14 +24,18 @@ export function openSuperLogin() {
     const lock = Number(localStorage.getItem('dd:lockUntil') || 0);
     if (Date.now() < lock) { $('#sa-err', m.el).textContent = `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil((lock - Date.now()) / 60000)} menit.`; return; }
     const btn = $('#sa-ok', m.el); btn.disabled = true;
+    // v2.4: config/auth tidak lagi didengarkan terus-menerus oleh pengunjung (hemat read) — diambil saat dibutuhkan
+    if (!state.authCfg.superEmail) { try { state.authCfg = (await F.getDoc(C('config/auth'))).data() || {}; } catch { /* */ } }
     const emails = [...new Set([state.authCfg.superEmail, state.authCfg.pendingEmail, APP.superAdminEmail].filter(Boolean))];
     let err = null;
     sessionStorage.setItem('dd:justLogin', '1');
+    const lw = Sync.beginLogin(inp.value);
     for (const em of emails) {
-      try { await F.signInWithEmailAndPassword(F.auth, em, inp.value); err = null; break; }
+      try { const cred = await F.signInWithEmailAndPassword(F.auth, em, inp.value); lw.done(cred.user.uid); err = null; break; }
       catch (x) { err = x; if (!['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-login-credentials'].includes(x.code)) break; }
     }
     if (err) {
+      lw.fail();
       sessionStorage.removeItem('dd:justLogin'); loginFailed();
       $('#sa-err', m.el).textContent = authErrorMessage(err); btn.disabled = false; inp.select(); return;
     }
@@ -44,13 +50,16 @@ let usersCache = [];
 export function viewAdmins(main, r) {
   state.view = 'form';
   main.innerHTML = loadingBox();
-  const q = isSuper() ? F.collection(F.db, 'users') : F.query(F.collection(F.db, 'users'), F.where('role', '==', 'kadus'));
-  F.getDocs(q).then((s) => {
+  // Super Admin melihat semua akun. Admin bercentang hijau melihat akun Admin & Kepala Dusun —
+  // akun Super Admin TIDAK PERNAH terlihat oleh siapa pun selain Super Admin (dikunci juga oleh Firestore Rules).
+  const col = F.collection(F.db, 'users');
+  const qs = isSuper() ? [col] : [F.query(col, F.where('role', '==', 'admin')), F.query(col, F.where('role', '==', 'kadus'))];
+  Promise.all(qs.map((q) => F.getDocs(q))).then((snaps) => {
     const order = { superadmin: 0, admin: 1, kadus: 2 };
-    usersCache = s.docs.map((d) => ({ uid: d.id, ...d.data() })).sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9) || String(a.dusun || '').localeCompare(String(b.dusun || '')) || String(a.nama).localeCompare(String(b.nama)));
+    usersCache = snaps.flatMap((s) => s.docs).map((d) => ({ uid: d.id, ...d.data() })).filter((u) => isSuper() || u.role !== 'superadmin').sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9) || String(a.dusun || '').localeCompare(String(b.dusun || '')) || String(a.nama).localeCompare(String(b.nama)));
     drawAdmins(main);
     const pre = r?.query?.get('kadus');
-    if (pre) { history.replaceState(null, '', '#/admin/admin'); adminForm(null, main, { role: 'kadus', dusun: pre }); }
+    if (pre) { history.replaceState(null, '', '#/admin/admin'); if (isSuper() || can('kelolaKadus')) adminForm(null, main, { role: 'kadus', dusun: pre }); }
   }).catch((e) => { main.innerHTML = emptyBox('Gagal memuat daftar akun: ' + e.message); });
 }
 function drawAdmins(main) {
@@ -60,12 +69,13 @@ function drawAdmins(main) {
     const lg = (u.lembagaIds || []).map((id) => state.lembaga.find((l) => l.id === id)).filter(Boolean).map((l) => `Pengelola ${l.singkatan || l.nama}`);
     return [...list.filter(([k]) => u.perms?.[k]).map((p) => p[1]), ...lg].join(', ') || 'Belum ada akses';
   };
-  const editable = (u) => u.uid !== state.user.uid && u.role !== 'superadmin' && (isSuper() || u.role === 'kadus');
+  const editable = (u) => u.uid !== state.user.uid && u.role !== 'superadmin' && (isSuper() || (u.role === 'kadus' && can('kelolaKadus')));
+  const canKadus = isSuper() || can('kelolaKadus');
   const nAdmin = usersCache.filter((u) => u.role === 'admin').length, nKadus = usersCache.filter((u) => u.role === 'kadus').length;
-  main.innerHTML = `<div class="callout">${ic('shield')}<div><b>${isSuper() ? 'Akun Admin & Kepala Dusun' : 'Akun Kepala Dusun'}</b><p>${isSuper() ? 'Hanya Super Admin yang dapat mendaftarkan Admin. Admin yang diberi izin “Kelola akun Kepala Dusun” dapat membuat akun Kadus.' : 'Buat akun login untuk Kepala Dusun. Kadus hanya dapat mengakses data warga di dusunnya sendiri.'} Semua perubahan tercatat di Audit Log.</p></div></div>
+  main.innerHTML = `<div class="callout">${ic('shield')}<div><b>${isSuper() ? 'Akun Admin & Kepala Dusun' : 'Admin › Manajemen Akun'}</b><p>${isSuper() ? 'Hanya Super Admin yang dapat mendaftarkan & mengubah akun Admin. Menu ini juga terbuka bagi admin yang Anda beri badge <b>Centang Hijau — Perangkat Gampong</b>.' : `Anda dapat melihat daftar akun Admin & Kepala Dusun karena memiliki badge Centang Hijau — Perangkat Gampong.${can('kelolaKadus') ? ' Anda juga dapat membuat & mengelola akun Kepala Dusun.' : ' Perubahan akun hanya dapat dilakukan Super Admin.'}`} Semua perubahan tercatat di Audit Log.</p></div></div>
   <div class="toolbar toolbar-actions">
     ${isSuper() ? `<button class="btn btn-primary" id="usr-new">${ic('plus')} Tambah Admin</button>` : ''}
-    <button class="btn ${isSuper() ? 'btn-ghost' : 'btn-primary'}" id="usr-kadus">${ic('map')} Tambah Akun Kepala Dusun</button>
+    ${canKadus ? `<button class="btn ${isSuper() ? 'btn-ghost' : 'btn-primary'}" id="usr-kadus">${ic('map')} Tambah Akun Kepala Dusun</button>` : ''}
     <span class="muted small">${isSuper() ? `${nAdmin} admin · ` : ''}${nKadus} kepala dusun</span>
   </div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Pengguna</th><th>Peran</th><th>Hak akses</th><th>Status</th><th>Login terakhir</th><th class="actions-col">Aksi</th></tr></thead>
@@ -78,7 +88,7 @@ function drawAdmins(main) {
     <td class="actions-col">${isSuper() ? `<button class="icon-btn" data-bdg="${u.uid}" title="Atur badge">${ic('star')}</button>` : ''}${editable(u) ? `<button class="icon-btn" data-ed="${u.uid}" title="Atur hak akses">${ic('edit')}</button><button class="icon-btn" data-rs="${u.uid}" title="Kirim reset password">${ic('lock')}</button><button class="icon-btn ${u.active === false ? '' : 'danger'}" data-tg="${u.uid}" title="${u.active === false ? 'Aktifkan' : 'Nonaktifkan'}">${ic(u.active === false ? 'check' : 'out')}</button><button class="icon-btn danger" data-rm="${u.uid}" title="Hapus akses">${ic('trash')}</button>` : ''}</td>
   </tr>`).join('')}${usersCache.some((u) => u.role !== 'superadmin') ? '' : `<tr><td colspan="6"><div class="empty">Belum ada akun. Klik <b>Tambah Admin</b> atau <b>Tambah Akun Kepala Dusun</b>.</div></td></tr>`}</tbody></table></div>`;
   $('#usr-new')?.addEventListener('click', () => adminForm(null, main, { role: 'admin' }));
-  $('#usr-kadus').onclick = () => adminForm(null, main, { role: 'kadus' });
+  $('#usr-kadus')?.addEventListener('click', () => adminForm(null, main, { role: 'kadus' }));
   $$('[data-ed]', main).forEach((b) => b.onclick = () => adminForm(usersCache.find((u) => u.uid === b.dataset.ed), main));
   $$('[data-bdg]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.bdg);
@@ -265,52 +275,145 @@ function auditDetail(r) {
 }
 
 // ---------------------------------------------------------------- Cadangan & Pemulihan
-const BACKUP_COLS = ['warga', 'dusun', 'master', 'informasi', 'instagram', 'halaman', 'kegiatan'];
-const COL_LABEL = { warga: 'Data warga', dusun: 'Dusun', master: 'Data master', informasi: 'Papan informasi', instagram: 'Postingan Instagram', halaman: 'Halaman Profil Gampong', kegiatan: 'Kegiatan rutin', config: 'Pengaturan desa' };
+// v2.4: cadangan benar-benar LENGKAP — dari data dasbor sampai audit log.
+// (Bug v2.3: koleksi config dibaca dengan "list" yang ditolak Rules sehingga cadangan selalu gagal.)
+const BACKUP_COLS = ['warga', 'dusun', 'master', 'informasi', 'instagram', 'halaman', 'kegiatan', 'lembaga', 'lembagaPrivate', 'dokumen', 'users', 'private', 'sistem', 'usage', 'hapus'];
+const BACKUP_DOCS = { config: ['app', 'stats', 'auth'], meta: ['pub', 'adm'], analytics: ['summary'] };
+// Koleksi yang hanya diarsipkan (tidak dapat dipulihkan karena dikunci Rules: hanya-tambah / penghitung)
+const ARCHIVE_ONLY = ['audit', 'usage', 'analytics', 'hapus', 'meta'];
+const COL_LABEL = { warga: 'Data warga', dusun: 'Dusun & kepala dusun', master: 'Data master dropdown', informasi: 'Papan informasi', instagram: 'Postingan Instagram', halaman: 'Halaman Profil Gampong', kegiatan: 'Kegiatan rutin', lembaga: 'Lembaga gampong (profil, pengurus, berita, galeri)', lembagaPrivate: 'Anggota & murid/santri lembaga', dokumen: 'Dokumen publik', users: 'Akun & hak akses', private: 'Token integrasi (Instagram)', sistem: 'Pengaturan sistem', usage: 'Riwayat pemakaian Firestore', hapus: 'Catatan sinkron hapus', config: 'Pengaturan desa, statistik & tema', meta: 'Versi sinkron', analytics: 'Analitik kunjungan', audit: 'Audit log' };
+const sistemRef = () => C('sistem/backup');
+async function readAll(col, onProg) {
+  if (col === 'audit') {
+    const out = []; let last = null;
+    for (;;) {
+      const parts = [F.collection(F.db, 'audit'), F.orderBy('at', 'desc')]; if (last) parts.push(F.startAfter(last)); parts.push(F.limit(1000));
+      const s = await F.getDocs(F.query(...parts));
+      out.push(...s.docs.map((d) => ({ id: d.id, ...d.data() }))); onProg?.(out.length);
+      if (s.docs.length < 1000) break; last = s.docs[s.docs.length - 1];
+    }
+    return out;
+  }
+  const s = await F.getDocs(F.collection(F.db, col));
+  return s.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+export async function makeBackup(onStep) {
+  const dump = { app: APP.name, version: APP.version, build: APP.build, format: 'serenity-backup-v3', exportedAt: new Date().toISOString(), exportedBy: state.user.email, credit: APP.exportCredit, counts: {}, skipped: {} };
+  const all = [...BACKUP_COLS, ...Object.keys(BACKUP_DOCS), 'audit'];
+  let i = 0;
+  for (const col of all) {
+    onStep?.(col, ++i, all.length);
+    try {
+      if (BACKUP_DOCS[col]) {
+        dump[col] = [];
+        for (const id of BACKUP_DOCS[col]) { const s = await F.getDoc(C(`${col}/${id}`)); if (s.exists()) dump[col].push({ id, ...s.data() }); }
+      } else dump[col] = await readAll(col, (n) => onStep?.(col, i, all.length, n));
+      dump.counts[col] = dump[col].length;
+    } catch (e) { dump[col] = []; dump.skipped[col] = e.code || e.message; }
+  }
+  return dump;
+}
 export function viewCadangan(main) {
   state.view = 'form';
+  main.innerHTML = loadingBox();
+  F.getDoc(sistemRef()).then((s) => s.data() || {}).catch(() => ({})).then((info) => drawCadangan(main, info));
+}
+function drawCadangan(main, info) {
+  const last = toDate(info.lastAt);
+  const days = last ? Math.floor((Date.now() - last.getTime()) / 864e5) : null;
   main.innerHTML = `
+  <div class="callout ${days == null || days > 31 ? '' : 'ok'}">${ic(days == null || days > 31 ? 'bell' : 'check')}<div><b>${last ? `Cadangan terakhir: ${esc(fmtDate(last, true))}` : 'Belum pernah mencadangkan dari aplikasi'}</b><p>${last ? `${days === 0 ? 'Hari ini' : `${days} hari lalu`} oleh ${esc(info.lastBy || '-')} • ${fmtNum(info.lastDocs || 0)} dokumen.` : 'Unduh cadangan sekarang dan simpan di tempat aman.'} Pengingat otomatis muncul setiap <b>tanggal 29</b> (Februari non-kabisat: tanggal 28).</p></div></div>
   <div class="panel-grid two">
-    <div class="panel"><h3>${ic('download')} Unduh Cadangan</h3>
-      <p class="muted small">Seluruh data (warga, dusun, master, informasi, Instagram, halaman profil, kegiatan, pengaturan) dalam satu berkas JSON. Simpan di tempat aman — berkas berisi data pribadi warga.</p>
-      <button class="btn btn-primary" id="bk">${ic('download')} Unduh Cadangan JSON</button></div>
+    <div class="panel"><h3>${ic('download')} Unduh Cadangan Lengkap</h3>
+      <p class="muted small">Seluruh isi website dalam satu berkas JSON: data warga, dusun, data master, informasi, Instagram, profil gampong, kegiatan, <b>lembaga beserta anggota & murid/santri</b>, dokumen publik, <b>akun & hak akses</b>, pengaturan, tema, statistik, analitik, sampai <b>audit log</b>. Berkas berisi data pribadi warga — simpan di tempat aman.</p>
+      <button class="btn btn-primary" id="bk">${ic('download')} Unduh Cadangan JSON</button><div id="bk-prog"></div></div>
     <div class="panel"><h3>${ic('upload')} Pulihkan dari Cadangan</h3>
-      <p class="muted small">Upload berkas JSON hasil “Unduh Cadangan”. Anda dapat memilih koleksi yang dipulihkan dan cara pemulihannya.</p>
+      <p class="muted small">Upload berkas JSON hasil “Unduh Cadangan”. Anda dapat memilih koleksi yang dipulihkan dan cara pemulihannya. Audit log & riwayat pemakaian hanya diarsipkan (tidak ditimpa).</p>
       <label class="dropzone" id="rs-dz"><input type="file" id="rs-file" accept=".json,application/json" hidden>${ic('upload')}<b>Pilih berkas cadangan (.json)</b><span class="muted small">Tidak ada yang ditulis sebelum Anda mengonfirmasi.</span></label>
       <div id="rs-step"></div></div>
   </div>
+  <div class="panel"><h3>${ic('bell')} Pengingat Cadangan Bulanan</h3>
+    <label class="check"><input type="checkbox" id="bk-rem" ${info.pengingat === false ? '' : 'checked'}> Ingatkan Super Admin untuk mencadangkan data setiap tanggal 29</label>
+    <div class="row-gap"><button class="btn btn-ghost btn-sm" id="bk-notif">${ic('bell')} ${'Notification' in window && Notification.permission === 'granted' ? 'Notifikasi browser aktif' : 'Izinkan notifikasi browser'}</button><button class="btn btn-ghost btn-sm" id="bk-test">Coba tampilkan pengingat</button></div>
+    <p class="muted small">Pengingat tampil sebagai jendela pemberitahuan, notifikasi browser (bila diizinkan), dan titik merah pada menu Cadangan & Pemulihan. Hanya Super Admin yang menerimanya.</p></div>
   <div class="panel"><h3 class="danger-text">${ic('trash')} Zona Berbahaya</h3>
     <p class="muted small">Menghapus seluruh data warga secara permanen. Unduh cadangan terlebih dahulu.</p>
-    <button class="btn btn-danger btn-ghost" id="wipe">${ic('trash')} Hapus semua data warga</button></div>`;
+    <button class="btn btn-danger btn-ghost" id="wipe">${ic('trash')} Hapus semua data warga</button><div id="wipe-res"></div></div>`;
   $('#bk').onclick = async (e) => {
-    const b = e.currentTarget; b.disabled = true;
+    const b = e.currentTarget; b.disabled = true; const prog = $('#bk-prog');
+    prog.innerHTML = '<div class="progress"><span style="width:0%"></span></div><p class="muted small" id="bk-t">Menyiapkan…</p>';
     try {
-      const dump = { app: APP.name, version: APP.version, format: 'serenity-backup-v2', exportedAt: new Date().toISOString(), exportedBy: state.user.email };
-      for (const col of [...BACKUP_COLS, 'config']) {
-        const s = await F.getDocs(F.collection(F.db, col));
-        dump[col] = s.docs.filter((d) => col !== 'config' || ['app'].includes(d.id)).map((d) => ({ id: d.id, ...d.data() }));
-      }
-      downloadBlob(new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' }), `cadangan-serenity-${todayISO()}.json`);
-      logAudit('cadangan', 'unduh', 'Mengunduh cadangan data lengkap (JSON)', { count: dump.warga.length, detail: BACKUP_COLS.map((c) => `${c}: ${dump[c].length}`).join(', ') });
-    } catch (err) { toast('Gagal membuat cadangan: ' + err.message, 'error'); }
+      const dump = await makeBackup((col, i, n, docs) => { $('.progress span', prog).style.width = `${(i / n) * 100}%`; $('#bk-t').textContent = `Mencadangkan ${COL_LABEL[col] || col}${docs ? ` (${fmtNum(docs)})` : ''}… ${i}/${n}`; });
+      const total = Object.values(dump.counts).reduce((a, n) => a + n, 0);
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `cadangan-serenity-${todayISO()}.json`);
+      logAudit('cadangan', 'unduh', 'Mengunduh cadangan data lengkap (JSON)', { count: total, detail: Object.entries(dump.counts).map(([c, n]) => `${c}: ${n}`).join(', ').slice(0, 900) });
+      const meta = { lastAt: F.serverTimestamp(), lastBy: state.user.email, lastDocs: total, lastSize: blob.size };
+      await F.setDoc(sistemRef(), meta, { merge: true }).catch(() => {});
+      const sk = Object.keys(dump.skipped);
+      prog.innerHTML = `<div class="callout ${sk.length ? '' : 'ok'}">${ic(sk.length ? 'bulb' : 'check')}<div><b>Cadangan berhasil diunduh</b><p>${fmtNum(total)} dokumen dari ${Object.keys(dump.counts).length} koleksi • ${(blob.size / 1048576).toFixed(2).replace('.', ',')} MB.${sk.length ? ` Dilewati (tidak ada izin/indeks): ${esc(sk.join(', '))}.` : ''}</p></div></div>`;
+      $('#nav-dot-cadangan')?.setAttribute('hidden', '');
+      toast('Cadangan lengkap berhasil diunduh', 'success');
+    } catch (err) { prog.innerHTML = `<p class="err">Gagal membuat cadangan: ${esc(err.message)}</p>`; toast('Gagal membuat cadangan: ' + err.message, 'error'); }
     b.disabled = false;
   };
+  $('#bk-rem').onchange = async (e) => { try { await F.setDoc(sistemRef(), { pengingat: e.target.checked }, { merge: true }); logAudit('cadangan', 'pengingat', `${e.target.checked ? 'Mengaktifkan' : 'Menonaktifkan'} pengingat cadangan bulanan`); toast('Pengaturan pengingat disimpan', 'success'); } catch (err) { toast(err.message, 'error'); } };
+  $('#bk-notif').onclick = async () => { if (!('Notification' in window)) return toast('Browser ini tidak mendukung notifikasi', 'error'); const p = await Notification.requestPermission(); toast(p === 'granted' ? 'Notifikasi browser diizinkan' : 'Notifikasi tidak diizinkan', p === 'granted' ? 'success' : 'info'); };
+  $('#bk-test').onclick = () => showBackupReminder(info, true);
   const dz = $('#rs-dz'), fi = $('#rs-file');
   dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
   dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files[0]) readBackup(e.dataTransfer.files[0]); });
   fi.onchange = () => fi.files[0] && readBackup(fi.files[0]);
   $('#wipe').onclick = async () => {
-    const t = await promptDialog('Hapus semua data warga', `Ketik HAPUS untuk menghapus ${state.warga.length} data warga secara permanen`, '', { okText: 'Lanjut' });
-    if (t !== 'HAPUS') return;
-    if (!await requirePassword(`Menghapus permanen ${state.warga.length} data warga.`)) return;
+    const n = state.warga.length;
+    if (!n) return toast('Tidak ada data warga untuk dihapus', 'info');
+    const t = await promptDialog('Hapus semua data warga', `Ketik HAPUS untuk menghapus ${n} data warga secara permanen`, '', { okText: 'Lanjut' });
+    if (t !== 'HAPUS') { if (t != null) toast('Dibatalkan — teks konfirmasi tidak sesuai', 'info'); return; }
+    if (!await requirePassword(`Menghapus permanen ${n} data warga.`)) return;
+    const res = $('#wipe-res'); res.innerHTML = '<div class="progress"><span style="width:0%"></span></div><p class="muted small" id="wp-t">Menghapus…</p>';
     try {
-      const n = state.warga.length;
-      await batchWrite(state.warga.map((w) => ['delete', C(`warga/${w.id}`)]));
+      await batchWrite(state.warga.map((w) => ['delete', C(`warga/${w.id}`)]), (d, tot) => { $('.progress span', res).style.width = `${(d / tot) * 100}%`; $('#wp-t').textContent = `${fmtNum(d)} / ${fmtNum(tot)} data dihapus`; });
       logAudit('cadangan', 'kosongkan_warga', `Menghapus SEMUA data warga (${n})`, { count: n });
-      toast('Semua data warga dihapus', 'success');
-    } catch (e) { toast(e.message, 'error'); }
+      res.innerHTML = `<div class="callout ok">${ic('check')}<div><b>Berhasil — semua data warga telah dihapus</b><p>${fmtNum(n)} data warga dihapus permanen pada ${esc(fmtDate(new Date(), true))}. Aktivitas ini tercatat di Audit Log.</p></div></div>`;
+      toast(`Berhasil: ${fmtNum(n)} data warga dihapus`, 'success', { duration: 8000 });
+      modal({ title: 'Penghapusan selesai', size: 'sm', guard: false, body: `<div class="callout ok">${ic('check')}<div><b>Semua data warga berhasil dihapus</b><p>${fmtNum(n)} data warga telah dihapus secara permanen. Untuk mengembalikan, gunakan “Pulihkan dari Cadangan”.</p></div></div>`, footer: '<button class="btn btn-primary" data-close>Selesai</button>' });
+    } catch (e) { res.innerHTML = `<p class="err">Gagal menghapus: ${esc(e.message)}</p>`; toast(e.message, 'error'); }
   };
+}
+
+// ---------------------------------------------------------------- Pengingat cadangan tanggal 29 (khusus Super Admin)
+const reminderDay = (d) => (d.getMonth() === 1 && new Date(d.getFullYear(), 2, 0).getDate() < 29 ? 28 : 29);
+export async function checkBackupReminder() {
+  if (!isSuper()) return;
+  let info = {};
+  try { info = (await F.getDoc(sistemRef())).data() || {}; } catch { return; }
+  if (info.pengingat === false) return;
+  const now = new Date(Date.now() + (7 * 60 + new Date().getTimezoneOffset()) * 60e3); // waktu WIB
+  const isDay = now.getDate() === reminderDay(now);
+  const last = toDate(info.lastAt);
+  const doneToday = last && new Date(last.getTime() + (7 * 60 + new Date().getTimezoneOffset()) * 60e3).toDateString() === now.toDateString();
+  const overdue = !last || Date.now() - last.getTime() > 35 * 864e5;
+  if ((isDay && !doneToday) || overdue) document.getElementById('nav-dot-cadangan')?.removeAttribute('hidden');
+  if (!isDay || doneToday) return;
+  const k = `dd:bkrem:${now.toDateString()}`;
+  try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch { /* */ }
+  showBackupReminder(info);
+}
+function showBackupReminder(info, test = false) {
+  const last = toDate(info.lastAt);
+  const msg = `Hari ini tanggal ${reminderDay(new Date())} — waktunya mencadangkan seluruh data website.${last ? ` Cadangan terakhir ${fmtDate(last, true)}.` : ' Belum ada cadangan yang tercatat.'}`;
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const opt = { body: msg, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'serenity-backup', requireInteraction: true };
+      if (state.swReg?.showNotification) state.swReg.showNotification('Pengingat Cadangan Data', opt); else new Notification('Pengingat Cadangan Data', opt);
+    }
+  } catch { /* */ }
+  const m = modal({ title: 'Pengingat Cadangan Data', size: 'sm', guard: false,
+    body: `<div class="reminder">${ic('bell')}<div><b>Waktunya mencadangkan data${test ? ' (uji coba)' : ''}</b><p>${esc(msg)}</p><p class="muted small">Cadangan berisi seluruh isi website dari dasbor hingga audit log. Simpan berkas di tempat aman (misalnya Google Drive pribadi).</p></div></div>`,
+    footer: '<button class="btn btn-ghost" data-close>Ingatkan nanti</button><button class="btn btn-primary" id="rem-go">Buka Cadangan & Pemulihan</button>' });
+  $('#rem-go', m.el).onclick = () => { m.close(); location.hash = '#/admin/cadangan'; };
+  if (!test) logAudit('cadangan', 'pengingat_tampil', 'Pengingat cadangan bulanan ditampilkan');
 }
 // Ubah {seconds, nanoseconds} (hasil JSON dari Timestamp) kembali menjadi Timestamp Firestore
 function revive(v) {
@@ -326,12 +429,13 @@ async function readBackup(file) {
   const step = $('#rs-step');
   let data;
   try { data = JSON.parse(await file.text()); } catch { step.innerHTML = `<p class="err">Berkas bukan JSON yang valid.</p>`; return; }
-  const cols = [...BACKUP_COLS, 'config'].filter((c) => Array.isArray(data[c]));
+  track('ul', 1, 'cadangan');
+  const cols = [...BACKUP_COLS, ...Object.keys(BACKUP_DOCS), 'audit'].filter((c) => Array.isArray(data[c]) && data[c].length);
   if (!cols.length) { step.innerHTML = `<p class="err">Berkas ini bukan cadangan Serenity (tidak ada koleksi yang dikenali).</p>`; return; }
   const bad = cols.flatMap((c) => data[c].filter((d) => !d || typeof d.id !== 'string' || !d.id || d.id.includes('/')).map(() => c));
   step.innerHTML = `<div class="callout small-callout">${ic('file')}<div><b>${esc(file.name)}</b><p class="small">Dibuat ${esc(data.exportedAt ? fmtDate(data.exportedAt, true) : '-')} • ${esc(data.app || '')} v${esc(data.version || '?')}${data.exportedBy ? ' • oleh ' + esc(data.exportedBy) : ''}</p></div></div>
     ${bad.length ? `<p class="err">${bad.length} dokumen tanpa ID yang valid akan dilewati.</p>` : ''}
-    <div class="col-picker" style="max-height:none">${cols.map((c) => `<label class="check"><input type="checkbox" name="rc" value="${c}" ${c !== 'config' ? 'checked' : ''}> ${esc(COL_LABEL[c] || c)} <span class="muted small">(${fmtNum(data[c].length)} dokumen)</span></label>`).join('')}</div>
+    <div class="col-picker" style="max-height:none">${cols.map((c) => ARCHIVE_ONLY.includes(c) ? `<label class="check muted"><input type="checkbox" disabled> ${esc(COL_LABEL[c] || c)} <span class="small">(${fmtNum(data[c].length)} — arsip, tidak dipulihkan)</span></label>` : `<label class="check"><input type="checkbox" name="rc" value="${c}" ${!['config', 'users', 'private', 'sistem'].includes(c) ? 'checked' : ''}> ${esc(COL_LABEL[c] || c)} <span class="muted small">(${fmtNum(data[c].length)} dokumen)</span></label>`).join('')}</div>
     <div class="field"><span>Mode pemulihan</span>
       <label class="check"><input type="radio" name="rm" value="merge" checked> <b>Gabungkan</b> — tambah & timpa dokumen ber-ID sama, data lain tetap ada</label>
       <label class="check"><input type="radio" name="rm" value="replace"> <b>Ganti total</b> — kosongkan koleksi terpilih lalu isi dari cadangan</label></div>
@@ -348,21 +452,24 @@ async function readBackup(file) {
     try {
       const ops = [];
       for (const c of sel) {
-        if (mode === 'replace' && c !== 'config') {
+        if (mode === 'replace' && !BACKUP_DOCS[c] && c !== 'users') {
           const s = await F.getDocs(F.collection(F.db, c));
           const keep = new Set(data[c].map((d) => d.id));
           s.docs.filter((d) => !keep.has(d.id)).forEach((d) => ops.push(['delete', F.doc(F.db, c, d.id)]));
         }
         for (const d of data[c]) {
           if (!d || typeof d.id !== 'string' || !d.id || d.id.includes('/')) continue;
-          if (c === 'config' && d.id !== 'app') continue;
+          if (BACKUP_DOCS[c] && !BACKUP_DOCS[c].includes(d.id)) continue;
+          // Akun Super Admin & akun sendiri tidak ditimpa (dikunci Rules)
+          if (c === 'users' && (d.role === 'superadmin' || d.id === state.user.uid)) continue;
           const { id, ...rest } = d;
-          ops.push(['set', F.doc(F.db, c, id), clean(revive(rest)), c === 'config' ? { merge: true } : {}]);
+          ops.push(['set', F.doc(F.db, c, id), clean(revive(rest)), BACKUP_DOCS[c] || c === 'users' ? { merge: true } : {}]);
         }
       }
       await batchWrite(ops, (n, t) => { $('.progress span', prog).style.width = `${(n / t) * 100}%`; $('#rs-t').textContent = `${fmtNum(n)} / ${fmtNum(t)} operasi`; });
       logAudit('cadangan', 'pulihkan', `Memulihkan data dari cadangan “${file.name}” (${mode === 'replace' ? 'ganti total' : 'gabungkan'})`, { count: total, detail: sel.map((c) => `${c}: ${data[c].length}`).join(', ') });
       prog.innerHTML = `<div class="callout ok">${ic('check')}<div><b>Pemulihan selesai</b><p>${fmtNum(total)} dokumen dipulihkan.</p></div></div>`;
+      toast('Pemulihan selesai', 'success');
     } catch (e) {
       logAudit('cadangan', 'pulihkan_gagal', `Pemulihan dari “${file.name}” gagal`, { detail: e.message });
       prog.innerHTML = `<p class="err">Gagal: ${esc(e.message)}</p>`; btn.disabled = false;

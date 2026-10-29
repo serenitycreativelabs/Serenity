@@ -45,6 +45,9 @@ export const I = {
   chev: '<path d="m6 9 6 6 6-6"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.8"/><path d="m21 15-5-5L5 21"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  news: '<path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/>',
   archive: '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
 };
 export const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ''}</svg>`;
@@ -124,6 +127,8 @@ export const PERM_PRESETS = {
 };
 export const isSuper = () => state.role === 'superadmin';
 export const isKadus = () => state.role === 'kadus';
+// Admin bercentang hijau (Perangkat Gampong) — diberikan Super Admin; membuka menu Admin › Manajemen Akun
+export const hasGreen = () => state.role === 'admin' && (state.profile?.badges || []).some((b) => (typeof b === 'string' ? b : b?.id) === 'verified-green');
 export const myDusun = () => (isKadus() ? state.profile?.dusun || '' : '');
 export const can = (p) => {
   if (isSuper()) return true;
@@ -166,7 +171,7 @@ function deviceInfo() {
 export const AUDIT_CATS = {
   auth: 'Login & Akun', warga: 'Data Warga', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Data Master',
   informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil Gampong', kegiatan: 'Kegiatan Rutin',
-  pengaturan: 'Pengaturan', latar: 'Latar Belakang', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data',
+  pengaturan: 'Pengaturan', latar: 'Latar Belakang', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data', sistem: 'Sistem & Widget',
 };
 // Catat aktivitas. cat = kategori; action = kode singkat; label = kalimat yang mudah dibaca
 export function logAudit(cat, action, label, extra = {}) {

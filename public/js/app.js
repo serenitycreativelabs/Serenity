@@ -17,25 +17,37 @@ import { exportExcel, exportPdf, getXLSX } from './exporter.js';
 import {
   F, ic, state, C, clean, desaName, desaJenis, jenisLabel, instansi, appLink, emptyBox, loadingBox, batchWrite,
   isSuper, isKadus, myDusun, avatar, penulisNow, penulisLabel, confirmDelete, can, ROLE_LABEL, logAudit, diff, requirePassword, insightsFromStats, pct, loginFailed,
-  cfgUpdate, isPengelola,
+  cfgUpdate, isPengelola, hasGreen,
 } from './core.js';
+import * as Sync from './sync.js';
+import { recordVisit, startPresence, stopPresence, mountVisitorWidget, unmountVisitorWidget, startUsageFlush, flushUsage } from './analytics.js';
+import { lembagaNewsPanel, startNewsScroller, viewWidget, widgetCfg } from './widgets.js';
+import { viewMonitor } from './monitor.js';
 import { badgeRow } from './badges.js';
 import { viewTampilan, viewLatar } from './tampilan.js';
 import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS } from './rich.js';
 import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle } from './layout.js';
 import { KATEGORI, renderLembagaPublic, bindLembagaPublic, renderDokumenPublic, bindDokumenPublic, viewLembagaAdmin, viewDokumenAdmin, lembagaOf } from './lembaga.js';
 import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
-import { viewAdmins, viewAudit, viewCadangan, openSuperLogin } from './security.js';
+import { viewAdmins, viewAudit, viewCadangan, openSuperLogin, checkBackupReminder } from './security.js';
 
 const root = document.getElementById('app');
 
 // ---------------------------------------------------------------- field helpers
+// Kelompok formulir yang sah untuk kategori dropdown (bisa dipindah di Data Master)
+const FORM_GROUPS = GROUPS.map((g) => g.id);
 function customFields() {
-  return Object.values(state.master).filter((m) => m.custom)
+  return Object.values(state.master).filter((m) => m.custom && !m.deleted)
     .sort((a, b) => (a.order || 0) - (b.order || 0))
-    .map((m) => ({ key: m.key, label: m.label, group: 'tambahan', type: 'select', master: m.key, aliases: [normKey(m.label)] }));
+    .map((m) => ({ key: m.key, label: m.label, group: FORM_GROUPS.includes(m.group) ? m.group : 'tambahan', type: 'select', master: m.key, aliases: [normKey(m.label)] }));
 }
-const allFields = () => [...FIELDS, ...customFields()];
+// Kolom bawaan: kategori dropdown yang dihapus (disembunyikan) di Data Master tidak tampil di formulir;
+// kategori yang dipindah kelompok mengikuti kelompok barunya
+function builtinFields() {
+  return FIELDS.filter((f) => !(f.type === 'select' && state.master[f.key]?.deleted))
+    .map((f) => { const g = f.type === 'select' ? state.master[f.key]?.group : ''; return g && g !== f.group && FORM_GROUPS.includes(g) ? { ...f, group: g } : f; });
+}
+const allFields = () => [...builtinFields(), ...customFields()];
 const fieldByKey = (k) => allFields().find((f) => f.key === k);
 const masterItems = (k) => state.master[k]?.items || DEFAULT_MASTER[k] || [];
 const masterLabel = (k) => state.master[k]?.label || fieldByKey(k)?.label || MASTER_EXTRA_LABELS[k] || k;
@@ -62,19 +74,20 @@ const isAktif = (w) => !['kematian', 'pindah keluar'].includes(norm(w.peristiwa)
 // ---------------------------------------------------------------- boot
 function boot() {
   if (F.configError) { renderConfigError(); return; }
-  F.onSnapshot(C('config/app'), (s) => { state.config = s.data() || {}; applyTheme(state.config.tema); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); }, (e) => console.warn('config', e));
-  F.onSnapshot(C('config/auth'), (s) => { state.authCfg = s.data() || {}; }, () => {});
-  F.onSnapshot(C('config/stats'), (s) => { state.stats = s.data() || {}; softRerender(['public']); }, () => {});
-  F.onSnapshot(F.query(F.collection(F.db, 'instagram'), F.limit(150)), (s) => {
-    state.ig = s.docs.map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+  // v2.4: semua data publik lewat Sinkron Bertahap → kunjungan berikutnya hanya membaca yang berubah
+  Sync.startPublic();
+  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; applyTheme(state.config.tema); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
+  Sync.watch({ id: 'config:stats', scope: 'pub', doc: 'config/stats', onData: (d) => { state.stats = d || {}; softRerender(['public']); } });
+  Sync.watch({ id: 'instagram', scope: 'pub', col: 'instagram', limit: 150, onData: (list) => {
+    state.ig = list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
     softRerender(['public', 'instagram']);
-  }, () => {});
-  F.onSnapshot(F.query(F.collection(F.db, 'halaman'), F.limit(50)), (s) => { const h = {}; s.docs.forEach((d) => { h[d.id] = d.data(); }); state.halaman = h; softRerender(['public']); }, () => {});
-  F.onSnapshot(F.query(F.collection(F.db, 'kegiatan'), F.limit(150)), (s) => {
-    state.kegiatan = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
+  } });
+  Sync.watch({ id: 'halaman', scope: 'pub', col: 'halaman', limit: 50, onData: (list) => { const h = {}; list.forEach(({ id, ...d }) => { h[id] = d; }); state.halaman = h; softRerender(['public']); } });
+  Sync.watch({ id: 'kegiatan', scope: 'pub', col: 'kegiatan', limit: 150, onData: (list) => {
+    state.kegiatan = list.sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
     softRerender(['public', 'kegiatan']);
-  }, () => {});
+  } });
+  startUsageFlush(() => state.isAdmin);
   subscribeInfo(false);
   subscribeLembaga(false);
 
@@ -182,22 +195,24 @@ function applyBranding() {
 
 function subscribeInfo(all) {
   state.infoUnsub?.();
-  const q = all ? F.collection(F.db, 'informasi') : F.query(F.collection(F.db, 'informasi'), F.where('published', '==', true), F.limit(150));
-  state.infoUnsub = F.onSnapshot(q, (s) => {
-    state.info = s.docs.map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
-    softRerender(['public', 'informasi', 'dash', 'broadcast']);
-  }, (e) => console.warn('info', e));
+  state.infoUnsub = Sync.watch({
+    id: all ? 'informasi:all' : 'informasi:pub', scope: all ? 'adm' : 'pub', col: 'informasi',
+    base: all ? [] : [F.where('published', '==', true)], limit: all ? 0 : 150,
+    onData: (list) => {
+      state.info = list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+      softRerender(['public', 'informasi', 'dash', 'broadcast']);
+    },
+    onError: (e) => console.warn('info', e),
+  });
 }
 const pubInfo = () => state.info.filter((i) => i.published);
 
 // Lembaga & dokumen publik (publik: hanya yang ditampilkan; admin: semua)
 function subscribeLembaga(all) {
   (state.lembagaUnsubs || []).forEach((f) => f()); state.lembagaUnsubs = [];
-  const lq = all ? F.collection(F.db, 'lembaga') : F.query(F.collection(F.db, 'lembaga'), F.where('published', '==', true), F.limit(150));
-  const dq = all ? F.collection(F.db, 'dokumen') : F.query(F.collection(F.db, 'dokumen'), F.where('published', '==', true), F.limit(200));
-  state.lembagaUnsubs.push(F.onSnapshot(lq, (s) => { state.lembaga = s.docs.map((d) => ({ id: d.id, ...d.data() })); state.lembagaReady = true; softRerender(['public', 'lembaga', 'shell']); }, (e) => console.warn('lembaga', e)));
-  state.lembagaUnsubs.push(F.onSnapshot(dq, (s) => { state.dokumen = s.docs.map((d) => ({ id: d.id, ...d.data() })); softRerender(['public', 'dokumen']); }, (e) => console.warn('dokumen', e)));
+  const pub = all ? [] : [F.where('published', '==', true)];
+  state.lembagaUnsubs.push(Sync.watch({ id: all ? 'lembaga:all' : 'lembaga:pub', scope: all ? 'adm' : 'pub', col: 'lembaga', base: pub, limit: all ? 0 : 150, onData: (list) => { state.lembaga = list; state.lembagaReady = true; softRerender(['public', 'lembaga', 'shell']); }, onError: (e) => console.warn('lembaga', e) }));
+  state.lembagaUnsubs.push(Sync.watch({ id: all ? 'dokumen:all' : 'dokumen:pub', scope: all ? 'adm' : 'pub', col: 'dokumen', base: pub, limit: all ? 0 : 200, onData: (list) => { state.dokumen = list; softRerender(['public', 'dokumen']); }, onError: (e) => console.warn('dokumen', e) }));
 }
 
 // Profil pengguna di koleksi users/{uid}. Super Admin utama dibuat otomatis saat login pertama.
@@ -224,31 +239,11 @@ async function ensureUser(user) {
   return { ...u, email: user.email };
 }
 
+let adminGen = 0;
 function startAdmin() {
   stopAdmin();
+  const gen = adminGen;
   const u = state.adminUnsubs;
-  if (can('warga')) {
-    // Kepala Dusun hanya memuat warga dusunnya sendiri (juga dikunci oleh Firestore Rules)
-    const wq = isKadus() ? F.query(F.collection(F.db, 'warga'), F.where('dusun', '==', myDusun())) : F.collection(F.db, 'warga');
-    u.push(F.onSnapshot(wq, (s) => {
-      state.warga = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-      state.wargaReady = true;
-      softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
-      updatePublicStats();
-    }, (e) => toast('Gagal memuat data warga: ' + e.message, 'error')));
-  } else state.wargaReady = true;
-  u.push(F.onSnapshot(F.collection(F.db, 'dusun'), (s) => {
-    state.dusun = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
-    softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']);
-    updatePublicStats();
-  }, () => {}));
-  let seeded = false;
-  u.push(F.onSnapshot(F.collection(F.db, 'master'), (s) => {
-    const m = {}; s.docs.forEach((d) => { m[d.id] = { key: d.id, ...d.data() }; });
-    state.master = m; state.masterReady = true;
-    if (!seeded && !s.metadata.fromCache && can('master')) { seeded = true; seedMaster(m); }
-    softRerender(['master']);
-  }, () => {}));
   // Profil terbaru (hak akses bisa diubah Super Admin sewaktu-waktu)
   u.push(F.onSnapshot(C(`users/${state.user.uid}`), (s) => {
     const d = s.data();
@@ -257,12 +252,37 @@ function startAdmin() {
     state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
     if (changed) { toast('Hak akses Anda diperbarui', 'info'); root.dataset.shell = ''; startAdmin(); render(); }
   }, () => {}));
-  subscribeInfo(true);
-  if (can('lembaga') || can('dokumen') || isPengelola()) subscribeLembaga(true);
+  F.getDoc(C('config/auth')).then((s) => { state.authCfg = s.data() || {}; }).catch(() => {});
+  if (!can('warga')) state.wargaReady = true;
+  Sync.startAdmin(state.user.uid).then(() => {
+    if (gen !== adminGen || !state.isAdmin) return;
+    if (can('warga')) {
+      // Kepala Dusun hanya memuat warga dusunnya sendiri (juga dikunci oleh Firestore Rules)
+      u.push(Sync.watch({ id: isKadus() ? `warga:${slugify(myDusun())}` : 'warga', scope: 'adm', col: 'warga', base: isKadus() ? [F.where('dusun', '==', myDusun())] : [],
+        onData: (list) => { state.warga = list; state.wargaReady = true; softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']); updatePublicStats(); },
+        onError: (e) => { state.wargaReady = true; toast('Gagal memuat data warga: ' + e.message, 'error'); } }));
+    }
+    u.push(Sync.watch({ id: 'dusun', scope: 'adm', col: 'dusun', onData: (list) => {
+      state.dusun = list.sort((a, b) => (a.urutan || 0) - (b.urutan || 0) || String(a.nama).localeCompare(String(b.nama)));
+      softRerender(['dash', 'warga', 'dusun', 'laporan', 'broadcast']); updatePublicStats();
+    } }));
+    let seeded = false;
+    u.push(Sync.watch({ id: 'master', scope: 'adm', col: 'master', onData: (list, info) => {
+      const m = {}; list.forEach(({ id, ...d }) => { m[id] = { key: id, ...d }; });
+      state.master = m; state.masterReady = true;
+      if (!seeded && info.fromServer && can('master')) { seeded = true; seedMaster(m); }
+      softRerender(['master']);
+    } }));
+    subscribeInfo(true);
+    if (can('lembaga') || can('dokumen') || isPengelola()) subscribeLembaga(true);
+    if (isSuper()) { Sync.ensureMeta(); setTimeout(() => checkBackupReminder(), 1500); }
+  });
   setTimeout(() => { if (can('instagram')) autoSyncInstagram(); }, 4000);
 }
 function stopAdmin() {
+  adminGen++;
   state.adminUnsubs.forEach((f) => f()); state.adminUnsubs = [];
+  Sync.stopAdmin();
   state.warga = []; state.dusun = []; state.master = {}; state.wargaReady = false; state.masterReady = false;
   state.selected.clear();
   subscribeInfo(false);
@@ -272,6 +292,8 @@ function stopAdmin() {
 async function doLogout(reason = 'logout') {
   const labels = { logout: 'Logout', idle: 'Logout otomatis (tidak ada aktivitas)', akses_dicabut: 'Logout paksa (akses dicabut)' };
   try { await logAudit('auth', reason, labels[reason] || reason); } catch { /* */ }
+  try { await flushUsage(true); } catch { /* */ }
+  await Sync.stopAdmin({ forget: true }).catch(() => {});
   stopAdmin();
   await F.signOut(F.auth).catch(() => {});
   await F.wipeLocalCache();
@@ -428,11 +450,11 @@ function renderPublic(r, soft) {
   const ticker = rt.aktif && String(rt.teks || '').trim();
   document.body.classList.toggle('has-ticker', !!ticker);
   const lay = state.config.layout || {};
-  const sideKeys = { sholat: () => sholatPanel(), kegiatan: () => kegiatanPanel() };
-  const leftKeys = ordered(['sholat', 'kegiatan'].filter((k) => (lay.sideRight || ['kegiatan']).indexOf(k) < 0), lay.sideLeft);
-  const rightKeys = ordered(['sholat', 'kegiatan'].filter((k) => !leftKeys.includes(k)), lay.sideRight);
-  const side = (keys) => keys.map((k) => `<div class="side-block" data-key="${k}">${sideKeys[k]()}</div>`).join('');
   const editing = state.layoutEdit === 'public';
+  const sideKeys = { sholat: () => sholatPanel(), kegiatan: () => kegiatanPanel(), lnews: () => lembagaNewsPanel() };
+  const { leftKeys, rightKeys } = sideLayout(lay, editing || widgetCfg().berita.aktif);
+  const side = (keys) => keys.map((k) => `<div class="side-block" data-key="${k}">${sideKeys[k]()}</div>`).join('');
+  const showVisits = p0 === '' && widgetCfg().analitik.aktif;
   const openDd = soft ? [...document.querySelectorAll('.pub-nav .dropdown')].findIndex((d) => d.classList.contains('open')) : -1;
   root.innerHTML = `
   <header class="pub-header">
@@ -461,14 +483,32 @@ function renderPublic(r, soft) {
     <main class="pub-main">${content}</main>
     <aside class="side side-right" data-sort="sideRight" aria-label="Panel kanan">${side(rightKeys)}</aside>
   </div>
+  ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}
   ${pubFooter(ticker, rt)}
   ${isSuper() && p0 === '' ? layoutBar('public') : ''}`;
   applyTheme(state.config.tema);
   applyBackground(state.config.latar, { isHome: p0 === '' });
   bindPublic();
+  mountVisitorWidget(showVisits ? $('#vis-widget') : null);
+  if (!soft && !pubStarted) { pubStarted = true; recordVisit(); startPresence(); }
   if (openDd >= 0) { const d = $$('.pub-nav .dropdown')[openDd]; d?.classList.add('open'); d?.querySelector('.dropdown-btn')?.setAttribute('aria-expanded', 'true'); }
   if (editing) enableLayoutEdit('public');
   if (soft) window.scrollTo(0, y); else window.scrollTo(0, 0);
+}
+
+// Susunan panel samping. Panel baru "Berita Lembaga" (v2.4) otomatis ditempatkan tepat di bawah Kegiatan Rutin.
+const SIDE_ALL = ['sholat', 'kegiatan', 'lnews'];
+let pubStarted = false;
+function sideLayout(lay, withNews) {
+  const all = SIDE_ALL.filter((k) => k !== 'lnews' || withNews);
+  const right = Array.isArray(lay.sideRight) ? lay.sideRight.filter((k) => all.includes(k)) : ['kegiatan'];
+  const left = Array.isArray(lay.sideLeft) ? lay.sideLeft.filter((k) => all.includes(k) && !right.includes(k)) : [];
+  if (withNews && !right.includes('lnews') && !left.includes('lnews')) {
+    const t = left.includes('kegiatan') ? left : right; const i = t.indexOf('kegiatan');
+    t.splice(i >= 0 ? i + 1 : t.length, 0, 'lnews');
+  }
+  const leftKeys = ordered(all.filter((k) => !right.includes(k)), left);
+  return { leftKeys, rightKeys: right };
 }
 
 // Footer statis & minimalis — semua informasi rata kanan; running text digerakkan JavaScript
@@ -694,12 +734,13 @@ function bindPublic() {
   bindDokumenPublic();
   startPublicTickers();
   startTicker();
+  startNewsScroller();
 }
 function closeDropdowns(e) { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((x) => x.classList.remove('open')); }
 
 // ================================================================ LOGIN (Admin: email + password)
 function renderLogin() {
-  state.view = 'login';
+  state.view = 'login'; unmountVisitorWidget();
   root.dataset.shell = 'login';
   root.innerHTML = `<div class="login-page">
     <form class="login-card" id="login-form">
@@ -730,11 +771,14 @@ function renderLogin() {
     const lock = Number(localStorage.getItem('dd:lockUntil') || 0);
     if (Date.now() < lock) { errEl.textContent = `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil((lock - Date.now()) / 60000)} menit.`; return; }
     btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Memeriksa…'; errEl.textContent = '';
+    const lw = Sync.beginLogin($('#pw').value);
     try {
       sessionStorage.setItem('dd:justLogin', '1');
-      await F.signInWithEmailAndPassword(F.auth, $('#em').value.trim(), $('#pw').value);
+      const cred = await F.signInWithEmailAndPassword(F.auth, $('#em').value.trim(), $('#pw').value);
+      lw.done(cred.user.uid);
       location.hash = '#/admin';
     } catch (err) {
+      lw.fail();
       sessionStorage.removeItem('dd:justLogin');
       loginFailed();
       errEl.textContent = authErrorMessage(err).replace('Password salah.', 'Email atau password salah.');
@@ -753,20 +797,24 @@ const NAV = [
   ['informasi', 'Papan Informasi', 'mega', 'informasi', 'Publikasi'], ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast', 'Publikasi'], ['instagram', 'Instagram', 'ig', 'instagram', 'Publikasi'],
   ['profil', 'Profil Gampong', 'book', 'profil', 'Publikasi'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan', 'Publikasi'],
   ['pengaturan', 'Pengaturan', 'cog', null, 'Sistem'], ['tampilan', 'Tampilan & Tema', 'eye', 'super', 'Sistem'], ['latar', 'Latar Belakang', 'image', 'latar', 'Sistem'],
-  ['admin', 'Manajemen Akun', 'lock', 'akun', 'Super Admin'], ['audit', 'Audit Log', 'log', 'super', 'Super Admin'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super', 'Super Admin'],
+  ['widget', 'Widget Beranda', 'news', 'super', 'Sistem'], ['monitor', 'Monitor & Analitik', 'activity', 'super', 'Sistem'],
+  ['admin', 'Manajemen Akun', 'lock', 'akun', 'Admin'],
+  ['audit', 'Audit Log', 'log', 'super', 'Super Admin'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super', 'Super Admin'],
 ];
-const NAV_GROUPS = ['Utama', 'Kependudukan', 'Kelembagaan', 'Publikasi', 'Sistem', 'Super Admin'];
-const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : p === 'akun' ? (isSuper() || can('kelolaKadus')) : p === 'lembagaAny' ? (can('lembaga') || isPengelola()) : can(p));
+const NAV_GROUPS = ['Utama', 'Kependudukan', 'Kelembagaan', 'Publikasi', 'Sistem', 'Admin', 'Super Admin'];
+// Admin › Manajemen Akun: Super Admin, atau admin yang diberi badge Centang Hijau — Perangkat Gampong
+const navAllowed = ([, , , p]) => !p || (p === 'super' ? isSuper() : p === 'akun' ? (isSuper() || hasGreen()) : p === 'lembagaAny' ? (can('lembaga') || isPengelola()) : can(p));
 function updateShellBrand() {
   const b = $('#shell-brand'); if (b) b.innerHTML = `<span class="logo-mark">${logoImg()}</span><span class="brand-text"><b>${esc(desaName())}</b><small>${APP.name} v${APP.version}</small></span>`;
 }
 function renderAdmin(r, soft) {
   const sec = r.parts[1] || 'dashboard';
+  unmountVisitorWidget(); stopPresence(); pubStarted = false;
   if (root.dataset.shell !== 'admin') {
     root.dataset.shell = 'admin';
     const items = NAV.filter(navAllowed);
-    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span></a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}</div>` : ''}`;
-    const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g === 'Super Admin' && !isSuper() ? 'Akun' : g}</small>`}${its.map(link).join('')}` : ''; }).join('');
+    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span>${k === 'cadangan' ? '<i class="nav-dot" id="nav-dot-cadangan" hidden title="Waktunya mencadangkan data"></i>' : ''}</a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}</div>` : ''}`;
+    const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g}</small>`}${its.map(link).join('')}` : ''; }).join('');
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
         <a class="brand" id="shell-brand" href="#/admin"></a>
@@ -810,7 +858,7 @@ function renderAdmin(r, soft) {
     dashboard: viewDashboard, warga: viewWarga, import: viewImport, dusun: viewDusun, master: viewMaster, laporan: viewLaporan,
     informasi: viewInformasi, broadcast: viewBroadcast, instagram: viewInstagram, pengaturan: viewPengaturan,
     profil: viewProfilAdmin, kegiatan: viewKegiatanAdmin, admin: viewAdmins, audit: viewAudit, cadangan: viewCadangan, latar: viewLatar,
-    lembaga: viewLembagaAdmin, dokumen: viewDokumenAdmin, tampilan: viewTampilan,
+    lembaga: viewLembagaAdmin, dokumen: viewDokumenAdmin, tampilan: viewTampilan, widget: viewWidget, monitor: viewMonitor,
   };
   if (sec !== 'dashboard' && state.layoutEdit === 'dash') { state.layoutEdit = null; layoutStop?.(); }
   (views[sec] || viewDashboard)(main, r);
@@ -1342,7 +1390,7 @@ async function downloadTemplate() {
     await exportExcel('Template_Import_Data_Warga', [
       { name: 'Data Warga', head: fields.map((f) => f.label), body: [fields.map((f) => ex[f.key] ?? '')] },
       { name: 'Pilihan Dropdown', head: pilihan.map((f) => f.label), body: pilihanBody },
-      { name: 'Petunjuk', head: ['Petunjuk Pengisian'], body: [['1. Isi data mulai baris ke-2 pada lembar "Data Warga". Hapus baris contoh.'], ['2. NIK & No KK 16 digit. Format kolom sebagai Teks agar angka tidak berubah.'], ['3. Tanggal format YYYY-MM-DD (contoh 1990-01-31) atau DD/MM/YYYY.'], ['4. Untuk kolom pilihan, gunakan nilai pada lembar "Pilihan Dropdown". Nilai baru akan ditambahkan ke Data Master.'], ['5. Jenis Kelamin boleh diisi L / P.'], [`${APP.name} v${APP.version} ${APP.credit}`]] },
+      { name: 'Petunjuk', head: ['Petunjuk Pengisian'], body: [['1. Isi data mulai baris ke-2 pada lembar "Data Warga". Hapus baris contoh.'], ['2. NIK & No KK 16 digit. Format kolom sebagai Teks agar angka tidak berubah.'], ['3. Tanggal format YYYY-MM-DD (contoh 1990-01-31) atau DD/MM/YYYY.'], ['4. Untuk kolom pilihan, gunakan nilai pada lembar "Pilihan Dropdown". Nilai baru akan ditambahkan ke Data Master.'], ['5. Jenis Kelamin boleh diisi L / P.'], [`${APP.exportCredit}`]] },
     ]);
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -1496,7 +1544,7 @@ function viewDusun(main) {
       <div class="kadus">${d.kepalaNama ? `<span class="muted small">Kepala Dusun</span><b>${esc(d.kepalaNama)}</b>${waNumber(d.kepalaHp) ? `<a class="wa-link" target="_blank" rel="noopener" href="${esc(waLink(d.kepalaHp, `Assalamu'alaikum Bapak/Ibu ${d.kepalaNama}, `))}">${ic('wa')} ${esc(d.kepalaHp)}</a>` : ''}` : '<span class="muted">Kepala dusun belum diisi</span>'}</div>
       <div class="dusun-stats"><span><b>${ak.length}</b> jiwa</span><span><b>${ak.filter((w) => norm(w.shdk) === 'kepala keluarga').length}</b> KK</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('l')).length}</b> L</span><span><b>${ak.filter((w) => norm(w.jk).startsWith('p')).length}</b> P</span></div>
       ${d.keterangan ? `<div class="muted small rich">${richRender(d.keterangan)}</div>` : ''}
-      <div class="dusun-actions">${can('warga') ? `<a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a>` : ''}${can('export') ? `<button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button>` : ''}${can('broadcast') ? `<button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button>` : ''}${isSuper() || can('kelolaKadus') ? `<a class="btn btn-sm btn-ghost" href="#/admin/admin?kadus=${encodeURIComponent(d.nama)}">${ic('lock')} Akun Kadus</a>` : ''}</div>
+      <div class="dusun-actions">${can('warga') ? `<a class="btn btn-sm btn-ghost" href="#/admin/warga?dusun=${encodeURIComponent(d.nama)}">${ic('users')} Warga</a>` : ''}${can('export') ? `<button class="btn btn-sm btn-ghost" data-xls="${d.id}">Excel</button><button class="btn btn-sm btn-ghost" data-pdf="${d.id}">PDF</button>` : ''}${can('broadcast') ? `<button class="btn btn-sm btn-wa" data-wa="${esc(d.nama)}">${ic('wa')} WA Warga</button>` : ''}${isSuper() || (hasGreen() && can('kelolaKadus')) ? `<a class="btn btn-sm btn-ghost" href="#/admin/admin?kadus=${encodeURIComponent(d.nama)}">${ic('lock')} Akun Kadus</a>` : ''}</div>
     </div>`;
   }).join('') || emptyBox('Belum ada dusun. Tambahkan dusun atau import data warga.')}</div>`;
   $('#d-add').onclick = () => dusunForm(null);
@@ -1558,38 +1606,95 @@ function dusunForm(d) {
 
 // ---------------------------------------------------------------- Data Master
 let masterSel = 'jk';
+// Kategori yang tidak boleh dihapus karena dipakai perhitungan inti (KK, jenis kelamin, kategori informasi/kegiatan)
+const MASTER_LOCKED = ['jk', 'shdk', 'kategoriInfo', 'kategoriKegiatan'];
+const MASTER_GROUPS = [...GROUPS.map((g) => ({ id: g.id, label: g.id === 'tambahan' ? 'Data Tambahan (kustom)' : g.label })), { id: 'info', label: 'Publikasi' }];
+// Daftar seluruh kategori dropdown beserta kelompok & urutan efektif (bisa diubah Super Admin / admin Data Master)
+function masterCategories() {
+  const extras = [{ key: 'kategoriInfo', label: MASTER_EXTRA_LABELS.kategoriInfo }, { key: 'kategoriKegiatan', label: MASTER_EXTRA_LABELS.kategoriKegiatan }, ...(state.master.jenisDokumen ? [{ key: 'jenisDokumen', label: 'Jenis Dokumen Publik' }] : [])];
+  const list = [
+    ...FIELDS.filter((f) => f.type === 'select').map((f, i) => ({ key: f.key, label: f.label, defGroup: f.group, defOrder: i, builtin: true })),
+    ...extras.map((x, i) => ({ ...x, defGroup: 'info', defOrder: 100 + i, builtin: true, info: true })),
+    ...Object.values(state.master).filter((m) => m.custom).map((m, i) => ({ key: m.key, label: m.label, defGroup: 'tambahan', defOrder: 200 + i, custom: true })),
+  ];
+  return list.map((c) => {
+    const m = state.master[c.key] || {};
+    const valid = c.info ? ['info'] : FORM_GROUPS;
+    return { ...c, group: valid.includes(m.group) ? m.group : c.defGroup, order: Number.isFinite(m.order) ? m.order : c.defOrder, deleted: !!m.deleted, locked: MASTER_LOCKED.includes(c.key) };
+  });
+}
 function viewMaster(main) {
   state.view = 'master';
   if (!state.masterReady) { main.innerHTML = loadingBox(); return; }
-  const builtins = [...FIELDS.filter((f) => f.type === 'select').map((f) => ({ key: f.key, label: f.label, group: f.group })), { key: 'kategoriInfo', label: MASTER_EXTRA_LABELS.kategoriInfo, group: 'info' }, { key: 'kategoriKegiatan', label: MASTER_EXTRA_LABELS.kategoriKegiatan, group: 'info' }];
-  const customs = customFields();
-  if (![...builtins, ...customs].find((c) => c.key === masterSel)) masterSel = 'jk';
-  const groupLabel = (g) => GROUPS.find((x) => x.id === g)?.label || (g === 'info' ? 'Publikasi' : g);
-  const sideGroups = [...new Set(builtins.map((b) => b.group))];
+  const cats = masterCategories();
+  const live = cats.filter((c) => !c.deleted);
+  if (!live.find((c) => c.key === masterSel)) masterSel = live[0]?.key || 'jk';
+  const groups = MASTER_GROUPS.map((g) => ({ ...g, items: live.filter((c) => c.group === g.id).sort((a, b) => a.order - b.order || a.defOrder - b.defOrder) }));
+  const flat = groups.flatMap((g) => g.items.map((c) => ({ ...c, g: g.id })));
+  const sel = cats.find((c) => c.key === masterSel);
   const items = masterItems(masterSel);
   const usage = (v) => state.warga.filter((w) => norm(w[masterSel]) === norm(v)).length;
+  const hidden = cats.filter((c) => c.deleted);
   main.innerHTML = `<div class="master">
     <aside class="master-side">
       <div class="search">${ic('search')}<input id="ms-q" placeholder="Cari kategori…"></div>
-      ${sideGroups.map((g) => `<div class="ms-group"><small>${esc(groupLabel(g))}</small>${builtins.filter((b) => b.group === g).map((b) => `<button data-k="${b.key}" class="${b.key === masterSel ? 'active' : ''}">${esc(masterLabel(b.key))}<span>${masterItems(b.key).length}</span></button>`).join('')}</div>`).join('')}
-      <div class="ms-group"><small>Kategori Kustom</small>${customs.map((b) => `<button data-k="${b.key}" class="${b.key === masterSel ? 'active' : ''}">${esc(b.label)}<span>${masterItems(b.key).length}</span></button>`).join('') || '<p class="muted small">Belum ada</p>'}
-        <button class="btn btn-sm btn-ghost" id="ms-newcat">${ic('plus')} Kategori Baru</button></div>
+      <p class="muted tiny ms-tip">Gunakan ▲ ▼ untuk menggeser kategori. Menggeser melewati batas kelompok akan memindahkannya ke kelompok di atas/bawahnya (ikut berpindah bagian di formulir warga).</p>
+      ${groups.map((g) => (g.items.length || g.id === 'tambahan' ? `<div class="ms-group" data-g="${g.id}"><small>${esc(g.label)}</small>${g.items.map((c) => {
+        const idx = flat.findIndex((x) => x.key === c.key);
+        const upOk = idx > 0 && (!c.info || flat[idx - 1].info); const dnOk = idx < flat.length - 1 && (!c.info || flat[idx + 1]?.info) && !(flat[idx + 1]?.info && !c.info);
+        return `<div class="ms-cat ${c.key === masterSel ? 'active' : ''}"><button data-k="${c.key}" class="${c.key === masterSel ? 'active' : ''}">${esc(masterLabel(c.key))}${c.custom ? ' <em class="ms-kustom">kustom</em>' : ''}<span>${masterItems(c.key).length}</span></button><span class="ms-move"><button class="icon-btn" data-mv="up" data-key="${c.key}" title="Geser ke atas" ${upOk ? '' : 'disabled'}>▲</button><button class="icon-btn" data-mv="down" data-key="${c.key}" title="Geser ke bawah" ${dnOk ? '' : 'disabled'}>▼</button></span></div>`;
+      }).join('') || '<p class="muted small">Belum ada</p>'}${g.id === 'tambahan' ? `<button class="btn btn-sm btn-ghost" id="ms-newcat">${ic('plus')} Kategori Baru</button>` : ''}</div>` : '')).join('')}
+      ${hidden.length ? `<div class="ms-group ms-hidden"><small>Kategori terhapus (${hidden.length})</small>${hidden.map((c) => `<div class="ms-cat"><span class="muted small">${esc(masterLabel(c.key))}</span><button class="btn btn-sm btn-ghost" data-restore="${c.key}">${ic('refresh')} Pulihkan</button></div>`).join('')}</div>` : ''}
     </aside>
     <section class="panel master-main">
-      <div class="master-head"><div><h3>${esc(masterLabel(masterSel))}</h3><p class="muted small">${items.length} pilihan • tampil sebagai dropdown di formulir${state.master[masterSel]?.custom ? ' (bagian Data Tambahan)' : ''}</p></div>
-        <div class="row-gap">${state.master[masterSel]?.custom ? `<button class="btn btn-sm btn-ghost" id="ms-rencat">${ic('edit')} Ganti nama</button><button class="btn btn-sm btn-danger btn-ghost" id="ms-delcat">${ic('trash')} Hapus kategori</button>` : ''}<button class="btn btn-sm btn-ghost" id="ms-sort">Urutkan A–Z</button></div></div>
+      <div class="master-head"><div><h3>${esc(masterLabel(masterSel))}</h3><p class="muted small">${items.length} pilihan • kelompok <b>${esc(MASTER_GROUPS.find((g) => g.id === sel?.group)?.label || '-')}</b>${sel?.custom ? ' • kategori kustom' : ' • kategori bawaan'}</p></div>
+        <div class="row-gap">${sel && !sel.info ? `<label class="ms-groupsel"><span class="muted small">Pindah ke</span><select id="ms-group">${MASTER_GROUPS.filter((g) => g.id !== 'info').map((g) => `<option value="${g.id}" ${g.id === sel.group ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}</select></label>` : ''}${sel?.custom ? `<button class="btn btn-sm btn-ghost" id="ms-rencat">${ic('edit')} Ganti nama</button>` : ''}${sel && !sel.locked ? `<button class="btn btn-sm btn-danger btn-ghost" id="ms-delcat">${ic('trash')} Hapus kategori</button>` : ''}<button class="btn btn-sm btn-ghost" id="ms-sort">Urutkan A–Z</button></div></div>
       <form id="ms-add" class="input-group"><input id="ms-new" placeholder="Tambah pilihan baru… (pisahkan dengan ; untuk banyak sekaligus)"><button class="btn btn-primary">${ic('plus')} Tambah</button></form>
       <div class="search">${ic('search')}<input id="ms-filter" placeholder="Cari di daftar…"></div>
-      <ul class="ms-items">${items.map((v, i) => `<li data-v="${esc(v)}"><span class="ms-order"><button class="icon-btn" data-up="${i}" title="Naik" ${i === 0 ? 'disabled' : ''}>↑</button></span><span class="ms-val">${esc(v)}</span>${!masterSel.startsWith('kategori') ? `<span class="muted small">${usage(v)} warga</span>` : ''}<button class="icon-btn" data-ren="${i}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></li>`).join('') || `<li>${emptyBox('Belum ada pilihan')}</li>`}</ul>
+      <ul class="ms-items">${items.map((v, i) => `<li data-v="${esc(v)}"><span class="ms-order"><button class="icon-btn" data-up="${i}" title="Naik" ${i === 0 ? 'disabled' : ''}>↑</button></span><span class="ms-val">${esc(v)}</span>${!sel?.info ? `<span class="muted small">${usage(v)} warga</span>` : ''}<button class="icon-btn" data-ren="${i}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></li>`).join('') || `<li>${emptyBox('Belum ada pilihan')}</li>`}</ul>
     </section></div>`;
   const ref = C(`master/${masterSel}`);
   const save = (arr, label) => F.setDoc(ref, { items: arr, label: masterLabel(masterSel) }, { merge: true }).then(() => logAudit('master', 'ubah', `${label} — kategori ${masterLabel(masterSel)}`, { target: masterLabel(masterSel) })).catch((e) => toast(e.message, 'error'));
+  // Simpan susunan (kelompok + urutan) untuk semua kategori yang posisinya berubah — dalam satu batch
+  const saveLayout = async (nextFlat, label) => {
+    const ops = []; const counter = {};
+    for (const c of nextFlat) {
+      const order = (counter[c.g] = (counter[c.g] ?? -1) + 1);
+      const m = state.master[c.key] || {};
+      if (m.group !== c.g || m.order !== order) {
+        ops.push(['set', C(`master/${c.key}`), { group: c.g, order, ...(state.master[c.key] ? {} : { label: c.label, items: masterItems(c.key), builtin: !!c.builtin }) }, { merge: true }]);
+        state.master[c.key] = { key: c.key, ...m, group: c.g, order, ...(m.items ? {} : { items: masterItems(c.key) }) };
+      }
+    }
+    if (!ops.length) return;
+    viewMaster(main);
+    try { await batchWrite(ops); logAudit('master', 'susun', label, { count: ops.length }); }
+    catch (e) { toast('Gagal menyimpan susunan: ' + e.message, 'error'); }
+  };
   $$('[data-k]', main).forEach((b) => b.onclick = () => { masterSel = b.dataset.k; viewMaster(main); });
-  $('#ms-q').oninput = (e) => { const q = norm(e.target.value); $$('[data-k]', main).forEach((b) => b.hidden = q && !norm(b.textContent).includes(q)); };
+  $$('[data-mv]', main).forEach((b) => b.onclick = () => {
+    const i = flat.findIndex((x) => x.key === b.dataset.key); const c = flat[i]; const up = b.dataset.mv === 'up';
+    const nb = flat[up ? i - 1 : i + 1]; if (!nb) return;
+    const next = flat.map((x) => ({ ...x }));
+    if (nb.g === c.g) { [next[i], next[up ? i - 1 : i + 1]] = [next[up ? i - 1 : i + 1], next[i]]; }
+    else { next[i].g = nb.g; } // melewati batas kelompok → pindah ke kelompok tetangga (di ujungnya)
+    // kelompok kosong di antara: lompat satu kelompok sekaligus
+    const toGroup = next[i].g;
+    saveLayout(next, `Menggeser kategori “${masterLabel(c.key)}” ${up ? 'ke atas' : 'ke bawah'}${toGroup !== c.g ? ` → kelompok ${MASTER_GROUPS.find((g) => g.id === toGroup)?.label}` : ''}`);
+  });
+  $('#ms-group')?.addEventListener('change', (e) => {
+    const g = e.target.value; const next = flat.filter((x) => x.key !== masterSel).map((x) => ({ ...x }));
+    const lastIdx = next.map((x) => x.g).lastIndexOf(g);
+    const order = MASTER_GROUPS.map((x) => x.id);
+    const pos = lastIdx >= 0 ? lastIdx + 1 : next.findIndex((x) => order.indexOf(x.g) > order.indexOf(g));
+    next.splice(pos < 0 ? next.length : pos, 0, { ...sel, g });
+    saveLayout(next, `Memindahkan kategori “${masterLabel(masterSel)}” ke kelompok ${MASTER_GROUPS.find((x) => x.id === g)?.label}`);
+  });
+  $('#ms-q').oninput = (e) => { const q = norm(e.target.value); $$('.ms-cat', main).forEach((b) => b.hidden = q && !norm(b.textContent).includes(q)); };
   $('#ms-filter').oninput = (e) => { const q = norm(e.target.value); $$('.ms-items li[data-v]', main).forEach((li) => li.hidden = q && !norm(li.dataset.v).includes(q)); };
   $('#ms-add').onsubmit = (e) => {
     e.preventDefault();
-    const vals = $('#ms-new').value.split(';').map((s) => s.trim()).filter(Boolean);
+    const vals = $('#ms-new').value.split(';').map((x) => x.trim()).filter(Boolean);
     const have = new Set(items.map(norm)); const add = vals.filter((v) => !have.has(norm(v)));
     if (!add.length) return toast(vals.length ? 'Pilihan sudah ada' : 'Isi nama pilihan', 'error');
     save([...items, ...add], `Menambah pilihan: ${add.join(', ')}`).then(() => toast(`${add.length} pilihan ditambahkan`, 'success'));
@@ -1606,23 +1711,46 @@ function viewMaster(main) {
     await save(items.map((x) => (x === old ? nv : x)), `Mengubah pilihan “${old}” → “${nv}”`);
     const affected = state.warga.filter((w) => w[masterSel] === old);
     if (affected.length && await confirmDialog(`Perbarui juga ${affected.length} data warga dari “${old}” menjadi “${nv}”?`, { okText: 'Perbarui' })) {
-      await batchWrite(affected.map((w) => ['update', C(`warga/${w.id}`), { [masterSel]: nv }])); logAudit('warga', 'ubah_massal', `Memperbarui ${affected.length} warga: ${masterLabel(masterSel)} “${old}” → “${nv}”`, { count: affected.length }); toast('Data warga diperbarui', 'success');
+      await batchWrite(affected.map((w) => ['update', C(`warga/${w.id}`), { [masterSel]: nv, updatedAt: F.serverTimestamp() }])); logAudit('warga', 'ubah_massal', `Memperbarui ${affected.length} warga: ${masterLabel(masterSel)} “${old}” → “${nv}”`, { count: affected.length }); toast('Data warga diperbarui', 'success');
     }
     if (masterSel === 'kategoriInfo') { const inf = state.info.filter((i) => i.kategori === old); if (inf.length) await batchWrite(inf.map((i) => ['update', C(`informasi/${i.id}`), { kategori: nv }])); }
   });
-  $('#ms-newcat').onclick = async () => {
+  $('#ms-newcat')?.addEventListener('click', async () => {
     const label = await promptDialog('Kategori Dropdown Baru', 'Nama kategori (akan muncul sebagai kolom baru di formulir warga)', '', { placeholder: 'mis. Status Kepemilikan Ternak' });
     if (!label) return;
     const key = 'x_' + slugify(label).replace(/-/g, '_');
-    if (state.master[key] || fieldByKey(key)) return toast('Kategori sudah ada', 'error');
-    await F.setDoc(C(`master/${key}`), { label, items: [], custom: true, group: 'tambahan', order: customs.length + 1 });
-    logAudit('master', 'kategori_baru', `Membuat kategori dropdown baru “${label}”`, { target: label });
-    masterSel = key; toast('Kategori dibuat — silakan tambah pilihannya', 'success');
-  };
-  $('#ms-rencat')?.addEventListener('click', async () => { const l = await promptDialog('Ganti nama kategori', 'Nama kategori', masterLabel(masterSel)); if (l) { await F.updateDoc(ref, { label: l }); logAudit('master', 'ganti_nama', `Mengganti nama kategori menjadi “${l}”`); } });
+    if (state.master[key] && !state.master[key].deleted) return toast('Kategori sudah ada', 'error');
+    if (fieldByKey(key)) return toast('Kategori sudah ada', 'error');
+    try {
+      const order = live.filter((c) => c.group === 'tambahan').length;
+      await F.setDoc(C(`master/${key}`), { label, items: [], custom: true, group: 'tambahan', order });
+      state.master[key] = { key, label, items: [], custom: true, group: 'tambahan', order };
+      logAudit('master', 'kategori_baru', `Membuat kategori dropdown baru “${label}”`, { target: label });
+      masterSel = key; viewMaster(main); toast('Kategori dibuat — silakan tambah pilihannya', 'success');
+    } catch (e) { toast('Gagal membuat kategori: ' + e.message, 'error'); }
+  });
+  $('#ms-rencat')?.addEventListener('click', async () => {
+    const l = await promptDialog('Ganti nama kategori', 'Nama kategori', masterLabel(masterSel)); if (!l) return;
+    try { await F.updateDoc(ref, { label: l }); state.master[masterSel] = { ...state.master[masterSel], label: l }; logAudit('master', 'ganti_nama', `Mengganti nama kategori menjadi “${l}”`); viewMaster(main); toast('Nama kategori diganti', 'success'); }
+    catch (e) { toast('Gagal: ' + e.message, 'error'); }
+  });
+  // PERBAIKAN v2.4: kategori benar-benar terhapus (sebelumnya ditolak Rules tanpa pesan)
   $('#ms-delcat')?.addEventListener('click', async () => {
-    if (!await confirmDelete(`Hapus kategori “${masterLabel(masterSel)}” beserta semua pilihannya? Nilai yang sudah tersimpan di data warga tetap ada.`)) return;
-    await F.deleteDoc(ref); logAudit('master', 'hapus_kategori', `Menghapus kategori “${masterLabel(masterSel)}”`); masterSel = 'jk';
+    const key = masterSel; const label = masterLabel(key); const isCustom = !!sel?.custom;
+    const used = state.warga.filter((w) => w[key] !== undefined && w[key] !== '').length;
+    if (!await confirmDelete(`Hapus kategori “${label}”${isCustom ? ' beserta semua pilihannya' : ''}? ${isCustom ? 'Kolom ini hilang dari formulir warga.' : 'Kategori bawaan disembunyikan dari formulir & daftar (dapat dipulihkan kapan saja).'}${used ? ` Nilai yang sudah tersimpan pada ${used} data warga tetap ada.` : ''}`)) return;
+    try {
+      if (isCustom) await F.deleteDoc(C(`master/${key}`));
+      else await F.setDoc(C(`master/${key}`), { deleted: true, label, items: masterItems(key) }, { merge: true });
+      if (isCustom) delete state.master[key]; else state.master[key] = { key, ...(state.master[key] || {}), deleted: true };
+      logAudit('master', 'hapus_kategori', `Menghapus kategori “${label}”${isCustom ? '' : ' (bawaan, disembunyikan)'}`, { target: label });
+      masterSel = 'jk'; viewMaster(main); toast(`Kategori “${label}” dihapus`, 'success');
+    } catch (e) { toast('Gagal menghapus kategori: ' + e.message, 'error'); }
+  });
+  $$('[data-restore]', main).forEach((b) => b.onclick = async () => {
+    const key = b.dataset.restore;
+    try { await F.setDoc(C(`master/${key}`), { deleted: false }, { merge: true }); state.master[key] = { ...state.master[key], deleted: false }; logAudit('master', 'pulihkan_kategori', `Memulihkan kategori “${masterLabel(key)}”`); masterSel = key; viewMaster(main); toast('Kategori dipulihkan', 'success'); }
+    catch (e) { toast('Gagal: ' + e.message, 'error'); }
   });
 }
 
@@ -2071,7 +2199,7 @@ function viewPengaturan(main) {
     e.preventDefault(); const f = e.target; const nw = f.elements.nw.value;
     if (nw.length < 8 || !/[a-zA-Z]/.test(nw) || !/\d/.test(nw)) return toast('Password baru minimal 8 karakter dan mengandung huruf serta angka', 'error');
     if (nw !== f.elements.nw2.value) return toast('Konfirmasi password tidak sama', 'error');
-    try { await reauth(f.elements.cur.value); await F.updatePassword(F.auth.currentUser, nw); f.reset(); logAudit('auth', 'ubah_password', 'Mengubah password'); toast('Password berhasil diubah', 'success'); }
+    try { await reauth(f.elements.cur.value); await F.updatePassword(F.auth.currentUser, nw); Sync.rekey(nw); f.reset(); logAudit('auth', 'ubah_password', 'Mengubah password'); toast('Password berhasil diubah', 'success'); }
     catch (err) { logAudit('auth', 'ubah_password_gagal', 'Gagal mengubah password', { detail: err.code }); toast(authErrorMessage(err), 'error'); }
   };
   $('#emf').onsubmit = async (e) => {

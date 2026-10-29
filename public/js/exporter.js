@@ -1,6 +1,9 @@
 // Ekspor Excel (SheetJS) & PDF (jsPDF + AutoTable). Library dimuat saat dibutuhkan saja.
 import { APP } from './config.js';
 import { loadScript, fmtDate } from './ui.js';
+import { track } from './usage.js';
+// Baris penanda pada setiap berkas ekspor: tanggal, jam • kredit (tanpa nomor versi aplikasi)
+export const stamp = () => `${fmtDate(new Date(), true)} • ${APP.exportCredit}`;
 
 const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
 const JSPDF_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
@@ -28,7 +31,7 @@ export async function exportExcel(filename, sheets, meta = {}) {
       aoa.push([sh.title]);
       if (meta.instansi) aoa.push([meta.instansi]);
       if (meta.filter) aoa.push([meta.filter]);
-      aoa.push([`Dicetak: ${fmtDate(new Date(), true)} — ${APP.name} v${APP.version} ${APP.credit}`]);
+      aoa.push([stamp()]);
       aoa.push([]);
     }
     const headerRow = aoa.length;
@@ -43,7 +46,9 @@ export async function exportExcel(filename, sheets, meta = {}) {
     if (sh.body.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow + sh.body.length, c: sh.head.length - 1 } }) };
     XLSX.utils.book_append_sheet(wb, ws, safeSheet(sh.name, used));
   }
+  wb.Props = { Title: String(filename || ''), Author: 'Deah Glumpang', Company: 'Serenity Creativa Labs' };
   XLSX.writeFile(wb, `${safeFile(filename)}.xlsx`, { compression: true });
+  track('dl', 1, 'ekspor');
 }
 
 // sections: [{ heading?, sub?, head:[...], body:[[...]] }]
@@ -96,8 +101,10 @@ export async function exportPdf({ filename, title, subtitle = '', sections, orie
   for (let i = 1; i <= n; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(130);
-    doc.text(`Dicetak ${fmtDate(new Date(), true)} • ${APP.name} v${APP.version} • ${APP.credit}`, M, H - 16);
+    doc.text(stamp(), M, H - 16);
     doc.text(`Halaman ${i} dari ${n}`, W - M, H - 16, { align: 'right' });
   }
+  doc.setProperties({ title: String(title || filename || ''), author: 'Deah Glumpang', creator: 'Serenity Creativa Labs' });
   doc.save(`${safeFile(filename)}.pdf`);
+  track('dl', 1, 'ekspor');
 }

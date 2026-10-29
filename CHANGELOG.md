@@ -1,5 +1,54 @@
 # Catatan Perubahan
 
+## v2.4.0 “Nebula” — 2026.10.29 (Build 2026.10.29 · R8 · Stable)
+> Fokus rilis: **hemat kuota Firestore**, **analitik & monitoring**, **cadangan yang benar-benar lengkap**, dan perapian panel admin.
+
+### ⚡ Sinkron Bertahap (Delta Sync) — hemat kuota read
+- Mesin sinkron baru (`js/sync.js`). Data disimpan di perangkat (IndexedDB); saat halaman/dasbor dibuka aplikasi **hanya meminta dokumen yang berubah sejak kunjungan terakhir**.
+- Dokumen versi `meta/pub` (publik) & `meta/adm` (admin) didengarkan realtime — 1 read per perubahan, bukan seluruh koleksi.
+- Bila versi sama → **0 read** (data dari perangkat). Bila berubah → hanya dokumen ber-`syncAt` baru + catatan hapus (`hapus`) + 1 hitungan (*count aggregation*). Bila jumlah tidak cocok → muat ulang penuh otomatis (data selalu benar).
+- Berlaku untuk **pengunjung umum** (pengaturan, statistik, informasi, lembaga, dokumen, kegiatan, profil, Instagram) dan **admin** (warga, dusun, data master, dll.).
+- **Keamanan**: data publik disimpan apa adanya; data admin (warga, dll.) **dienkripsi AES-GCM 256-bit** dengan kunci turunan password (PBKDF2-SHA256, 210.000 iterasi). Kunci dihapus saat logout → salinan tidak bisa dibaca tanpa password. Ganti password → salinan dienkripsi ulang.
+- **Gagal-aman**: jika Rules/indeks baru belum di-deploy, offline, atau salinan rusak, aplikasi otomatis kembali ke listener penuh seperti v2.3 — tidak ada yang rusak.
+- `config/auth` tidak lagi didengarkan oleh setiap pengunjung (diambil hanya saat login Super Admin).
+
+### 📊 Analitik & Monitoring (khusus Super Admin)
+- **Widget pengunjung realtime** kecil di kiri bawah beranda (di atas running text): online sekarang, kunjungan hari ini, total; klik untuk grafik 7 hari. Hanya tampil di halaman depan.
+- Menu baru **Sistem › Monitor & Analitik**: read, write, delete, download, upload, dan *read dihemat* per hari (30 hari) dengan bilah kuota gratis Firestore, rincian per koleksi untuk sesi berjalan, status sinkron bertahap, analitik kunjungan 30 hari, serta ekspor Excel.
+- Hemat kuota: 1 tulis per sesi pengunjung, detak kehadiran tiap 2 menit hanya saat tab terlihat, pemakaian dikirim bertahap (≤ 1 tulis / 5 menit / perangkat). Tanpa data pribadi.
+
+### 📰 Widget Beranda
+- Panel baru **Berita & Kegiatan Lembaga** tepat di bawah **Kegiatan Rutin Gampong**: seluruh berita dari setiap lembaga bergulir otomatis (atas ↕ bawah), jeda saat diarahkan/disentuh, roda mouse untuk menggulir manual. Tanpa read tambahan.
+- Menu baru **Sistem › Widget Beranda** (khusus Super Admin): kecepatan gulir (4–120 px/detik), arah, jumlah berita, tinggi panel, serta tampil/sembunyi widget analitik.
+
+### 🗂️ Data Master
+- **Hapus kategori** untuk semua kategori: kategori kustom dihapus permanen; kategori bawaan disembunyikan dan dapat **dipulihkan**. Kategori inti (Jenis Kelamin, SHDK, kategori Informasi & Kegiatan) dilindungi.
+- **Geser ▲▼** kategori; melewati batas kelompok memindahkannya ke kelompok lain. Tersedia juga pilihan **“Pindah ke”** kelompok. Formulir warga ikut mengikuti kelompok baru.
+
+### 👥 Akun & Akses
+- Grup menu baru **Admin › Manajemen Akun** — terbuka bagi Super Admin dan admin yang diberi badge **Centang Hijau — Perangkat Gampong**.
+- Akun **Super Admin tidak terlihat** oleh siapa pun selain Super Admin (dikunci juga oleh Firestore Rules).
+- Kotak centang di formulir **Tambah Admin** (dan seluruh aplikasi) kini berukuran seragam.
+
+### 💾 Cadangan & Pemulihan
+- Cadangan kini **benar-benar lengkap**: warga, dusun, master, informasi, Instagram, profil, kegiatan, lembaga + anggota/murid, dokumen, akun & hak akses, pengaturan, tema, statistik, analitik, hingga **audit log** — dengan progres per koleksi.
+- **Pengingat cadangan setiap tanggal 29** (Februari non-kabisat: 28) khusus Super Admin: jendela pengingat, notifikasi browser, dan titik merah di menu.
+- Notifikasi **berhasil** setelah “Hapus semua data warga”, lengkap dengan jumlah & waktu.
+
+### 🧾 Ekspor PDF & Excel
+- Penanda dokumen kini hanya **tanggal, jam • Deah Glumpang Powered by Serenity Creativa Labs. © 2026 All Rights Reserved** (tanpa nomor versi). Metadata penulis berkas ikut diisi.
+
+### 🐞 Perbaikan bug
+- Kategori Data Master yang baru dibuat **tidak bisa dihapus** (Rules menolak *delete* tanpa pesan). Kini terhapus dan ada pesan sukses/gagal.
+- **Unduh Cadangan selalu gagal** karena koleksi `config` dibaca dengan *list* yang ditolak Rules.
+- Daftar saran (autocomplete) di **Struktur Kepengurusan & Anggota** lembaga terpotong tabel. Kini kolom lebih lebar dan daftar saran melayang di atas halaman (juga di dalam dialog).
+
+### 🔐 Firestore Rules & Indeks
+- Rules baru untuk `meta`, `hapus`, `analytics`, `presence`, `usage`, `sistem`; perbaikan *delete* `master`; `isGreen()` untuk akun bercentang hijau; `widget` sebagai pengaturan khusus Super Admin.
+- Indeks komposit baru di `firestore.indexes.json` (published+syncAt, dusun+syncAt, c+at).
+- Deploy: `npm run deploy` (hosting + rules + indeks).
+
+
 ## v2.3.0 “Aurora” — 2026.10.27 (Build 2026.10.27 · R7 · Stable)
 ### Identitas baru
 - Nama aplikasi berganti dari **DigiDes** menjadi **Serenity** di semua tempat (judul, PWA, ekspor PDF/Excel, cadangan, service worker).

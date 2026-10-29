@@ -95,3 +95,21 @@ git push origin --force --all
 | ⚠️ Anda | Tetap paket Spark, atau pasang budget alert bila Blaze |
 | ⚠️ Anda | Deploy `firestore.rules` terbaru (workflow / `firebase deploy --only firestore:rules`) |
 | ⚠️ Anda | Tutup alert secret scanning GitHub setelah key dibatasi |
+
+
+## v2.4.0 — Sinkron Bertahap & keamanan data di perangkat
+
+**Apakah aman?** Ya. Ringkasnya:
+
+| Aspek | Penjelasan |
+|---|---|
+| Hak akses | Tidak berubah. Firestore Rules tetap menjadi penjaga utama — salinan di perangkat hanya berisi data yang memang boleh dibaca akun tersebut. |
+| Data publik di perangkat | Disimpan di IndexedDB apa adanya (memang data publik: informasi, lembaga, dokumen, kegiatan, statistik agregat). |
+| Data admin di perangkat | **Dienkripsi AES-GCM 256-bit**. Kunci diturunkan dari password akun (PBKDF2-SHA256, 210.000 iterasi, salt acak per akun) dan **tidak dapat diekspor**. Saat logout (termasuk logout otomatis) kunci dihapus → salinan tidak dapat dibuka tanpa password. Ganti password → salinan dienkripsi ulang; reset password via email → salinan lama otomatis dibuang. |
+| Keutuhan data | Setiap sinkron mencocokkan jumlah dokumen dengan server (count aggregation). Bila berbeda, terlalu banyak perubahan, atau salinan rusak → muat ulang penuh otomatis. Pengaman tambahan: muat ulang penuh tiap 7 hari. |
+| Data di Firestore | Tidak diubah, hanya ditambah field `syncAt` (cap waktu server) dan dokumen bantu `meta`, `hapus`. Tidak ada data yang dihapus oleh mesin sinkron. |
+| Gagal-aman | Bila Rules/indeks baru belum di-deploy atau offline, aplikasi otomatis kembali ke cara lama (listener penuh). |
+| Analitik | Tanpa data pribadi: tidak ada IP, nama, maupun sidik jari perangkat. Kehadiran hanya menyimpan cap waktu dengan ID sesi acak. Semua penghitung divalidasi Rules (hanya boleh bertambah, dengan batas per kiriman). |
+| Akun Super Admin | Tidak dapat dibaca oleh akun lain (Rules `users` mewajibkan filter peran admin/kadus untuk non-Super Admin). |
+
+Untuk membersihkan salinan di perangkat: **Sistem › Monitor & Analitik › Kosongkan salinan data di perangkat ini**.
