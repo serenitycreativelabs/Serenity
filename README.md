@@ -1,4 +1,4 @@
-# WebKit Sistem Informasi Digital by Creativa Labs
+# WebKit Sistem Informasi Digital by Serenity Creativa Labs
 
 ![versi](https://img.shields.io/badge/versi-2.6.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
