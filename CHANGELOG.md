@@ -1,5 +1,14 @@
 # Catatan Perubahan
 
+## v2.9.7 “Kirana” — 2026.10.30 (Build 2026.10.30 · R23 · Stable)
+### Video YouTube latar — benar-benar bersih
+- **Tombol sebelumnya / jeda / berikutnya tidak lagi muncul.** Penyebab: pengulangan video memakai mode *playlist* YouTube (memunculkan tombol sebelumnya/berikutnya), dan YouTube selalu menampilkan tombol ±3 detik setelah mulai, saat buffering, atau saat berhenti. Kini:
+  - tanpa mode playlist — pengulangan diatur sendiri, kembali ke awal ±0,6 detik sebelum selesai (layar akhir & video terkait tidak pernah muncul);
+  - video baru ditampilkan setelah berputar mulus **≥ 3 detik** dan kualitas target tercapai;
+  - saat buffering/berhenti, video disembunyikan sebentar dan gambar sampul yang tampil.
+- **Profil kualitas per perangkat:** komputer, laptop & PWA desktop → pemutar **1080p** (60 fps bila videonya diunggah 1080p60); ponsel & tablet → **720p** (tajam di layar kecil, ±2–3× lebih hemat kuota); mode Hemat Data → gambar sampul. Matikan “Mode hemat” untuk 1080p di semua perangkat.
+- Catatan: YouTube tidak mengizinkan situs lain mengunci kualitas secara paksa — kualitas akhir tetap disesuaikan YouTube dengan kecepatan internet pengunjung. Untuk kualitas yang benar-benar terkunci, gunakan tautan langsung video MP4 1080p60.
+
 ## v2.9.6 “Kirana” — 2026.10.29 (Build 2026.10.29 · R22 · Stable)
 ### Perbaikan latar belakang foto/video (YouTube, MP4, gambar)
 - **Latar tidak tampil walau sudah disimpan.** Dua penyebab:

@@ -295,7 +295,7 @@ export function applyBackground(latar, { isHome = false } = {}) {
   const key = on ? JSON.stringify(latar) : '';
   document.body.classList.toggle('has-bg', !!on);
   let layer = document.getElementById('bg-layer');
-  if (!on) { if (layer) { try { ytPlayer?.destroy?.(); } catch { /* */ } ytPlayer = null; layer.remove(); } bgKey = ''; return; }
+  if (!on) { if (layer) { clearInterval(ytLoopT); try { ytPlayer?.destroy?.(); } catch { /* */ } ytPlayer = null; layer.remove(); } bgKey = ''; return; }
   if (layer && key === bgKey) return; bgKey = key;
   layer?.remove(); layer = document.createElement('div'); layer.id = 'bg-layer'; layer.setAttribute('aria-hidden', 'true');
   const kind = latar.jenis && latar.jenis !== 'auto' ? latar.jenis : backgroundKind(latar.url);
@@ -321,7 +321,7 @@ export function applyBackground(latar, { isHome = false } = {}) {
 }
 
 // ---------------------------------------------------------------- video YouTube latar (IFrame API)
-let ytApi = null, ytPlayer = null, ytFit = null;
+let ytApi = null, ytPlayer = null, ytFit = null, ytLoopT = 0;
 function loadYtApi() {
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (ytApi) return ytApi;
@@ -338,45 +338,79 @@ function retryOnGesture(fn) {
   const go = () => { try { fn(); } catch { /* */ } };
   ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach((ev) => addEventListener(ev, go, { once: true, passive: true, capture: true }));
 }
-// Ukuran pemutar: menutupi seluruh layar, lebar tata letak minimal 1920 px (YouTube memilih kualitas
-// berdasarkan ukuran pemutar → 1080p/1080p60 bila tersedia), lalu diperkecil secara visual & sedikit
-// diperbesar (zoom 12%) agar tepi judul/logo YouTube terpotong keluar layar.
-function fitYt(wrap, saver) {
+// Profil kualitas per perangkat (YouTube memilih resolusi dari UKURAN pemutar × kepadatan layar & kecepatan internet):
+//  • Desktop / laptop / PWA desktop → pemutar 1920×1080 → 1080p (60 fps bila videonya diunggah 1080p60)
+//  • Tablet & ponsel → pemutar 1280×720 → 720p: tajam di layar kecil, ±2–3× lebih hemat kuota
+//  • Mode Hemat Data di perangkat → gambar sampul saja
+const ytProfile = () => {
+  const touch = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+  const small = Math.max(screen.width || innerWidth, screen.height || innerHeight) < 1100; // ponsel (laptop 1366×768 tetap 1080p)
+  return touch || small || innerWidth < 1024 ? { w: 1280, q: 'hd720', label: '720p' } : { w: 1920, q: 'hd1080', label: '1080p' };
+};
+const QUALITY_RANK = ['tiny', 'small', 'medium', 'large', 'hd720', 'hd1080', 'hd1440', 'hd2160', 'highres'];
+// Pemutar dirender pada ukuran tata letak profil (mis. 1920 px) lalu diperkecil/diperbesar secara visual agar
+// menutupi layar, plus zoom 12% agar tepi judul/logo YouTube terpotong keluar layar.
+function fitYt(wrap, prof) {
   const vw = innerWidth, vh = innerHeight;
-  const coverW = Math.max(vw, vh * 16 / 9), coverH = coverW * 9 / 16;
-  const minW = saver && vw < 700 ? 1280 : 1920;
-  const W = Math.max(coverW, minW), H = W * 9 / 16;
+  const coverW = Math.max(vw, vh * 16 / 9);
+  const W = prof.w, H = W * 9 / 16;
   const scale = (coverW / W) * 1.12;
   wrap.style.width = `${W}px`; wrap.style.height = `${H}px`;
   wrap.style.transform = `translate(-50%, -50%) scale(${scale})`;
-  void coverH;
 }
 async function startYtBackground(layer, id, saver) {
   const wrap = layer.querySelector('.bg-yt'); if (!wrap) return;
   ytPlayer?.destroy?.(); ytPlayer = null;
+  const prof = saver ? ytProfile() : { w: 1920, q: 'hd1080', label: '1080p' }; // Mode hemat mati → 1080p di semua perangkat
   if (ytFit) removeEventListener('resize', ytFit);
-  ytFit = () => fitYt(wrap, saver); ytFit(); addEventListener('resize', ytFit, { passive: true });
+  ytFit = () => fitYt(wrap, prof); ytFit(); addEventListener('resize', ytFit, { passive: true });
   let YT; try { YT = await loadYtApi(); } catch { return; } // tetap tampil gambar sampul
   if (!layer.isConnected) return;
-  let shown = false;
-  const show = () => { if (shown) return; shown = true; setTimeout(() => wrap.classList.add('on'), 900); }; // jeda singkat: lewati judul awal YouTube
+  // Video hanya ditampilkan saat BENAR-BENAR berputar mulus ≥ 3 detik (tombol kontrol YouTube otomatis hilang
+  // ±3 detik setelah putar) dan kualitas sudah mencapai target. Saat buffering/berhenti → kembali ke gambar sampul,
+  // sehingga tombol putar/jeda/sebelumnya/berikutnya tidak pernah terlihat.
+  let revealT = 0, playingSince = 0; clearInterval(ytLoopT);
+  const hide = () => { clearTimeout(revealT); wrap.classList.remove('on'); };
+  const tryReveal = (p, tries = 0) => {
+    clearTimeout(revealT);
+    revealT = setTimeout(() => {
+      try {
+        if (p.getPlayerState?.() !== 1) return;
+        const q = p.getPlaybackQuality?.() || '';
+        const okQ = !q || q === 'unknown' || QUALITY_RANK.indexOf(q) >= QUALITY_RANK.indexOf(prof.q);
+        const t = (performance.now() - playingSince) / 1000;
+        if ((t >= 3 && okQ) || t >= 9) { wrap.classList.add('on'); wrap.dataset.q = q; return; }
+      } catch { /* */ }
+      if (tries < 30) tryReveal(p, tries + 1);
+    }, 400);
+  };
   ytPlayer = new YT.Player('bg-yt-player', {
     host: 'https://www.youtube-nocookie.com', videoId: id, width: '100%', height: '100%',
-    playerVars: { autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0, loop: 1, playlist: id, enablejsapi: 1, origin: location.origin, vq: 'hd1080' },
+    // TANPA playlist/loop bawaan (mode playlist memunculkan tombol sebelumnya/berikutnya) — pengulangan diatur sendiri
+    playerVars: { autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0, cc_load_policy: 0, enablejsapi: 1, origin: location.origin, vq: prof.q },
     events: {
       onReady: (e) => {
         const p = e.target;
-        try { p.mute(); p.setVolume?.(0); p.setPlaybackQuality?.('hd1080'); p.playVideo(); } catch { /* */ }
+        try { p.mute(); p.setVolume?.(0); p.setPlaybackQuality?.(prof.q); p.playVideo(); } catch { /* */ }
         const f = p.getIframe?.(); if (f) { f.setAttribute('tabindex', '-1'); f.setAttribute('aria-hidden', 'true'); f.setAttribute('allow', 'autoplay; encrypted-media'); f.title = ''; }
         setTimeout(() => { try { if (p.getPlayerState?.() !== 1) { p.mute(); p.playVideo(); retryOnGesture(() => { p.mute(); p.playVideo(); }); } } catch { /* */ } }, 1500);
+        // Ulang mulus: kembali ke awal ±0,6 detik sebelum selesai → layar akhir/video terkait YouTube tidak muncul
+        clearInterval(ytLoopT);
+        ytLoopT = setInterval(() => { try { const d = p.getDuration?.() || 0, c = p.getCurrentTime?.() || 0; if (d > 2 && c > d - 0.6) p.seekTo(0, true); } catch { /* */ } }, 250);
       },
+      onPlaybackQualityChange: (e) => { if (wrap.classList.contains('on')) wrap.dataset.q = e.data; },
       onStateChange: (e) => {
-        const S = YT.PlayerState;
-        if (e.data === S.PLAYING) { try { e.target.setPlaybackQuality?.('hd1080'); } catch { /* */ } show(); }
-        if (e.data === S.ENDED) { try { e.target.seekTo(0, true); e.target.playVideo(); } catch { /* */ } }
-        if (e.data === S.PAUSED && !document.hidden) { try { e.target.playVideo(); } catch { /* */ } }
+        const S = YT.PlayerState, p = e.target;
+        if (e.data === S.PLAYING) {
+          try { p.setPlaybackQuality?.(prof.q); } catch { /* */ }
+          if (!wrap.classList.contains('on')) { playingSince = performance.now(); tryReveal(p); }
+        } else if (e.data === S.BUFFERING || e.data === S.PAUSED || e.data === S.CUED || e.data === -1) {
+          // tombol YouTube muncul pada keadaan ini → sembunyikan video sebentar (sampul tetap tampil)
+          if (!(e.data === S.BUFFERING && wrap.classList.contains('on') && performance.now() - playingSince < 800)) hide();
+          if (e.data === S.PAUSED && !document.hidden) { try { p.playVideo(); } catch { /* */ } }
+        } else if (e.data === S.ENDED) { hide(); try { p.seekTo(0, true); p.playVideo(); } catch { /* */ } }
       },
-      onError: () => { wrap.remove(); },
+      onError: () => { clearInterval(ytLoopT); wrap.remove(); },
     },
   });
 }
