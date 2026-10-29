@@ -158,8 +158,14 @@ function decorate(b, touched, dels) {
   for (const [m, v] of Object.entries(metas)) b.set(doc(_db, 'meta', m), v, { merge: true });
   for (const [c, ids] of Object.entries(dels)) for (let i = 0; i < ids.length; i += 450) b.set(doc(collection(_db, 'hapus')), { c, ids: ids.slice(i, i + 450), at: serverTimestamp() });
 }
+// Mode "Lihat Sebagai" (Super Admin): semua penulisan data diblokir di perangkat — hanya pratinjau
+let readOnlyMsg = '';
+export const setReadOnly = (msg) => { readOnlyMsg = msg || ''; };
+export const isReadOnly = () => !!readOnlyMsg;
+const guardRO = () => { if (readOnlyMsg) { const e = new Error(readOnlyMsg); e.code = 'read-only'; throw e; } };
 // ops: [type, ref, data, opts]
 async function commitOps(ops) {
+  guardRO();
   const touched = new Map(); const dels = {};
   for (const [t, ref] of ops) { const s = syncOf(ref); if (!s) continue; touched.set(`${s.meta}:${s.key}`, s); if (t === 'delete' && s.inject) (dels[s.col] ||= []).push(s.id); }
   const build = (sync) => {
@@ -186,7 +192,7 @@ async function commitOps(ops) {
   if (touched.size) writeHooks.forEach((f) => { try { f([...touched.values()], dels); } catch { /* */ } });
 }
 export const setDoc = (ref, data, opts) => commitOps([['set', ref, data, opts]]);
-export const updateDoc = (ref, data, ...rest) => (rest.length || typeof data !== 'object' ? _updateDoc(ref, data, ...rest).then((r) => { track('w', 1, colName(ref)); return r; }) : commitOps([['update', ref, data]]));
+export const updateDoc = (ref, data, ...rest) => (guardRO(), rest.length || typeof data !== 'object' ? _updateDoc(ref, data, ...rest).then((r) => { track('w', 1, colName(ref)); return r; }) : commitOps([['update', ref, data]]));
 export const deleteDoc = (ref) => commitOps([['delete', ref]]);
 export async function addDoc(colRef, data) { const ref = doc(colRef); await commitOps([['set', ref, data]]); return ref; }
 export function writeBatch() {

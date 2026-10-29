@@ -113,6 +113,18 @@ export const FONT_LIST = {
   cambria: { label: 'Cambria', fam: "Cambria, 'Caladea'", cat: 'sys', src: 'g', q: 'family=Caladea:wght@400;700', note: 'pengganti di HP/Mac: Caladea' },
 };
 const GENERIC = { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', display: 'system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: 'ui-monospace, SFMono-Regular, Menlo, monospace', sys: 'system-ui, sans-serif' };
+// v2.9.10: semua huruf website tersedia di setiap kolom isian (editor teks & running text).
+// Nama huruf yang disimpan di konten (mis. 'Playfair Display') → id pustaka → dimuat otomatis saat tampil.
+export const fontName = (id) => { const f = FONT_LIST[id]; if (!f) return ''; const q = f.fam.match(/'([^']+)'/); return q ? q[1] : f.fam.split(',')[0].trim(); };
+const LEGACY_FONTS = { lora: "'Lora', Georgia, serif", georgia: 'Georgia, serif', 'courier new': "'Courier New', Courier, monospace" };
+export function fontIdByName(name) {
+  const n = String(name || '').replace(/["']/g, '').trim().toLowerCase(); if (!n) return '';
+  for (const id of Object.keys(FONT_LIST)) if (fontName(id).toLowerCase() === n || FONT_LIST[id].label.toLowerCase() === n) return id;
+  return '';
+}
+// Susunan font-family aman untuk atribut style (tanpa tanda kutip ganda)
+export const fontCss = (name) => { const id = fontIdByName(name); const s = id ? fontStack(id) : LEGACY_FONTS[String(name || '').toLowerCase()] || ''; return s.replace(/"/g, "'"); };
+export const ensureFontsByName = (names) => ensureFontIds([...new Set(names.map(fontIdByName).filter(Boolean))]);
 export const fontStack = (id) => { const f = FONT_LIST[id]; return f ? `${f.fam}, ${GENERIC[f.cat] || GENERIC.sans}` : ''; };
 export const fontUrl = (id) => {
   const f = FONT_LIST[id]; if (!f?.q) return '';
@@ -546,7 +558,8 @@ export function startTicker() {
   };
   tickerRaf = requestAnimationFrame(step);
 }
-export const tickerStyle = (rt = {}) => [
-  rt.font ? `font-family:'${esc(rt.font)}'` : '', rt.size ? `font-size:${esc(rt.size)}` : '',
+export const tickerStyle = (rt = {}) => { if (rt.font) ensureFontsByName([rt.font]); return tickerStyleRaw(rt); };
+const tickerStyleRaw = (rt = {}) => [
+  rt.font ? `font-family:${esc(fontCss(rt.font) || `'${rt.font}'`)}` : '', rt.size ? `font-size:${esc(rt.size)}` : '',
   rt.color ? `color:${esc(rt.color)}` : '', rt.bold ? 'font-weight:700' : '', rt.italic ? 'font-style:italic' : '',
 ].filter(Boolean).join(';');

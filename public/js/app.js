@@ -23,6 +23,7 @@ import {
 import * as Sync from './sync.js';
 import { mountChat, unmountChat } from './chat.js';
 import { setMarqueeTitle } from './title.js';
+import { navIndex, navSearchHtml, bindNavSearch, viewViewAs, viewAsBar, startReadOnly, stopReadOnly } from './navtools.js';
 import { readerPage, readMins } from './reader.js';
 import { recordVisit, startPresence, stopPresence, mountVisitorWidget, unmountVisitorWidget, startUsageFlush, flushUsage } from './analytics.js';
 import { lembagaNewsPanel, startNewsScroller, viewWidget, widgetCfg } from './widgets.js';
@@ -30,7 +31,7 @@ import { viewMonitor } from './monitor.js';
 import { scanIcons } from './motion.js';
 import { badgeRow } from './badges.js';
 import { viewTampilan, viewLatar } from './tampilan.js';
-import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS } from './rich.js';
+import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS, fontOptions, loadAllFonts } from './rich.js';
 import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle } from './layout.js';
 import { KATEGORI, renderLembagaPublic, bindLembagaPublic, renderDokumenPublic, bindDokumenPublic, viewLembagaAdmin, viewDokumenAdmin, lembagaOf } from './lembaga.js';
 import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm, renderKegiatanPublic } from './cms.js';
@@ -279,6 +280,26 @@ function accessDiff(oldP, oldPerms, oldRole, d) {
   if (JSON.stringify([...(oldP?.lembagaIds || [])].sort()) !== JSON.stringify([...(d.lembagaIds || [])].sort())) out.push('lembaga yang dikelola diperbarui');
   return out.slice(0, 3).join('; ');
 }
+// ---------------------------------------------------------------- Mode "Lihat Sebagai" (khusus Super Admin, hanya pratinjau)
+function enterViewAs(u) {
+  if (!u || !isSuper() || state.viewAs) return;
+  logAudit('akses', 'lihat_sebagai', `Mulai mode Lihat Sebagai ${u.nama || u.email} (${ROLE_LABEL[u.role] || u.role})`, { target: u.email, targetId: u.uid });
+  state.viewAs = { u: { uid: u.uid, nama: u.nama, email: u.email, role: u.role, dusun: u.dusun, perms: u.perms, lembagaIds: u.lembagaIds, jabatan: u.jabatan, badges: u.badges }, orig: { role: state.role, perms: state.perms, profile: state.profile } };
+  startReadOnly();
+  state.role = u.role; state.perms = u.perms || {}; state.profile = { ...u, email: u.email };
+  toast(`Melihat sebagai ${u.nama || u.email} — hanya pratinjau`, 'info');
+  root.dataset.shell = ''; startAdmin();
+  if (location.hash === '#/admin') render(); else location.hash = '#/admin';
+}
+function exitViewAs() {
+  const v = state.viewAs; if (!v) return;
+  stopReadOnly();
+  state.role = v.orig.role; state.perms = v.orig.perms; state.profile = v.orig.profile; state.viewAs = null;
+  logAudit('akses', 'lihat_sebagai_selesai', `Selesai mode Lihat Sebagai ${v.u.nama || v.u.email}`, { target: v.u.email, targetId: v.u.uid });
+  root.dataset.shell = ''; startAdmin();
+  if (location.hash === '#/admin/viewas') render(); else location.hash = '#/admin/viewas';
+}
+
 let adminGen = 0;
 function startAdmin() {
   stopAdmin();
@@ -288,6 +309,7 @@ function startAdmin() {
   u.push(F.onSnapshot(C(`users/${state.user.uid}`), (s) => {
     const d = s.data();
     if (!d || d.active === false) { toast('Akses Anda telah dicabut.', 'error'); doLogout('akses_dicabut'); return; }
+    if (state.viewAs) { state.viewAs.orig.profile = { ...d, email: state.user.email }; return; } // sedang pratinjau peran lain
     // v2.9.1: bandingkan HANYA isi hak akses secara kanonik (urutan field dari server bisa berbeda-beda,
     // sehingga perbandingan teks mentah dulu sering salah mendeteksi "berubah" — terutama akun ber-badge)
     const before = accessKey(state.profile, state.role, state.perms), after = accessKey(d, d.role, d.perms);
@@ -298,7 +320,7 @@ function startAdmin() {
       root.dataset.shell = ''; startAdmin(); render();
     }
   }, () => {}));
-  mountChat();
+  if (!state.viewAs) mountChat();
   F.getDoc(C('config/auth')).then((s) => { state.authCfg = s.data() || {}; }).catch(() => {});
   if (!can('warga')) state.wargaReady = true;
   Sync.startAdmin(state.user.uid).then(() => {
@@ -593,7 +615,7 @@ function sideLayout(lay, withNews) {
 function pubFooter(ticker, rt = {}) {
   const items = ticker ? String(rt.teks).split('\n').map((t) => t.trim()).filter(Boolean) : [];
   const speed = { lambat: 35, normal: 60, cepat: 100 }[rt.kecepatan] || 60;
-  const bg = rt.bg ? `background:${esc(rt.bg)}` : '';
+  const bg = rt.bg ? `--tk:${esc(rt.bg)}` : ''; // warna latar pilihan → dipakai semi-transparan oleh CSS
   return `<footer class="pub-foot">
     ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan" style="${bg}"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" data-speed="${speed}" style="${tickerStyle(rt)}">${items.map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>` : ''}
     <div class="foot-line">
@@ -879,7 +901,7 @@ const NAV = [
   ['pengaturan', 'Pengaturan', 'cog', null, 'Sistem'], ['tampilan', 'Tampilan & Tema', 'eye', 'super', 'Sistem'], ['latar', 'Latar Belakang', 'image', 'latar', 'Sistem'],
   ['widget', 'Widget Beranda', 'news', 'super', 'Sistem'], ['monitor', 'Monitor & Analitik', 'activity', 'super', 'Sistem'],
   ['admin', 'Manajemen Akun', 'lock', 'akun', 'Admin'],
-  ['audit', 'Audit Log', 'log', 'super', 'Super Admin'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super', 'Super Admin'],
+  ['viewas', 'Lihat Sebagai', 'eye', 'super', 'Super Admin'], ['audit', 'Audit Log', 'log', 'super', 'Super Admin'], ['cadangan', 'Cadangan & Pemulihan', 'archive', 'super', 'Super Admin'],
 ];
 const NAV_GROUPS = ['Utama', 'Kependudukan', 'Kelembagaan', 'Publikasi', 'Sistem', 'Admin', 'Super Admin'];
 // Admin › Manajemen Akun: Super Admin, atau admin yang diberi badge Centang Hijau — Perangkat Gampong
@@ -894,7 +916,7 @@ function renderAdmin(r, soft) {
     root.dataset.shell = 'admin';
     const items = NAV.filter(navAllowed);
     const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span>${k === 'cadangan' ? '<i class="nav-dot" id="nav-dot-cadangan" hidden title="Waktunya mencadangkan data"></i>' : ''}</a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}<a href="#/admin/lembaga/berita" data-nav="lembaga/berita">Berita & Kegiatan</a></div>` : k === 'lembaga' && isPengelola() ? `<div class="nav-sub"><a href="#/admin/lembaga/berita" data-nav="lembaga/berita">Berita & Kegiatan</a></div>` : ''}`;
-    const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g}</small>`}${its.map(link).join('')}` : ''; }).join('');
+    const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g}</small>`}${its.map(link).join('')}${g === 'Utama' ? navSearchHtml() : ''}` : ''; }).join('');
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
         <a class="brand" id="shell-brand" href="#/admin"></a>
@@ -917,8 +939,13 @@ function renderAdmin(r, soft) {
     $('#nav-scrim').onclick = () => document.body.classList.remove('nav-open');
     $('#logout').onclick = async () => { if (await confirmDialog('Keluar dari akun admin? Data yang tersimpan sementara di perangkat ini akan dihapus.', { okText: 'Keluar' })) doLogout('logout'); };
     if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
+    bindNavSearch(() => navIndex({ NAV, navAllowed, KATEGORI, lembagaKat: (k) => KATEGORI.find((c) => c.key === k)?.short || '' }));
   }
   updateShellBrand();
+  // pita mode "Lihat Sebagai"
+  document.body.classList.toggle('viewas', !!state.viewAs);
+  $('#viewas-bar')?.remove();
+  if (state.viewAs) { $('.admin-body')?.insertAdjacentHTML('afterbegin', viewAsBar()); $('#viewas-exit').onclick = exitViewAs; }
   const navKey = sec === 'lembaga' && r.parts[2] === 'k' ? `lembaga/k/${r.parts[3]}` : sec === 'lembaga' && r.parts[2] === 'berita' ? 'lembaga/berita' : sec;
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey || (sec === 'lembaga' && a.dataset.nav === 'lembaga' && navKey === 'lembaga')));
   applyTheme(state.config.tema);
@@ -939,6 +966,7 @@ function renderAdmin(r, soft) {
     informasi: viewInformasi, broadcast: viewBroadcast, instagram: viewInstagram, pengaturan: viewPengaturan,
     profil: viewProfilAdmin, kegiatan: viewKegiatanAdmin, admin: viewAdmins, audit: viewAudit, cadangan: viewCadangan, latar: viewLatar,
     lembaga: viewLembagaAdmin, dokumen: viewDokumenAdmin, tampilan: viewTampilan, widget: viewWidget, monitor: viewMonitor,
+    viewas: (m) => viewViewAs(m, { enter: enterViewAs }),
   };
   if (sec !== 'dashboard' && state.layoutEdit === 'dash') { state.layoutEdit = null; layoutStop?.(); }
   (views[sec] || viewDashboard)(main, r);
@@ -2179,7 +2207,7 @@ function viewPengaturan(main) {
       <label class="field"><span>Label</span><input id="rt-label" value="${esc(c.runningText?.label || 'Info')}" maxlength="20"></label>
       <label class="field"><span>Kecepatan</span><select id="rt-speed">${[['lambat', 'Lambat'], ['normal', 'Normal'], ['cepat', 'Cepat']].map(([v, l]) => `<option value="${v}" ${(c.runningText?.kecepatan || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field span-2"><span>Teks (satu pengumuman per baris)</span><textarea id="rt-text" rows="4" maxlength="1500" placeholder="Pembayaran PBB dibuka setiap Senin–Kamis di kantor Keuchik.&#10;Posyandu balita setiap tanggal 10.">${esc(c.runningText?.teks || '')}</textarea></label>
-      <label class="field"><span>Pilihan font</span><select id="rt-font">${FONTS.map(([v, l]) => `<option value="${esc(v)}" ${(c.runningText?.font || '') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="field"><span>Pilihan font</span><select id="rt-font" title="${FONTS.length - 1} huruf">${fontOptions(c.runningText?.font || '')}</select></label>
       <label class="field"><span>Ukuran font</span><select id="rt-size">${[['', 'Normal'], ['0.8rem', 'Kecil'], ['0.95rem', 'Sedang'], ['1.05rem', 'Besar'], ['1.2rem', 'Sangat besar']].map(([v, l]) => `<option value="${v}" ${(c.runningText?.size || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field"><span>Warna teks</span><input type="color" id="rt-color" value="${esc(c.runningText?.color || '#ffffff')}"></label>
       <label class="field"><span>Warna latar</span><div class="input-group"><input type="color" id="rt-bg" value="${esc(c.runningText?.bg || '#0f766e')}"><button type="button" class="btn btn-ghost btn-sm" id="rt-bg-reset" title="Ikuti warna tema">Ikuti tema</button></div></label>
@@ -2240,9 +2268,10 @@ function viewPengaturan(main) {
     sholatSettingsForm($('#sholat-settings'));
     let rtBg = c.runningText?.bg || '';
     const rtRead = () => ({ aktif: $('#rt-on').checked, label: $('#rt-label').value.trim() || 'Info', kecepatan: $('#rt-speed').value, teks: $('#rt-text').value.trim().slice(0, 1500), font: $('#rt-font').value, size: $('#rt-size').value, color: $('#rt-color').value, bg: rtBg, bold: $('#rt-bold').checked, italic: $('#rt-italic').checked });
-    const rtPrev = () => { const rt = rtRead(); $('#rt-prev').innerHTML = `<div class="ticker" style="${rt.bg ? `background:${esc(rt.bg)}` : ''}"><span class="ticker-label">${ic('mega')} ${esc(rt.label)}</span><div class="ticker-track"><div class="ticker-move" style="${tickerStyle(rt)}">${(rt.teks || 'Contoh teks berjalan').split('\n').filter(Boolean).map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>`; };
+    const rtPrev = () => { const rt = rtRead(); $('#rt-prev').innerHTML = `<div class="ticker" style="${rt.bg ? `--tk:${esc(rt.bg)}` : ''}"><span class="ticker-label">${ic('mega')} ${esc(rt.label)}</span><div class="ticker-track"><div class="ticker-move" style="${tickerStyle(rt)}">${(rt.teks || 'Contoh teks berjalan').split('\n').filter(Boolean).map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>`; };
     $('#rt-bg').oninput = (e) => { rtBg = e.target.value; rtPrev(); };
     $('#rt-bg-reset').onclick = () => { rtBg = ''; rtPrev(); };
+    $('#rt-font').addEventListener('focus', loadAllFonts, { once: true }); $('#rt-font').addEventListener('pointerdown', loadAllFonts, { once: true });
     ['#rt-label', '#rt-text', '#rt-font', '#rt-size', '#rt-color', '#rt-bold', '#rt-italic'].forEach((id) => $(id).addEventListener('input', debounce(rtPrev, 150)));
     rtPrev();
     $('#rt-save').onclick = async () => {

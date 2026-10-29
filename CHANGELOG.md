@@ -1,5 +1,22 @@
 # Catatan Perubahan
 
+## v2.9.10 “Kirana” — 2026.10.30 (Build 2026.10.30 · R26 · Stable)
+### Footer & running text
+- Baris footer lebih ringkas: 40 → 30 px (desktop), tulisan & ikon sedikit lebih kecil, latar kaca lembut.
+- Latar **running text semi-transparan** (±70%) dengan blur lembut — warna pilihan di Pengaturan tetap dipakai; video/foto latar terlihat samar di baliknya.
+- Diperbaiki: huruf pilihan Running Text sebelumnya tidak pernah dimuat (tampil huruf pengganti). Kini dimuat otomatis.
+### Semua huruf website di semua kolom isian
+- Editor teks (Papan Informasi, berita lembaga, kegiatan, profil, dll.) dan pilihan huruf Running Text kini berisi **semua 39 huruf pustaka website** + Lora & Georgia (42 pilihan), dikelompokkan Sans · Display · Serif · Mono · Sistem.
+- Hemat: huruf hanya dimuat bila dipakai; daftar huruf memuat pratinjau semua huruf saat dibuka di dasbor; huruf yang dipakai di konten otomatis dimuat di halaman publik.
+### Pencarian menu & panel (bilah samping dasbor, di bawah Dasbor)
+- Cari menu, kategori lembaga, **nama lembaga** (mis. “Tuha Lapan”), warga per dusun, dan bagian di dalam halaman (Jadwal Sholat, Running Text, Ikon Aplikasi, Riwayat Chat, dll. — dibuka lalu digulir & disorot otomatis).
+- Navigasi papan ketik: ↑/↓ & Enter; tekan **/** atau **Ctrl+K** untuk mencari dari mana saja. Hanya menampilkan menu yang boleh diakses akun tersebut.
+### Lihat Sebagai (Super Admin › di atas Audit Log)
+- Pratinjau dasbor persis seperti yang dilihat **admin, pengelola lembaga, atau kepala dusun** tertentu — menu, data (mis. kepala dusun hanya warga dusunnya), dan tombol sesuai hak aksesnya.
+- **Hanya pratinjau**: semua penyimpanan data diblokir di perangkat; pita oranye penanda mode + tombol Keluar; chat staf dijeda; mode berakhir otomatis saat halaman dimuat ulang. Mulai & selesai tercatat di Audit Log.
+### Perbaikan
+- Ikon kaca pembesar menimpa tulisan di kolom cari halaman dasbor (efek tampilan ringkas v2.9.9).
+
 ## v2.9.9 “Kirana” — 2026.10.30 (Build 2026.10.30 · R25 · Stable)
 ### Beranda publik — lebih ringkas & rapi
 - **Panel kanan jadi 3 blok terpisah**, urutan bawaan: **Kegiatan Rutin Gampong** (kegiatan hari ini) → **Berita & Kegiatan Lembaga** → **Kegiatan Lainnya**. Masing-masing kartu sendiri dengan gulir otomatis sendiri.

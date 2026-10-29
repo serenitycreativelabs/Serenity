@@ -1,14 +1,16 @@
 // Editor teks kaya (font, ukuran, warna, tebal, miring), sanitasi HTML aman, konversi ke WhatsApp,
 // serta penyematan media dari URL (YouTube, foto, Google Drive).  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 import { esc, waFormat } from './ui.js';
+import { FONT_LIST, FONT_CATS, fontName, fontCss, ensureFontsByName, ensureFontIds } from './layout.js';
 
-export const FONTS = [
-  ['', 'Font bawaan'], ['Inter', 'Inter (modern)'], ['Plus Jakarta Sans', 'Jakarta Sans'], ['Lora', 'Lora (serif)'],
-  ['Nunito', 'Nunito (ramah)'], ['Georgia', 'Georgia'], ['Courier New', 'Courier (mono)'],
-];
+// v2.9.10: SEMUA huruf pustaka website (39) + huruf lama (Lora, Georgia, Courier New) tetap dikenali
+export const FONTS = [['', 'Font bawaan'], ...Object.entries(FONT_LIST).map(([id, f]) => [fontName(id), f.label, id, f.cat]), ['Lora', 'Lora', '', 'serif'], ['Georgia', 'Georgia', '', 'serif']];
+export const loadAllFonts = () => ensureFontIds(Object.keys(FONT_LIST));
+// <option> dikelompokkan per jenis huruf (Sans, Display, Serif, Mono, Sistem)
+export const fontOptions = (cur = '') => `<option value="">Font bawaan</option>${Object.entries(FONT_CATS).map(([c, cl]) => { const fs = FONTS.filter((f) => f[0] && f[3] === c); return fs.length ? `<optgroup label="${esc(cl)}">${fs.map(([v, l]) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''} style="font-family:${esc(fontCss(v))}">${esc(l)}</option>`).join('')}</optgroup>` : ''; }).join('')}`;
 export const SIZES = [['0.85em', 'Kecil'], ['1em', 'Normal'], ['1.25em', 'Besar'], ['1.6em', 'Sangat besar'], ['2em', 'Judul']];
 export const COLORS = ['#111827', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#c2410c', '#a16207', '#15803d', '#475569', '#ffffff'];
-const FONT_OK = new Set(FONTS.map((f) => f[0].toLowerCase()).filter(Boolean));
+const FONT_OK = new Set([...FONTS.map((f) => f[0].toLowerCase()), 'courier new'].filter(Boolean));
 
 // ---------------------------------------------------------------- sanitasi
 const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'BR', 'P', 'DIV', 'SPAN', 'UL', 'OL', 'LI', 'A', 'BLOCKQUOTE', 'H3', 'H4']);
@@ -29,7 +31,7 @@ function cleanStyle(style) {
     // v2.7: warna latar dari teks tempelan (Word, WhatsApp Web, situs lain) TIDAK dipakai — itulah "kotak putih
     // kaku" di belakang tulisan. Warna teks hitam/putih bawaan tempelan juga dibuang agar mengikuti tema (terang/gelap).
     if (prop === 'color') { if (/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(val) && !neutralColor(val)) out.push(`color:${val}`); }
-    else if (prop === 'font-family') { const f = val.split(',')[0].replace(/["']/g, '').trim(); if (FONT_OK.has(f.toLowerCase())) out.push(`font-family:'${f}'`); }
+    else if (prop === 'font-family') { const f = val.split(',')[0].replace(/["']/g, '').trim(); if (FONT_OK.has(f.toLowerCase())) { out.push(`font-family:${fontCss(f) || `'${f}'`}`); usedFonts.add(f); } }
     else if (prop === 'font-size') { if (/^(\d{1,2}(\.\d+)?(em|rem|%)|small|medium|large|x-large|xx-large)$/i.test(val)) out.push(`font-size:${val}`); } // px dari tempelan diabaikan agar ukuran baca konsisten
     else if (prop === 'font-weight') { if (/^(bold|normal|[1-9]00)$/i.test(val)) out.push(`font-weight:${val}`); }
     else if (prop === 'font-style') { if (/^(italic|normal)$/i.test(val)) out.push(`font-style:${val}`); }
@@ -67,7 +69,10 @@ export const isHtml = (s) => /<\/?(b|i|u|s|em|strong|span|p|div|br|ul|ol|li|a|h3
 // Tampilkan teks deskripsi: HTML aman, atau teks lama bergaya WhatsApp
 // v2.7: tautan yang berdiri sendiri di satu baris otomatis menjadi pemutar video / foto (YouTube, TikTok,
 // Instagram, Facebook, Vimeo, X, Spotify, Google Drive, gambar, video .mp4). Tautan lain menjadi kartu tautan.
-export const richRender = (s, { embed = true } = {}) => { const h = isHtml(s) ? sanitizeHtml(s) : waFormat(s || ''); return embed ? enhanceLinks(h) : h; };
+// huruf yang dipakai konten dikumpulkan saat sanitasi lalu dimuat sekali (tanpa memuat 39 huruf sekaligus)
+const usedFonts = new Set(); let fontT = 0;
+const flushFonts = () => { clearTimeout(fontT); fontT = setTimeout(() => { if (usedFonts.size) { ensureFontsByName([...usedFonts]); usedFonts.clear(); } }, 0); };
+export const richRender = (s, { embed = true } = {}) => { const h = isHtml(s) ? sanitizeHtml(s) : waFormat(s || ''); flushFonts(); return embed ? enhanceLinks(h) : h; };
 const URL_RE = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/g;
 function enhanceLinks(html) {
   if (!/https?:\/\//i.test(html)) return html;
@@ -129,7 +134,7 @@ export function attachRich(ta) {
   const wrap = document.createElement('div'); wrap.className = 'rte';
   const bar = document.createElement('div'); bar.className = 'rte-bar'; bar.setAttribute('role', 'toolbar');
   bar.innerHTML = `
-    <select data-cmd="font" title="Pilihan font">${FONTS.map(([v, l]) => `<option value="${esc(v)}" style="font-family:'${esc(v)}'">${esc(l)}</option>`).join('')}</select>
+    <select data-cmd="font" title="Pilihan font (${FONTS.length - 1} huruf)">${fontOptions()}</select>
     <select data-cmd="size" title="Ukuran font"><option value="">Ukuran</option>${SIZES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
     <span class="rte-sep"></span>
     <button type="button" data-cmd="bold" title="Tebal (Ctrl+B)"><b>B</b></button>
@@ -167,7 +172,11 @@ export function attachRich(ta) {
     if (cmd) exec(cmd, null, false);
   });
   bar.querySelector('[data-cmd=color]').addEventListener('input', (e) => { exec('foreColor', e.target.value); bar.querySelector('.rte-sw').style.background = e.target.value; });
-  bar.querySelector('[data-cmd=font]').addEventListener('change', (e) => { if (e.target.value) exec('fontName', e.target.value); else exec('removeFormat', null, false); e.target.selectedIndex = 0; });
+  const fsel = bar.querySelector('[data-cmd=font]');
+  // pratinjau: semua huruf dimuat hanya saat daftar huruf dibuka pertama kali
+  fsel.addEventListener('focus', () => ensureFontIds(Object.keys(FONT_LIST)), { once: true });
+  fsel.addEventListener('pointerdown', () => ensureFontIds(Object.keys(FONT_LIST)), { once: true });
+  fsel.addEventListener('change', (e) => { if (e.target.value) { ensureFontsByName([e.target.value]); exec('fontName', e.target.value); } else exec('removeFormat', null, false); e.target.selectedIndex = 0; });
   bar.querySelector('[data-cmd=size]').addEventListener('change', (e) => {
     const v = e.target.value; if (!v) return;
     exec('fontSize', '7', false);
