@@ -42,20 +42,22 @@
 ## Minor Release Version (Latest Work).
 - v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
 
-- 1.9.0 : Deprecation warning and migration preparation
-- 1.8.0 : Development API integrations, cloud architecture, safety & webhooks
-- 1.7.0 : Performance optimizations, caching layer, and PWA support
-- 1.6.0 : Community modules and social interactions
-- 1.5.1 : Admin panel bug fixes and query tuning
-- 1.5.0 : Analytics dashboard and admin control panel
-- 1.4.0 : Notification engine and redesigned login panel
-- 1.3.1 : Minor hotfix and bug fixes
-- 1.3.0 : Maintenance hotfix and general patches
-- 1.2.0 : Dark mode theme and internationalization (i18n)
-- 1.1.1 : General bug fixes
-- 1.1.0 : Advanced search, filters, and feature enhancements
+- v1.9.0 - Solstice : Deprecation warning and migration preparation
+- v1.8.0 - Meridian : Development API integrations, cloud architecture, safety & webhooks
+- v1.7.0 - Pulsar : General bug fixes
+- v1.6.0 - Cosmos : General bug fixes
+- v1.5.1 - Vector : Performance optimizations, caching layer, and PWA support
+- v1.5.0 - Zenith : Community modules and social interactions
+- v1.4.0 - Echo : Admin panel bug fixes and query tuning
+- v1.3.1 - Axis : Analytics dashboard and admin control panel
+- v1.3.0 - Flux : Notification engine and redesigned login panel
+- v1.2.0 - Iris : Minor hotfix and bug fixes
+- v1.1.1 - Node : Maintenance hotfix and general patches
+- v1.1.0 - Spectra : Dark mode theme and internationalization (i18n)
+- v1.0.1 - Halo : General bug fixes
+- v1.0.0 - Nova : Advanced search, filters, and feature enhancements
 
 ## Versi v1.0.0 
-— Development, Building & Minor Release
+- Development, Building & Minor Release
 
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
