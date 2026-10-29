@@ -12,11 +12,11 @@
 
 ## Baru di v2.5.0 “Prisma”
 - 🎨 Gaya **Vibrant** (Neon Night, Acid, Sunset) dan 4 palet warna **Sistem › Tampilan & Tema**.
-- 🔤 **Pustaka 38 huruf** atur huruf judul & teks secara terpisah (Super Admin).
+- 🔤 **Pustaka 38 huruf**.
 
 ## Baru di v2.4.0 “Nebula”
 - ⚡ **Sinkronisasi Efisien (Delta Sync)** - data disimpan di perangkat dan cloud sync secara otomatis setiap hari.
-- 🔐 **Data admin dienkripsi AES-GCM 256-bit.
+- 🔐 **Data admin** dienkripsi AES-GCM 256-bit.
 - 📊 **Widget analitik pengunjung realtime**.
 - 📰 **Berita & Kegiatan Lembaga**.
 - 🗂️ Data Master: **hapus kategori** (bawaan bisa dipulihkan), **geser ▲▼ antar kelompok**, bug hapus kategori diperbaiki.
@@ -36,9 +36,9 @@
 - 📱 Penambahan fitur **PWA** demi kemudahan akses; PWA (Progressive Web App) dirancang untuk memberikan pengalaman pengguna menyerupai aplikasi native.
 - **Kelembagaan** — Pemerintahan, Adat & Keagamaan, LKG, Ekonomi, Pendidikan; pengurus, anggota, murid/santri, galeri, dokumen, ekspor.
 - **Dokumen Publik** dengan pencarian & filter.
-- **Tampilan** — tema warna, model tata letak, font, mode gelap/terang; tata letak drag & drop (Super Admin).
+- **Tampilan** — tema warna, model tata letak, font, mode gelap/terang.
 - Ekspor mengikuti filter, kata sandi saat menghapus, editor teks kaya, media URL pada informasi.
-- Hak akses baru: `lembaga`, `dokumen` (diatur Super Admin di Manajemen Akun).
+- Hak akses baru: `lembaga`, `dokumen`.
 
 ## Minor Release Version (Latest Work).
 - `v2.0.0`   : Big Update & Major Architecture Overhaul (Breaking Changes), migrasi data ke versi `v2.2.0` - `Aero`  
