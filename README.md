@@ -41,19 +41,31 @@
 
 ## Minor Release Version (Latest Work).
 - v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
- - ⤷ v1.9.0 — Deprecation Warning & Migration Preparation
- - ⤷ v1.8.0 — Developement Integrations API, Security, Cloud System, Safety & Webhook Integrations
- - ⤷ v1.7.0 — Performance, Caching & PWA Support
- - ⤷ v1.6.0 — Community & Social Interactions
- - ⤷ v1.5.1 — Admin Bugfix & Query Tuning
- - ⤷ v1.5.0 — Analytics Dashboard & Admin Control Panel
- - ⤷ v1.4.0 — Notification Engine & New Login Panel
- - ⤷ v1.3.1 — Hotfix & Bugfixes
- - ⤷ v1.3.0 — Hotfix & Bugfixes
- - ⤷ v1.2.0 — Dark Mode & Internationalization
- - ⤷ v1.1.1 — Bugfixes
- - ⤷ v1.1.0 — Search, Filter & Enhancement
- - ⤷ v1.0.1 — Hotfix & Post-Launch Stabilization
+
+### [1.9.0]
+- Deprecation warning and migration preparation
+### [1.8.0]
+- Development API integrations, cloud architecture, safety & webhooks
+### [1.7.0]
+- Performance optimizations, caching layer, and PWA support
+### [1.6.0]
+- Community modules and social interactions
+### [1.5.1]
+- Admin panel bug fixes and query tuning
+### [1.5.0]
+- Analytics dashboard and admin control panel
+### [1.4.0]
+- Notification engine and redesigned login panel
+### [1.3.1]
+- Minor hotfix and bug fixes
+### [1.3.0]
+- Maintenance hotfix and general patches
+### [1.2.0]
+- Dark mode theme and internationalization (i18n)
+### [1.1.1]
+- General bug fixes
+### [1.1.0]
+- Advanced search, filters, and feature enhancements
 
 - v1.0.0 — Development, Building & Minor Release
 
