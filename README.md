@@ -58,4 +58,9 @@
 ## Versi v1.0.0 **Nova**
 - Development, Building & Minor Release
 
+## Lisensi & Kedaulatan Data
+Proyek ini dilindungi oleh **Citizen Data Protection & Platform Governance License (CDPGL)**. 
+Segala bentuk penyalahgunaan data warga negara dan eksploitasi kode sumber dilarang keras. 
+Lihat file [LICENSE](LICENSE) untuk ketentuan hukum lengkap.
+
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
