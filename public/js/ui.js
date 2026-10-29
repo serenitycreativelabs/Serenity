@@ -65,8 +65,40 @@ export function waFormat(text) {
     .replace(/\n/g, '<br>');
 }
 
+// ---------- Teks teknis disembunyikan dari selain Super Admin ----------
+// Nama layanan di balik layar (Firebase, Firestore, GitHub) dan pesan galat berbahasa Inggris diganti
+// kalimat umum berbahasa Indonesia. Hanya tampilan — konfigurasi tidak diubah sama sekali.
+let superCheck = () => false;
+export const setViewerCheck = (fn) => { superCheck = fn; };
+export const viewerIsSuper = () => { try { return !!superCheck(); } catch { return false; } };
+const ERR_MAP = [
+  [/missing or insufficient permissions\.?|permission[-_ ]denied/gi, 'Akses ditolak oleh sistem keamanan.'],
+  [/quota exceeded\.?|resource[-_ ]exhausted/gi, 'Kuota layanan harian sedang penuh, coba lagi nanti.'],
+  [/failed to get document because the client is offline\.?|client is offline|network[-_ ]request[-_ ]failed|unavailable|failed to fetch/gi, 'Koneksi ke server terputus, periksa internet Anda.'],
+  [/the query requires an index[^.]*\.?|failed[-_ ]precondition/gi, 'Server sedang menyiapkan data, coba lagi beberapa menit lagi.'],
+  [/no document to update[^.]*\.?|not[-_ ]found/gi, 'Data tidak ditemukan.'],
+  [/deadline[-_ ]exceeded/gi, 'Server terlalu lama merespons.'],
+  [/invalid[-_ ]argument/gi, 'Data yang dikirim tidak valid.'],
+  [/unauthenticated/gi, 'Sesi login berakhir, silakan masuk lagi.'],
+];
+const TECH_WORDS = [
+  [/firebase\s*authentication/gi, 'sistem login'], [/firebase\s*console/gi, 'panel pengelola sistem'], [/firebase\s*hosting/gi, 'server hosting'],
+  [/firebase\s*storage/gi, 'penyimpanan berkas'], [/(cloud\s*)?firestore\s*rules/gi, 'aturan keamanan'], [/cloud\s*firestore|firestore/gi, 'basis data'],
+  [/github\s*actions/gi, 'layanan otomatis'], [/github\s*pages/gi, 'hosting cadangan'], [/github/gi, 'repositori'], [/firebaseerror:?\s*/gi, ''], [/\bfirebase\b:?/gi, 'server'],
+  [/\((auth|firestore|storage|app-check)\/[\w-]+\)\.?/gi, ''],
+];
+export function publicText(s) {
+  let t = String(s ?? '');
+  if (viewerIsSuper()) return t;
+  for (const [re, r] of ERR_MAP) t = t.replace(re, r);
+  for (const [re, r] of TECH_WORDS) t = t.replace(re, r);
+  return t.replace(/\s{2,}/g, ' ').replace(/(Akses ditolak oleh sistem keamanan\.)\s*\1/g, '$1').trim();
+}
+export const humanErr = (e) => publicText(e?.message || e || 'Terjadi kesalahan.');
+
 // ---------- Toast ----------
 export function toast(msg, type = 'info', opts = {}) {
+  msg = publicText(msg);
   let wrap = $('#toasts');
   if (!wrap) { wrap = document.createElement('div'); wrap.id = 'toasts'; document.body.appendChild(wrap); }
   const el = document.createElement('div');
@@ -314,16 +346,17 @@ export function authErrorMessage(e) {
     'auth/invalid-credential': 'Password salah.',
     'auth/wrong-password': 'Password salah.',
     'auth/invalid-login-credentials': 'Password salah.',
-    'auth/user-not-found': 'Akun admin belum dibuat di Firebase Authentication.',
+    'auth/user-not-found': 'Akun belum terdaftar. Hubungi Super Admin.',
     'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.',
     'auth/network-request-failed': 'Tidak ada koneksi internet.',
     'auth/weak-password': 'Password minimal 6 karakter.',
     'auth/requires-recent-login': 'Sesi sudah lama. Silakan keluar lalu masuk kembali.',
     'auth/email-already-in-use': 'Email tersebut sudah dipakai akun lain.',
     'auth/invalid-email': 'Format email tidak valid.',
-    'auth/operation-not-allowed': 'Metode login Email/Password belum diaktifkan di Firebase Console.',
+    'auth/operation-not-allowed': 'Metode login belum diaktifkan oleh pengelola sistem.',
+    'auth/user-disabled': 'Akun ini dinonaktifkan.',
   };
-  return map[c] || (e?.message || 'Terjadi kesalahan.');
+  return map[c] || humanErr(e);
 }
 
 // ---------- Angka dengan pemisah ribuan otomatis (1.250.000) ----------
@@ -359,3 +392,52 @@ export function attachThousands(input) {
 }
 // Pasang ke semua input bertanda data-num di dalam elemen
 export const bindThousands = (rootEl) => rootEl.querySelectorAll('input[data-num]').forEach(attachThousands);
+
+// ---------- Keterangan otomatis untuk setiap kolom isian ----------
+// Kolom yang belum punya petunjuk (placeholder) diberi petunjuk dari labelnya, agar tidak ada kolom kosong
+// yang membingungkan. Kolom yang sudah punya petunjuk sendiri tidak diubah.
+function hintLabel(el) {
+  let t = '';
+  const f = el.closest('.field, label, .map-item');
+  if (f) { const sp = f.querySelector(':scope > span, :scope > b'); t = sp ? [...sp.childNodes].filter((n) => n.nodeType === 3 || n.nodeName === 'B').map((n) => n.textContent).join('').trim() : ''; }
+  if (!t) { const td = el.closest('td'); const tb = el.closest('table'); if (td && tb) { const i = [...td.parentElement.children].indexOf(td); t = tb.querySelectorAll('thead th')[i]?.textContent.trim() || ''; } }
+  if (!t) t = el.getAttribute('aria-label') || el.title || '';
+  return t.replace(/[*:]/g, '').replace(/\s*[—(].*$/s, '').replace(/\s+/g, ' ').trim();
+}
+const SKIP = new Set(['hidden', 'checkbox', 'radio', 'range', 'color', 'file', 'submit', 'button', 'reset', 'image']);
+export function autoHints(root = document) {
+  root.querySelectorAll('input, textarea, select, .rte-area').forEach((el) => {
+    if (el.classList?.contains('rte-area')) {
+      if (!el.dataset.placeholder) { const lab = hintLabel(el.closest('.rte')?.querySelector('textarea') || el); el.dataset.placeholder = lab ? `Tulis ${lab.toLowerCase()} di sini…` : 'Tulis di sini…'; }
+      return;
+    }
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (SKIP.has(type) || el.dataset.hinted) return;
+    el.dataset.hinted = '1';
+    const lab = hintLabel(el); const L = lab.toLowerCase();
+    if (el.tagName === 'SELECT' || type === 'date' || type === 'time' || type === 'datetime-local' || type === 'month') {
+      if (!el.title) el.title = type === 'date' ? `Pilih tanggal${lab ? ` — ${lab}` : ''}` : lab ? `Pilih ${L}` : 'Pilih salah satu';
+      return;
+    }
+    if (el.placeholder) { if (!el.title && lab) el.title = lab; return; }
+    let ph;
+    if (type === 'email' || /email/.test(L)) ph = 'contoh: nama@email.com';
+    else if (type === 'password' || /password|sandi/.test(L)) ph = 'Masukkan password…';
+    else if (type === 'tel' || /\b(hp|no\.? ?hp|whatsapp|telepon|wa)\b/.test(L)) ph = 'contoh: 0812 3456 7890';
+    else if (type === 'url' || /\b(url|link|tautan)\b/.test(L)) ph = 'https://…';
+    else if (/^(rt|rw)$/.test(L)) ph = 'contoh: 01';
+    else if (/\btahun\b/.test(L)) ph = `contoh: ${new Date().getFullYear()}`;
+    else if (/\burutan\b/.test(L)) ph = 'contoh: 1 (angka kecil tampil lebih dulu)';
+    else if (type === 'number' || el.hasAttribute('data-num')) ph = 'Masukkan angka…';
+    else if (/\b(cari|search)\b/.test(L) || type === 'search') ph = 'Ketik kata kunci…';
+    else ph = lab ? `Isi ${L}…` : 'Ketik di sini…';
+    el.placeholder = ph;
+    if (!el.title && lab) el.title = lab;
+  });
+}
+let hintObs = null;
+export function startAutoHints() {
+  if (hintObs || !('MutationObserver' in window)) return;
+  let t = 0; const run = () => { clearTimeout(t); t = setTimeout(() => autoHints(document), 80); };
+  hintObs = new MutationObserver(run); hintObs.observe(document.body, { childList: true, subtree: true }); run();
+}

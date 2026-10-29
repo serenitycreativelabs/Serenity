@@ -18,7 +18,8 @@ export const ICON_LEVELS = { off: 'Mati', halus: 'Halus — bergerak saat diarah
 export const FX_DEFAULT = { cursor: 'off', size: 1, magnetic: true, hideNative: true, click: 'ripple', ikon: 'halus', scope: 'publik' };
 
 const html = document.documentElement;
-const fine = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
+// v2.7: laptop layar sentuh / perangkat hibrida juga dihitung (any-pointer), bukan hanya pointer utama
+const fine = () => matchMedia('(any-pointer: fine)').matches || matchMedia('(pointer: fine)').matches;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HOVER_SEL = 'a, button, [role=button], summary, label, select, .chip, .tile, .svc, .portal-card, .info-card, .lg-card, .ln-item, .agenda-item, .doc-card, .ig-card, [data-link]';
 const TEXT_SEL = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea, [contenteditable=true]';
@@ -34,11 +35,13 @@ export function applyFx(fx, shell = '') {
   const inScope = cfg.scope === 'semua' || shell !== 'admin';
   const icons = inScope && !reduced() ? cfg.ikon : 'off';
   html.dataset.ican = icons === 'off' ? '' : icons;
-  const cur = inScope && fine() && !reduced() && CURSORS[cfg.cursor] && cfg.cursor !== 'off' ? cfg.cursor : '';
+  // Kursor tetap aktif walau Windows/macOS menyalakan "kurangi animasi" (banyak laptop mengaktifkannya
+  // otomatis demi performa) — gerak kursor bukan animasi besar. Jejak & efek klik tetap mengikuti setelan itu.
+  const cur = inScope && fine() && CURSORS[cfg.cursor] && cfg.cursor !== 'off' ? (reduced() && cfg.cursor === 'trail' ? 'dotring' : cfg.cursor) : '';
   html.dataset.cursor = cur;
   html.dataset.cursorHide = cur && cfg.hideNative && cur !== 'glow' ? '1' : '';
   html.style.setProperty('--cur-scale', String(Math.max(0.6, Math.min(1.8, Number(cfg.size) || 1))));
-  if (cur || (inScope && cfg.click !== 'off' && !reduced())) mount(); else unmount();
+  if (cur || (inScope && fine() && cfg.click !== 'off' && !reduced())) mount(); else unmount();
   setupIconObserver(icons === 'sedang' || icons === 'ramai');
 }
 
@@ -73,7 +76,7 @@ function buildShapes() {
 }
 function sizeCanvas() { if (!cvs) return; dpr = Math.min(2, window.devicePixelRatio || 1); cvs.width = innerWidth * dpr; cvs.height = innerHeight * dpr; }
 function onMove(e) {
-  if (e.pointerType !== 'mouse') return;
+  if (e.pointerType && e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
   P.tx = e.clientX; P.ty = e.clientY; P.last = performance.now();
   if (!P.shown) { P.shown = true; P.x = P.rx = P.tx; P.y = P.ry = P.ty; }
   if (layer && !layer.classList.contains('on')) layer.classList.add('on');

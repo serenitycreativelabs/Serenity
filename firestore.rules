@@ -1,6 +1,6 @@
 rules_version = '2';
 // =====================================================================
-//  Serenity v2.4.0 “Nebula” — Firestore Security Rules (diperketat)
+//  Serenity v2.7.0 “Lumen” — Firestore Security Rules (diperketat)
 //  Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 //
 //  Prinsip:
@@ -183,7 +183,8 @@ service cloud.firestore {
     match /kegiatan/{id} {
       allow get: if true;
       allow list: if isStaff() || smallList();
-      allow create, update: if can('kegiatan') && data().size() <= 20 && str(data().nama, 150) && optStr('keterangan', 1000);
+      allow create, update: if can('kegiatan') && data().size() <= 24 && str(data().nama, 150) && optStr('keterangan', 30000)
+        && (!('media' in data()) || (data().media is list && data().media.size() <= 30));
       allow delete: if can('kegiatan');
     }
     // ---------- Lembaga Gampong (profil, pengurus, berita, galeri, dokumen = publik)

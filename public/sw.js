@@ -1,5 +1,5 @@
 /* Serenity Service Worker — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const SHELL = `serenity-shell-v${VERSION}`;
 const RUNTIME = `serenity-runtime-v${VERSION}`;
 const SHELL_FILES = [

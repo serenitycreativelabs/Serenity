@@ -22,7 +22,7 @@ export function allLembagaNews(max = 20) {
     if (l.published === false) continue;
     for (const b of l.berita || []) {
       if (!b?.judul) continue;
-      out.push({ ...b, lembagaId: l.id, lembaga: l.singkatan || l.nama, logo: l.logo || '', thumb: (b.media || []).map((m) => mediaThumb(m.url)).find(Boolean) || '' });
+      out.push({ ...b, bid: b.id || `b${(l.berita || []).indexOf(b)}`, lembagaId: l.id, lembaga: l.singkatan || l.nama, logo: l.logo || '', thumb: (b.media || []).map((m) => mediaThumb(m.url)).find(Boolean) || '' });
     }
   }
   return out.sort((a, b) => String(b.tanggal || '').localeCompare(String(a.tanggal || ''))).slice(0, Math.max(1, max));
@@ -31,7 +31,7 @@ export function allLembagaNews(max = 20) {
 export function lembagaNewsPanel() {
   const c = widgetCfg().berita;
   const list = allLembagaNews(c.maks);
-  const item = (b) => `<a class="ln-item" href="#/lembaga/${esc(b.lembagaId)}" title="${esc(b.judul)}">
+  const item = (b) => `<a class="ln-item" href="#/lembaga/${esc(b.lembagaId)}/berita/${esc(b.bid)}" title="${esc(b.judul)}">
       ${b.thumb ? `<span class="ln-thumb"><img loading="lazy" src="${esc(b.thumb)}" alt="" onerror="this.parentNode.remove()"></span>` : ''}
       <span class="ln-body"><span class="ln-meta"><span class="ln-org">${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ic('shield')}${esc(b.lembaga)}</span>${b.tanggal ? `<small>${esc(fmtDate(b.tanggal))}</small>` : ''}</span>
       <b>${esc(b.judul)}</b><small class="ln-ex">${esc(plainText(b.isi || '').replace(/\s+/g, ' ').trim().slice(0, 110))}</small></span></a>`;

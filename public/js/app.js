@@ -10,7 +10,7 @@ import {
 import {
   esc, $, $$, norm, debounce, todayISO, toDate, fmtDate, fmtRp, fmtNum, waNumber, waLink, waShareLink,
   normalizePhone, waFormat, toast, modal, confirmDialog, promptDialog, attachAutocomplete,
-  copyText, compressImage, authErrorMessage, parseNum, fmtThousand, bindThousands,
+  copyText, compressImage, authErrorMessage, parseNum, fmtThousand, bindThousands, setViewerCheck, humanErr, startAutoHints,
 } from './ui.js';
 import { bindWilayahChain } from './wilayah.js';
 import { exportExcel, exportPdf, getXLSX } from './exporter.js';
@@ -29,7 +29,7 @@ import { viewTampilan, viewLatar } from './tampilan.js';
 import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS } from './rich.js';
 import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle } from './layout.js';
 import { KATEGORI, renderLembagaPublic, bindLembagaPublic, renderDokumenPublic, bindDokumenPublic, viewLembagaAdmin, viewDokumenAdmin, lembagaOf } from './lembaga.js';
-import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm } from './cms.js';
+import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm, renderKegiatanPublic } from './cms.js';
 import { viewAdmins, viewAudit, viewCadangan, openSuperLogin, checkBackupReminder } from './security.js';
 
 const root = document.getElementById('app');
@@ -73,7 +73,15 @@ const isAktif = (w) => !['kematian', 'pindah keluar'].includes(norm(w.peristiwa)
 
 
 // ---------------------------------------------------------------- boot
+// Konsol browser: pesan teknis hanya ditampilkan untuk Super Admin (dan di komputer pengembang)
+function quietConsole() {
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+  const orig = {}; ['log', 'info', 'warn', 'debug', 'error'].forEach((k) => { orig[k] = console[k].bind(console); console[k] = (...a) => { if (isSuper()) orig[k](...a); }; });
+}
 function boot() {
+  setViewerCheck(() => isSuper());
+  quietConsole();
+  startAutoHints();
   if (F.configError) { renderConfigError(); return; }
   // v2.4: semua data publik lewat Sinkron Bertahap → kunjungan berikutnya hanya membaca yang berubah
   Sync.startPublic();
@@ -138,6 +146,13 @@ function boot() {
 
 function renderConfigError() {
   const host = location.hostname;
+  // Pengunjung umum: pesan netral tanpa detail teknis. Detail hanya di komputer pengembang atau dengan ?setup
+  const dev = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(host) || /[?&#]setup\b/.test(location.search + location.hash);
+  if (!dev) {
+    root.innerHTML = `<div class="login-page"><div class="login-card"><div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div><h1>Website belum dapat dimuat</h1><p class="muted">Koneksi ke server sedang bermasalah atau website sedang dalam pemeliharaan. Silakan muat ulang beberapa saat lagi.</p><button class="btn btn-primary btn-block" id="cfg-retry">${ic('refresh')} Muat ulang</button><p class="muted small center" data-copyright>${esc(APP.credit)}</p></div></div>`;
+    $('#cfg-retry').onclick = () => location.reload();
+    return;
+  }
   const where = location.protocol === 'file:' ? 'file' : /^(localhost|127\.0\.0\.1)$/.test(host) ? 'local' : /github\.io$/.test(host) ? 'pages' : /\.(web\.app|firebaseapp\.com)$/.test(host) ? 'firebase' : 'other';
   const steps = {
     firebase: `<li>Situs ini di Firebase Hosting tetapi konfigurasi tidak terbaca. Buka <b>GitHub → Actions</b> dan pastikan workflow <b>Deploy ke Firebase</b> berstatus hijau (berhasil).</li><li>Pastikan aplikasi Web sudah terdaftar: Firebase Console → ⚙ Project settings → <b>Your apps</b> → harus ada aplikasi Web. Jika belum ada, klik ikon <code>&lt;/&gt;</code> untuk menambahkannya, lalu deploy ulang.</li>`,
@@ -450,6 +465,7 @@ function renderPublic(r, soft) {
   else if (p0 === 'data') content = renderDataPortal(r.parts[1] || '');
   else if (p0 === 'lembaga') content = renderLembagaPublic(r.parts);
   else if (p0 === 'dokumen') content = renderDokumenPublic();
+  else if (p0 === 'kegiatan') content = renderKegiatanPublic(r.parts[1] || '');
   else content = pubHome();
   root.dataset.shell = 'public';
   const rt = state.config.runningText || {};
@@ -709,17 +725,18 @@ function pubInfoDetail(id) {
     }).catch(() => {});
     return `<section class="section narrow">${emptyBox('Memuat informasi… Jika tidak muncul, informasi mungkin sudah dihapus.')}</section>`;
   }
-  return `<article class="section narrow article">
-    <a href="#/informasi" class="link">← Kembali</a>
-    <div class="info-meta"><span class="badge">${esc(i.kategori || 'Informasi')}</span></div>
-    <h1>${esc(i.judul)}</h1>
-    <p class="muted">Diterbitkan ${esc(fmtDate(i.createdAt, true))}</p>
-    ${penulisSign(i, true)}
+  const words = plainText(i.isi).split(/\s+/).filter(Boolean).length;
+  return `<article class="section reader">
+    <a href="#/informasi" class="link reader-back">← Papan Informasi</a>
+    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(i.kategori || 'Informasi')}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}</div>
+      <h1>${esc(i.judul)}</h1>
+      <p class="reader-meta">${ic('cal')} ${esc(fmtDate(i.createdAt, true))} <span>·</span> ${Math.max(1, Math.round(words / 200))} menit baca</p>
+      ${penulisSign(i, true)}</header>
     ${(i.tanggalAcara || i.lokasi) ? `<div class="event-box">${i.tanggalAcara ? `<span>${ic('cal')} ${esc(fmtDate(i.tanggalAcara))}${i.waktu ? ' • ' + esc(i.waktu) : ''}</span>` : ''}${i.lokasi ? `<span>${ic('loc')} ${esc(i.lokasi)}</span>` : ''}</div>` : ''}
     ${i.gambar ? `<img class="article-img" src="${esc(i.gambar)}" alt="">` : ''}
     <div class="article-body rich">${richRender(i.isi)}</div>
-    ${(i.media || []).length ? `<div class="media-grid">${i.media.map(mediaEmbed).join('')}</div>` : ''}
-    <div class="info-actions">
+    ${(i.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${i.media.map(mediaEmbed).join('')}</div>` : ''}
+    <div class="info-actions reader-actions">
       <a class="btn btn-wa" href="${esc(waShareLink(infoMessage(i)))}" target="_blank" rel="noopener">${ic('wa')} Bagikan ke WhatsApp</a>
       <button class="btn btn-ghost" data-copy-link="${esc(appLink('/informasi/' + i.id))}">${ic('copy')} Salin tautan</button>
     </div>
@@ -731,6 +748,8 @@ function bindPublic() {
   if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   $('#pubnav-toggle')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
   $('#mnav-menu')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
+  // baris kegiatan rutin bisa diklik → halaman detail
+  $$('.kg-list [data-link]').forEach((el) => { const go = (e) => { if (e.target.closest('a')) return; location.hash = el.dataset.link; }; el.onclick = go; el.onkeydown = (e) => { if (e.key === 'Enter') go(e); }; });
   $('#mnav-scrim')?.addEventListener('click', () => document.body.classList.remove('pubnav-open'));
   // Dropdown: di desktop terbuka saat diarahkan & TIDAK langsung tertutup ketika kursor pindah ke submenu
   const hoverable = () => matchMedia('(hover: hover) and (min-width: 861px)').matches;
@@ -829,7 +848,7 @@ function renderAdmin(r, soft) {
   if (root.dataset.shell !== 'admin') {
     root.dataset.shell = 'admin';
     const items = NAV.filter(navAllowed);
-    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span>${k === 'cadangan' ? '<i class="nav-dot" id="nav-dot-cadangan" hidden title="Waktunya mencadangkan data"></i>' : ''}</a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}</div>` : ''}`;
+    const link = ([k, l, i]) => `<a href="#/admin/${k}" data-nav="${k}">${ic(i)}<span>${l}</span>${k === 'cadangan' ? '<i class="nav-dot" id="nav-dot-cadangan" hidden title="Waktunya mencadangkan data"></i>' : ''}</a>${k === 'lembaga' && can('lembaga') ? `<div class="nav-sub">${KATEGORI.map((c) => `<a href="#/admin/lembaga/k/${c.key}" data-nav="lembaga/k/${c.key}">${esc(c.short)}</a>`).join('')}<a href="#/admin/lembaga/berita" data-nav="lembaga/berita">Berita & Kegiatan</a></div>` : k === 'lembaga' && isPengelola() ? `<div class="nav-sub"><a href="#/admin/lembaga/berita" data-nav="lembaga/berita">Berita & Kegiatan</a></div>` : ''}`;
     const navHtml = NAV_GROUPS.map((g) => { const its = items.filter((n) => n[4] === g); return its.length ? `${g === 'Utama' ? '' : `<small class="nav-group">${g}</small>`}${its.map(link).join('')}` : ''; }).join('');
     root.innerHTML = `<div class="admin">
       <aside class="sidebar">
@@ -855,7 +874,7 @@ function renderAdmin(r, soft) {
     if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   }
   updateShellBrand();
-  const navKey = sec === 'lembaga' && r.parts[2] === 'k' ? `lembaga/k/${r.parts[3]}` : sec;
+  const navKey = sec === 'lembaga' && r.parts[2] === 'k' ? `lembaga/k/${r.parts[3]}` : sec === 'lembaga' && r.parts[2] === 'berita' ? 'lembaga/berita' : sec;
   $$('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === navKey || (sec === 'lembaga' && a.dataset.nav === 'lembaga' && navKey === 'lembaga')));
   applyTheme(state.config.tema);
   applyBackground(null);
@@ -1542,7 +1561,7 @@ async function runImport(records) {
     toast('Import selesai', 'success');
   } catch (e) {
     logAudit('import', 'import_gagal', `Import Excel “${importFileName}” gagal`, { detail: e.message });
-    prog.innerHTML = `<p class="err">Import gagal: ${esc(e.message)}</p>`; go.disabled = false;
+    prog.innerHTML = `<p class="err">Import gagal: ${esc(humanErr(e))}</p>`; go.disabled = false;
   }
 }
 
@@ -1880,7 +1899,7 @@ function infoForm(i) {
       <label class="field span-2"><span>Isi * <small class="muted">— atur font, ukuran, warna, tebal & miring; format otomatis dikonversi saat dikirim ke WhatsApp</small></span><textarea name="isi" rows="9" required data-rich>${esc(i?.isi || '')}</textarea></label>
       <label class="field span-2"><span>Foto & video dari URL <small class="muted">— satu per baris, boleh ditambah “| keterangan”. YouTube, Google Drive, atau link gambar</small></span><textarea name="media" rows="3" placeholder="https://youtu.be/xxxxxxxxxxx | Video kegiatan&#10;https://drive.google.com/file/d/…/view | Dokumentasi&#10;https://contoh.com/foto.jpg">${esc(mediaLinesText(i?.media))}</textarea></label>
       <div class="span-2 media-grid sm" id="if-media-prev"></div>
-      <div class="field span-2"><span>Gambar sampul (opsional)</span><div class="img-pick"><div id="if-prev">${gambar ? `<img src="${esc(gambar)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih gambar<input type="file" accept="image/*" id="if-img" hidden></label><button type="button" class="btn btn-ghost btn-sm" id="if-noimg" ${gambar ? '' : 'hidden'}>Hapus gambar</button></div><small class="muted">Gambar dikompres otomatis dan disimpan di Firestore (tanpa Firebase Storage).</small></div>
+      <div class="field span-2"><span>Gambar sampul (opsional)</span><div class="img-pick"><div id="if-prev">${gambar ? `<img src="${esc(gambar)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih gambar<input type="file" accept="image/*" id="if-img" hidden></label><button type="button" class="btn btn-ghost btn-sm" id="if-noimg" ${gambar ? '' : 'hidden'}>Hapus gambar</button></div><small class="muted">Gambar dikompres otomatis dan disimpan di basis data website.</small></div>
       <label class="check"><input type="checkbox" name="published" ${i ? (i.published ? 'checked' : '') : 'checked'}> Terbitkan di halaman publik</label>
       <label class="check"><input type="checkbox" name="pinned" ${i?.pinned ? 'checked' : ''}> Sematkan di atas</label>
     </form>
@@ -2026,7 +2045,7 @@ function viewInstagram(main) {
   state.view = 'instagram';
   main.innerHTML = `
   <div class="panel"><h3>${ic('ig')} Integrasi Instagram</h3>
-    <p class="muted">Postingan yang diunggah admin ke Instagram desa otomatis tampil di halaman <b>Highlight</b> situs ini. Sinkronisasi berjalan otomatis saat admin membuka dasbor (setiap 3 jam) dan — bila GitHub Actions diaktifkan — setiap jam di server.</p>
+    <p class="muted">Postingan yang diunggah admin ke Instagram desa otomatis tampil di halaman <b>Highlight</b> situs ini. Sinkronisasi berjalan otomatis saat admin membuka dasbor (setiap 3 jam)${isSuper() ? ' dan — bila GitHub Actions diaktifkan — setiap 6 jam di server' : ' dan secara berkala di server'}.</p>
     <form id="ig-form" class="form-grid">
       <label class="field"><span>Username Instagram</span><div class="input-group"><span class="addon">@</span><input name="username" value="${esc(state.config.igUsername || '')}" placeholder="namadesa"></div></label>
       <label class="field"><span>Access Token (Instagram API with Instagram Login)</span><input name="token" type="password" placeholder="IGAA… (kosongkan bila tidak diubah)" autocomplete="off"></label>

@@ -3,7 +3,7 @@ import { APP } from './config.js';
 import { F, ic, state, C, clean, desaName, desaJenis, jenisLabel, emptyBox, confirmDelete, can, logAudit, diff, insightsFromStats, pct } from './core.js';
 import { esc, $, $$, norm, debounce, fmtDate, fmtNum, fmtRp, waLink, waNumber, normalizePhone, waFormat, toast, modal, confirmDialog, attachAutocomplete, compressImage, parseNum, fmtThousand, bindThousands } from './ui.js';
 import { exportExcel } from './exporter.js';
-import { richRender, bindRich } from './rich.js';
+import { richRender, bindRich, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText } from './rich.js';
 import { prayerTimes, PRAYER_NAMES, DEFAULT_SHOLAT, fmtMin, nowMinutes, dateInTz, hijriDate } from './praytimes.js';
 
 // ---------------------------------------------------------------- definisi halaman
@@ -202,13 +202,35 @@ export function kegiatanPanel() {
   const list = state.kegiatan.filter((k) => k.aktif !== false);
   const today = list.filter((k) => kegiatanToday(k, d));
   const others = list.filter((k) => !today.includes(k));
-  const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}"><div class="kg-time">${esc(k.waktu || '')}</div><div><b>${esc(k.nama)}</b><small>${esc([(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small>${k.pj ? `<small>PJ: ${esc(k.pj)}${waNumber(k.hp) ? ` · <a href="${esc(waLink(k.hp))}" target="_blank" rel="noopener">WA</a>` : ''}</small>` : ''}</div></li>`;
+  const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}" data-link="#/kegiatan/${esc(k.id)}" tabindex="0" title="Lihat detail kegiatan"><div class="kg-time">${esc(k.waktu || '')}</div><div><b>${esc(k.nama)}${k.media?.length ? ` <span class="kg-media" title="Ada foto/video">${ic('image')}</span>` : ''}</b><small>${esc([(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small>${k.pj ? `<small>PJ: ${esc(k.pj)}${waNumber(k.hp) ? ` · <a href="${esc(waLink(k.hp))}" target="_blank" rel="noopener">WA</a>` : ''}</small>` : ''}</div></li>`;
   return `<div class="side-panel kegiatan">
     <div class="sp-head">${ic('repeat')}<div><b>Kegiatan Rutin ${esc(jenisLabel())}</b><small>Jadwal pengajian & kegiatan warga</small></div></div>
     ${today.length ? `<p class="kg-label">Hari ini — ${HARI[d.getDay()]}</p><ul class="kg-list">${today.map((k) => row(k, true)).join('')}</ul>` : `<p class="muted small">Tidak ada kegiatan rutin hari ini.</p>`}
     ${others.length ? `<p class="kg-label">Kegiatan lainnya</p><ul class="kg-list">${others.map((k) => row(k, false)).join('')}</ul>` : ''}
     ${!list.length ? '<p class="muted small">Belum ada kegiatan rutin yang dijadwalkan.</p>' : ''}
+    ${list.length ? '<a class="link small" href="#/kegiatan">Semua kegiatan →</a>' : ''}
   </div>`;
+}
+const kgJadwal = (k) => [(k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.waktu].filter(Boolean).join(' • ');
+// PUBLIK: daftar & detail kegiatan rutin (tata baca sama dengan Papan Informasi)
+export function renderKegiatanPublic(id) {
+  const list = state.kegiatan.filter((k) => k.aktif !== false);
+  if (!id) {
+    const d = dateInTz(sholatCfg().tz);
+    return `<section class="section"><span class="eyebrow">${ic('repeat')} Agenda warga</span><h1>Kegiatan Rutin ${esc(jenisLabel())}</h1><p class="muted">Pengajian, wirid yasin, posyandu, gotong royong, dan kegiatan rutin warga lainnya.</p>
+      ${list.length ? `<div class="cards">${list.map((k) => { const th = (k.media || []).map((m) => mediaThumb(m.url)).find(Boolean); const today = kegiatanToday(k, d); return `<article class="info-card">${th ? `<a href="#/kegiatan/${esc(k.id)}" class="info-img"><img loading="lazy" src="${esc(th)}" alt=""></a>` : ''}<div class="info-body"><div class="info-meta"><span class="badge">${esc(k.kategori || 'Kegiatan')}</span>${today ? '<span class="badge badge-ok">Hari ini</span>' : ''}</div><h3><a href="#/kegiatan/${esc(k.id)}">${esc(k.nama)}</a></h3><p class="muted small">${ic('cal')} ${esc(kgJadwal(k))}${k.tempat ? ` • ${ic('loc')} ${esc(k.tempat)}` : ''}</p><p class="excerpt">${esc(plainText(k.keterangan || '').slice(0, 140))}</p><div class="info-actions"><a class="btn btn-sm btn-ghost" href="#/kegiatan/${esc(k.id)}">Lihat detail</a></div></div></article>`; }).join('')}</div>` : emptyBox('Belum ada kegiatan rutin.')}</section>`;
+  }
+  const k = list.find((x) => x.id === id);
+  if (!k) return `<section class="section reader">${emptyBox('Kegiatan tidak ditemukan atau sudah tidak aktif.')}</section>`;
+  const msg = [`*KEGIATAN RUTIN — ${desaJenis().toUpperCase()} ${desaName().toUpperCase()}*`, '', `*${k.nama}*`, `📅 ${kgJadwal(k)}`, k.tempat ? `📍 ${k.tempat}` : '', k.pj ? `👤 PJ: ${k.pj}${k.hp ? ' (' + k.hp + ')' : ''}` : '', '', plainText(k.keterangan || '')].filter((x, i, a) => x || a[i - 1]).join('\n');
+  return `<article class="section reader">
+    <a href="#/kegiatan" class="link reader-back">← Kegiatan Rutin</a>
+    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(k.kategori || 'Kegiatan Rutin')}</span>${kegiatanToday(k, dateInTz(sholatCfg().tz)) ? '<span class="badge badge-ok">Hari ini</span>' : ''}</div><h1>${esc(k.nama)}</h1></header>
+    <div class="event-box"><span>${ic('cal')} ${esc(kgJadwal(k))}</span>${k.tempat ? `<span>${ic('loc')} ${esc(k.tempat)}</span>` : ''}${k.pj ? `<span>${ic('users')} PJ: ${esc(k.pj)}</span>` : ''}</div>
+    ${k.keterangan ? `<div class="article-body rich">${richRender(k.keterangan)}</div>` : '<p class="muted">Belum ada keterangan tambahan untuk kegiatan ini.</p>'}
+    ${(k.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${k.media.map(mediaEmbed).join('')}</div>` : ''}
+    <div class="info-actions reader-actions">${waNumber(k.hp) ? `<a class="btn btn-wa" target="_blank" rel="noopener" href="${esc(waLink(k.hp, `Assalamu'alaikum, saya ingin bertanya tentang kegiatan ${k.nama}.`))}">${ic('wa')} Hubungi PJ</a>` : ''}<a class="btn btn-ghost" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${ic('send')} Bagikan</a></div>
+  </article>`;
 }
 
 export function startPublicTickers() {
@@ -299,19 +321,23 @@ function kegiatanForm(k) {
       <label class="field"><span>Penanggung jawab</span><input name="pj" value="${esc(k?.pj || '')}"></label>
       <label class="field"><span>No. HP PJ</span><input name="hp" type="tel" value="${esc(k?.hp || '')}"></label>
       <label class="field"><span>Urutan tampil</span><input name="urutan" type="number" value="${esc(k?.urutan ?? state.kegiatan.length + 1)}"></label>
-      <label class="field span-2"><span>Keterangan</span><textarea name="keterangan" rows="3" data-rich>${esc(k?.keterangan || '')}</textarea></label>
+      <label class="field span-2"><span>Keterangan / isi kegiatan <small class="muted">— tampil di halaman detail kegiatan. Tempel link YouTube/TikTok/Instagram/Facebook di baris tersendiri agar langsung jadi pemutar video</small></span><textarea name="keterangan" rows="5" data-rich placeholder="Tulis penjelasan kegiatan: materi, penceramah, perlengkapan yang perlu dibawa, dll.">${esc(k?.keterangan || '')}</textarea></label>
+      <label class="field span-2"><span>Foto & video dari URL <small class="muted">— satu per baris, boleh ditambah “| keterangan”</small></span><textarea name="media" rows="3" placeholder="https://youtu.be/xxxxxxxxxxx | Dokumentasi pengajian&#10;https://www.tiktok.com/@akun/video/123… | Video singkat&#10;https://contoh.com/foto.jpg">${esc(mediaLinesText(k?.media))}</textarea></label>
+      <div class="span-2 media-grid sm" id="kg-media-prev"></div>
       <label class="check"><input type="checkbox" name="aktif" ${k?.aktif === false ? '' : 'checked'}> Aktif (tampil di beranda)</label>
     </form>`,
     footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="kg-ok">Simpan</button>',
   });
   const f = $('#kgf', m.el); bindRich(f);
+  const mprev = () => { $('#kg-media-prev', m.el).innerHTML = parseMediaLines(f.elements.media.value).map(mediaEmbed).join(''); };
+  f.elements.media.addEventListener('input', debounce(mprev, 400)); mprev();
   attachAutocomplete(f.elements.kategori, { source: () => state.master.kategoriKegiatan?.items || ['Pengajian', 'Wirid Yasin', 'Gotong Royong', 'Posyandu', 'Olahraga', 'Rapat Gampong', 'Majelis Taklim', 'Kesenian'], smallList: 12 });
   $('#kg-ok', m.el).onclick = async () => {
     const data = {
       nama: f.elements.nama.value.trim(), kategori: f.elements.kategori.value.trim(), waktu: f.elements.waktu.value.trim(),
       hari: $$('input[name=hari]:checked', f).map((x) => x.value), minggu: f.elements.minggu.value, tempat: f.elements.tempat.value.trim(),
       pj: f.elements.pj.value.trim(), hp: normalizePhone(f.elements.hp.value), urutan: Number(f.elements.urutan.value) || 0,
-      keterangan: f.elements.keterangan.value.trim(), aktif: f.elements.aktif.checked, updatedAt: F.serverTimestamp(),
+      keterangan: f.elements.keterangan.value.trim(), media: parseMediaLines(f.elements.media.value), aktif: f.elements.aktif.checked, updatedAt: F.serverTimestamp(),
     };
     if (!data.nama) return toast('Nama kegiatan wajib diisi', 'error');
     if (!data.hari.length) return toast('Pilih minimal satu hari', 'error');

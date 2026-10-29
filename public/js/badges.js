@@ -1,7 +1,7 @@
 // Badge pengguna — hanya Super Admin yang dapat memberikan/mencabut badge.
 // Ikon dibuat sendiri (generik), BUKAN logo merek, agar aman dipakai publik.
 // Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
-import { esc, $, $$, toast, modal } from './ui.js';
+import { esc, $, $$, toast, modal, viewerIsSuper } from './ui.js';
 
 // ---- glyph SVG generik (viewBox 24)
 const G = {
@@ -114,7 +114,8 @@ export function badgeIcon(b, links = true) {
   const d = BADGES[b.id]; if (!d) return '';
   const tag = links && d.url && safe(b.url) ? 'a' : 'span';
   const href = tag === 'a' ? ` href="${esc(safe(b.url))}" target="_blank" rel="noopener nofollow ugc"` : '';
-  const title = esc(d.label + (b.note ? ` — ${b.note}` : ''));
+  const lbl = !viewerIsSuper() && /git(hub|lab)/i.test(d.label) ? 'Profil Developer' : d.label;
+  const title = esc(lbl + (b.note ? ` — ${b.note}` : ''));
   return `<${tag} class="ubadge ${d.seal ? 'seal' : ''}" style="--bc:${d.color}" title="${title}" aria-label="${title}"${href}>${svg(d.glyph)}</${tag}>`;
 }
 // Deretan ikon badge (centang tampil lebih dulu). max = batas yang ditampilkan; links=false bila berada di dalam <a>

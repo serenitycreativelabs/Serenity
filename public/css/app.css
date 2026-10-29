@@ -1273,7 +1273,9 @@ body.has-bg::after { display: none !important; }
 :root[data-cursor-hide="1"] body, :root[data-cursor-hide="1"] body *:not(input):not(textarea):not(select):not([contenteditable=true]):not(iframe) { cursor: none !important; }
 .btn, .icon-btn, .chip, .vw-pill { transition-property: background, border-color, color, transform, translate, box-shadow, filter; }
 .btn, .icon-btn, .chip { transition-duration: .18s; }
-@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) { #fx-layer > :is(.fx-dot, .fx-ring, .fx-glow, .fx-blob, canvas) { display: none; } :root[data-cursor-hide="1"] body * { cursor: auto !important; } }
+/* perangkat tanpa mouse/touchpad sama sekali (ponsel, tablet): sembunyikan lapisan kursor */
+@media not (any-pointer: fine) { #fx-layer > :is(.fx-dot, .fx-ring, .fx-glow, .fx-blob, canvas) { display: none; } :root[data-cursor-hide="1"] body * { cursor: auto !important; } }
+@media (prefers-reduced-motion: reduce) { #fx-layer > canvas, .fx-ripple, .fx-spark, .fx-confetti { display: none; } }
 
 /* ---------- Ikon animasi ---------- */
 :root[data-ican] .ic { transform-box: fill-box; transform-origin: center; }
@@ -1543,3 +1545,53 @@ body.has-bg::after { display: none !important; }
 /* menu lembar bawah berada di dalam header: header tanpa backdrop-filter saat terbuka agar posisi "fixed" mengacu ke layar */
 @media (max-width: 860px) { body.pubnav-open .pub-header { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; z-index: 38; } }
 @media (max-width: 860px) { body.pubnav-open .vis-widget { display: none; } }
+
+/* =================================================================
+   v2.7.0 — Tata baca nyaman (Papan Informasi, Berita Lembaga, Kegiatan Rutin) & pemutar media
+   ================================================================= */
+.reader { max-width: 780px; margin-inline: auto; padding: 6px 4px 24px; }
+.reader-back { display: inline-flex; margin-bottom: 14px; font-weight: 600; }
+.reader-head { margin-bottom: 18px; }
+.reader-head h1 { font-size: clamp(1.6rem, 3.2vw, 2.35rem); line-height: 1.18; letter-spacing: -.02em; margin: 12px 0 10px; text-wrap: balance; }
+.reader-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: .88rem; margin: 0 0 8px; }
+.reader-meta .ic { width: 15px; height: 15px; }
+.reader .article-img { border-radius: calc(var(--radius) + 4px); margin: 8px 0 22px; max-height: 520px; object-fit: cover; box-shadow: var(--shadow); }
+.reader-sub { display: flex; gap: 8px; align-items: center; font-size: 1.05rem; margin: 30px 0 12px; }
+.reader-actions { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
+.reader .event-box { margin: 4px 0 20px; }
+/* isi tulisan: tanpa kotak, nyaman di mode terang & gelap */
+.article-body { font-size: 1.075rem; line-height: 1.85; color: var(--ink); margin: 0 0 8px; overflow-wrap: anywhere; font-feature-settings: "kern", "liga"; }
+.article-body.rich :is(p, div) { margin: 0 0 1em; }
+.article-body.rich :is(h3, h4) { margin: 1.6em 0 .5em; line-height: 1.3; letter-spacing: -.01em; }
+.article-body.rich :is(ul, ol) { margin: 0 0 1em; padding-left: 1.5em; } .article-body.rich li { margin: .3em 0; }
+.article-body.rich blockquote { margin: 1.2em 0; padding: .7em 1.1em; border-left: 4px solid var(--brand); background: color-mix(in srgb, var(--brand) 7%, transparent); border-radius: 0 12px 12px 0; color: var(--ink-2); font-style: italic; }
+.article-body.rich a { color: var(--brand); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.article-body.rich img { max-width: 100%; height: auto; border-radius: 12px; }
+.article-body.rich b, .article-body.rich strong { font-weight: 700; }
+.rich [style*="background"] { background: none !important; } /* sisa warna latar tempelan pada postingan lama */
+@media (max-width: 640px) { .article-body { font-size: 1.02rem; line-height: 1.8; } .reader { padding: 0 2px 16px; } }
+/* sematan otomatis di dalam tulisan */
+.rich-embed { margin: 1.3em 0; }
+.reader-media { display: grid; gap: 16px; }
+.reader-media:has(.media-img) { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.reader-media > .media-video, .reader-media > .media-audio, .reader-media > .link-card { grid-column: 1 / -1; }
+.reader .media, .rich-embed .media { border: 0; background: var(--surface-2); box-shadow: var(--shadow); border-radius: 14px; }
+.reader .media img { max-height: none; }
+.media.portrait .ratio { aspect-ratio: 9 / 16; max-width: 360px; margin-inline: auto; }
+.media.portrait.insta .ratio { aspect-ratio: 4 / 6.2; max-width: 420px; }
+.media.tweet .ratio { aspect-ratio: auto; height: 560px; max-width: 550px; margin-inline: auto; }
+.media.portrait, .media.tweet { background: transparent; box-shadow: none; }
+.media-audio iframe { width: 100%; border: 0; display: block; border-radius: 12px; }
+.media-src { display: block; padding: 6px 12px 10px; font-size: .76rem; color: var(--muted); text-align: right; }
+.media.broken img { display: none; } .media.broken::before { content: 'Foto tidak dapat dimuat — buka tautan aslinya'; display: block; padding: 18px; text-align: center; color: var(--muted); font-size: .85rem; }
+.link-card { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none !important; box-shadow: var(--shadow); transition: border-color .15s, transform .15s; }
+.link-card:hover { border-color: var(--brand); transform: translateY(-1px); }
+.link-card img { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+.link-card span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.link-card b { font-size: .92rem; } .link-card small { color: var(--muted); font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.link-card i { font-style: normal; color: var(--muted); }
+/* kegiatan rutin bisa diklik */
+.kg-list li[data-link] { cursor: pointer; transition: background .15s, transform .15s; }
+.kg-list li[data-link]:hover { background: var(--primary-soft); transform: translateX(2px); }
+.kg-media .ic { width: 13px; height: 13px; vertical-align: -2px; color: var(--brand); }
+.lg-news-cards { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }

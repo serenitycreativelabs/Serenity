@@ -59,6 +59,7 @@ export function renderLembagaPublic(parts) {
     return `<section class="section"><a class="link" href="#/lembaga">← Semua lembaga</a><span class="eyebrow">${ic(k.icon)} Kelembagaan</span><h1>${esc(k.label)}</h1><p class="muted">${esc(k.desc)}</p>
       ${katChips(k.key)}${ls.length ? `<div class="lg-grid">${ls.map((l) => lembagaCard(l)).join('')}</div>` : emptyBox('Belum ada lembaga di kategori ini.')}</section>`;
   }
+  if (parts[1] && parts[2] === 'berita' && parts[3]) return beritaDetail(parts[1], parts[3]);
   if (parts[1]) return lembagaDetail(parts[1]);
   return `<section class="section"><span class="eyebrow">${ic('shield')} Kelembagaan Gampong</span><h1>Lembaga Gampong</h1>
     <p class="muted">Struktur kepengurusan, kegiatan, dan dokumen setiap lembaga di gampong.</p>
@@ -87,10 +88,39 @@ function lembagaDetail(id) {
       ${l.visi ? `<div class="visi"><small>VISI</small><p>${esc(l.visi)}</p></div>` : ''}${l.dasarHukum ? `<p class="small muted">Dasar hukum: ${esc(l.dasarHukum)}</p>` : ''}</div>
     <div id="lg-struktur" class="panel"><h3>${ic('users')} Struktur Kepengurusan${l.periode ? ` <small class="muted">· Periode ${esc(l.periode)}</small>` : ''}</h3>
       ${(l.pengurus || []).length ? groupPengurus(l).map(([g, ps]) => `<h4 class="detail-h">${esc(g)}</h4><div class="people">${ps.map((p) => `<div class="person">${p.foto ? `<img src="${esc(p.foto)}" alt="">` : `<span class="avatar lg">${esc((p.nama || '?').slice(0, 1))}</span>`}<b>${esc(p.nama)}</b><small>${esc(p.jabatan || '')}</small>${waNumber(p.hp) ? `<a class="wa-link small" target="_blank" rel="noopener" href="${esc(waLink(p.hp))}">${ic('wa')} Hubungi</a>` : ''}</div>`).join('')}</div>`).join('') : '<p class="muted">Belum ada data pengurus.</p>'}</div>
-    ${berita.length ? `<div id="lg-berita" class="panel"><h3>${ic('mega')} Berita & Kegiatan</h3><div class="lg-news">${berita.map((b) => { const th = b.media?.length ? '' : ''; return `<article class="lg-news-item">${th ? `<img src="${esc(th)}" alt="" loading="lazy">` : ''}<div><small class="muted">${esc(fmtDate(b.tanggal))}</small><h4>${esc(b.judul)}</h4><div class="rich small">${richRender(b.isi)}</div>${(b.media || []).map(mediaEmbed).join('')}${b.penulis ? `<p class="byline">Diterbitkan oleh <b>${esc(penulisLabel(b.penulis))}</b></p>` : ''}</div></article>`; }).join('')}</div></div>` : ''}
+    ${berita.length ? `<div id="lg-berita" class="panel"><h3>${ic('mega')} Berita & Kegiatan</h3><div class="cards lg-news-cards">${berita.map((b) => beritaCard(l, b)).join('')}</div></div>` : ''}
     ${l.media?.length ? `<div id="lg-galeri" class="panel"><h3>${ic('ig')} Galeri & Video</h3><div class="media-grid">${l.media.map(mediaEmbed).join('')}</div></div>` : ''}
     ${l.dokumen?.length ? `<div id="lg-dokumen" class="panel"><h3>${ic('file')} Dokumen</h3>${docTable(l.dokumen)}</div>` : ''}
   </section>`;
+}
+// ---- Berita lembaga: kartu & halaman baca (tata baca sama dengan Papan Informasi)
+const beritaId = (b, i) => b.id || `b${i}`;
+const beritaThumb = (b) => (b.media || []).map((m) => mediaThumb(m.url)).find(Boolean) || '';
+function beritaCard(l, b) {
+  const id = beritaId(b, (l.berita || []).indexOf(b)); const th = beritaThumb(b); const txt = plainText(b.isi || '').replace(/\s+/g, ' ').trim();
+  return `<article class="info-card">${th ? `<a href="#/lembaga/${esc(l.id)}/berita/${esc(id)}" class="info-img"><img loading="lazy" src="${esc(th)}" alt="" onerror="this.closest('.info-img')?.remove()">${(b.media || []).some((m) => /youtu|tiktok|instagram|facebook|fb\.watch|vimeo|\.mp4/i.test(m.url)) ? '<span class="play">▶</span>' : ''}</a>` : ''}
+    <div class="info-body"><div class="info-meta"><span class="badge">${esc(l.singkatan || l.nama)}</span></div><h3><a href="#/lembaga/${esc(l.id)}/berita/${esc(id)}">${esc(b.judul)}</a></h3><p class="muted small">${esc(fmtDate(b.tanggal))}</p><p class="excerpt">${esc(txt.slice(0, 150))}${txt.length > 150 ? '…' : ''}</p>
+    <div class="info-actions"><a class="btn btn-sm btn-ghost" href="#/lembaga/${esc(l.id)}/berita/${esc(id)}">Baca</a></div></div></article>`;
+}
+function beritaDetail(lid, bid) {
+  const l = state.lembaga.find((x) => x.id === lid && x.published !== false);
+  const list = l?.berita || []; const b = list.find((x, i) => beritaId(x, i) === bid);
+  if (!l || !b) return `<section class="section reader">${emptyBox('Berita tidak ditemukan.')}</section>`;
+  const words = plainText(b.isi || '').split(/\s+/).filter(Boolean).length;
+  const url = `${location.origin}${location.pathname}#/lembaga/${l.id}/berita/${bid}`;
+  const msg = `*${String(l.singkatan || l.nama).toUpperCase()}*\n\n*${b.judul}*\n${b.tanggal ? '📅 ' + fmtDate(b.tanggal) + '\n' : ''}\n${plainText(b.isi || '').slice(0, 600)}\n\nSelengkapnya: ${url}`;
+  const others = list.filter((x) => x !== b).sort((a, c) => String(c.tanggal || '').localeCompare(String(a.tanggal || ''))).slice(0, 3);
+  return `<article class="section reader">
+    <a href="#/lembaga/${esc(l.id)}" class="link reader-back">← ${esc(l.singkatan || l.nama)}</a>
+    <header class="reader-head"><div class="info-meta"><span class="badge">${esc(katOf(l.kategori).short)}</span><span class="badge badge-muted">${esc(l.singkatan || l.nama)}</span></div>
+      <h1>${esc(b.judul)}</h1>
+      <p class="reader-meta">${ic('cal')} ${esc(fmtDate(b.tanggal))} <span>·</span> ${Math.max(1, Math.round(words / 200))} menit baca</p>
+      ${b.penulis ? `<div class="byline">${avatar(b.penulis, 'sm')}<span>Diterbitkan oleh <b>${esc(penulisLabel(b.penulis))}</b>${badgeRow(b.penulis.badges, 6)}</span></div>` : ''}</header>
+    ${b.isi ? `<div class="article-body rich">${richRender(b.isi)}</div>` : ''}
+    ${(b.media || []).length ? `<h3 class="reader-sub">${ic('image')} Foto & Video</h3><div class="reader-media">${b.media.map(mediaEmbed).join('')}</div>` : ''}
+    <div class="info-actions reader-actions"><a class="btn btn-wa" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${ic('wa')} Bagikan ke WhatsApp</a><a class="btn btn-ghost" href="#/lembaga/${esc(l.id)}">${ic('shield')} Profil lembaga</a></div>
+    ${others.length ? `<h3 class="reader-sub">Berita lain dari ${esc(l.singkatan || l.nama)}</h3><div class="cards">${others.map((x) => beritaCard(l, x)).join('')}</div>` : ''}
+  </article>`;
 }
 const docTable = (docs) => `<div class="table-wrap"><table class="table"><thead><tr><th>Dokumen</th><th>Jenis</th><th>Tahun</th><th class="actions-col">Berkas</th></tr></thead><tbody>${docs.map((d) => `<tr><td><b>${esc(d.judul)}</b></td><td>${esc(d.jenis || '-')}</td><td>${esc(d.tahun || '-')}</td><td class="actions-col">${safeUrl(d.url) ? `<a class="btn btn-sm btn-ghost" href="${esc(safeUrl(d.url))}" target="_blank" rel="noopener">${ic('eye')} Lihat</a> <a class="btn btn-sm btn-primary" href="${esc(downloadUrl(d.url))}" target="_blank" rel="noopener">${ic('download')} Unduh</a>` : '-'}</td></tr>`).join('')}</tbody></table></div>`;
 export function bindLembagaPublic() {
@@ -152,6 +182,7 @@ export function viewLembagaAdmin(main, r) {
   state.view = 'lembaga';
   const p2 = r.parts[2];
   if (p2 === 'e') return lembagaEditor(main, r.parts[3], r.query.get('tab'));
+  if (p2 === 'berita') { editorState = null; return viewBeritaAdmin(main, r.query.get('k') || ''); }
   editorState = null;
   const kat = p2 === 'k' ? katOf(r.parts[3]) : null;
   if (!state.lembagaReady) { main.innerHTML = loadingBox(); return; }
@@ -161,7 +192,9 @@ export function viewLembagaAdmin(main, r) {
   if (!full) {
     const mine = state.lembaga.filter((l) => canLembaga(l.id, l.kategori));
     main.innerHTML = `<div class="callout">${ic('shield')}<div><b>Lembaga yang Anda kelola</b><p>Anda diangkat Super Admin sebagai pengelola lembaga berikut. Anda dapat mengubah profil, pengurus, anggota, berita, galeri, dan dokumen lembaga ini.</p></div></div>
-      <div class="lg-grid">${mine.map((l) => lembagaCard(l, true)).join('') || emptyBox('Belum ada lembaga yang ditugaskan kepada Anda.')}</div>`;
+      <div class="lg-grid">${mine.map((l) => lembagaCard(l, true)).join('') || emptyBox('Belum ada lembaga yang ditugaskan kepada Anda.')}</div>
+      ${mine.length ? '<div class="panel" id="kat-berita"></div>' : ''}`;
+    if (mine.length) beritaPanel($('#kat-berita'), '', { compact: true });
     return;
   }
   const cats = kat ? [kat] : KATEGORI;
@@ -170,7 +203,9 @@ export function viewLembagaAdmin(main, r) {
   ${!state.lembaga.length ? `<div class="callout">${ic('shield')}<div><b>Mulai dengan struktur bawaan</b><p>Pasang ${SEED.length} lembaga sesuai struktur gampong di Aceh: Pemerintah Gampong, TPG, BKM, TPA/TPQ, Imeum, Tuha Lapan, Remaja Masjid, PKK, Posyandu, Karang Taruna, LPMG, Linmas, BUMG, Koperasi, dan PAUD.</p></div><button class="btn btn-primary" id="lg-seed">${ic('plus')} Pasang struktur bawaan</button></div>` : ''}
   ${miss.length ? `<div class="callout">${ic('plus')}<div><b>Lembaga bawaan baru tersedia</b><p>${miss.map((s) => `<b>${esc(s.singkatan)}</b> (${esc(s.nama)}) — ${esc(katOf(s.kategori).short)}`).join(', ')}.</p></div><button class="btn btn-primary btn-sm" id="lg-miss">${ic('plus')} Tambahkan</button><button class="btn btn-ghost btn-sm" id="lg-miss-skip">Abaikan</button></div>` : ''}
   <div class="toolbar toolbar-actions"><button class="btn btn-primary" id="lg-new">${ic('plus')} Tambah Lembaga</button><a class="btn btn-ghost" href="#/lembaga" target="_blank">${ic('ext')} Lihat halaman publik</a>${kat ? '<a class="btn btn-ghost" href="#/admin/lembaga">Semua kategori</a>' : ''}</div>
-  ${cats.map((k) => `<div class="lg-cat"><div class="section-head"><h2>${ic(k.icon)} ${esc(k.label)}</h2>${kat ? '' : `<a class="link" href="#/admin/lembaga/k/${k.key}">Buka →</a>`}</div><div class="lg-grid">${lembagaOf(k.key).map((l) => lembagaCard(l, true)).join('') || `<p class="muted small">${esc(k.desc)} Belum ada lembaga.</p>`}</div></div>`).join('')}`;
+  ${cats.map((k) => `<div class="lg-cat"><div class="section-head"><h2>${ic(k.icon)} ${esc(k.label)}</h2>${kat ? '' : `<a class="link" href="#/admin/lembaga/k/${k.key}">Buka →</a>`}</div><div class="lg-grid">${lembagaOf(k.key).map((l) => lembagaCard(l, true)).join('') || `<p class="muted small">${esc(k.desc)} Belum ada lembaga.</p>`}</div></div>`).join('')}
+  ${kat ? `<div class="panel" id="kat-berita"></div>` : ''}`;
+  if (kat) beritaPanel($('#kat-berita'), kat.key, { compact: true });
   $('#lg-seed')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; try { await seedLembaga(); toast('Struktur lembaga bawaan terpasang', 'success'); } catch (err) { toast(err.message, 'error'); } });
   $('#lg-miss')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; try { await addSeeds(miss); toast(`${miss.map((s) => s.singkatan).join(', ')} ditambahkan`, 'success'); } catch (err) { toast(err.message, 'error'); e.currentTarget.disabled = false; } });
   $('#lg-miss-skip')?.addEventListener('click', () => { try { localStorage.setItem('dd:seedSkip', JSON.stringify([...dismissedSeeds(), ...miss.map(seedId)])); } catch { /* */ } viewLembagaAdmin(main, r); });
@@ -189,6 +224,81 @@ function newLembagaDialog(kat) {
     const ref = await F.addDoc(F.collection(F.db, 'lembaga'), data);
     logAudit('lembaga', 'tambah', `Menambah lembaga ${nama}`, { targetId: ref.id });
     m.close(); location.hash = `#/admin/lembaga/e/${ref.id}`;
+  };
+}
+
+// ================================================================ ADMIN: Berita & Kegiatan semua lembaga
+// Kelola berita setiap lembaga dari satu tempat (per kategori atau semua). Pengelola hanya melihat lembaganya.
+const beritaAdm = { q: '', lid: '' };
+function editableLembaga(katKey = '') { return state.lembaga.filter((l) => (!katKey || l.kategori === katKey) && canLembaga(l.id, l.kategori)).sort((a, b) => String(a.kategori).localeCompare(String(b.kategori)) || (a.urutan || 0) - (b.urutan || 0)); }
+function viewBeritaAdmin(main, katKey) {
+  state.view = 'lembaga';
+  if (!state.lembagaReady) { main.innerHTML = loadingBox(); return; }
+  const k = KATEGORI.find((x) => x.key === katKey);
+  $('#page-title').textContent = k ? `Berita & Kegiatan — ${k.short}` : 'Berita & Kegiatan Lembaga';
+  main.innerHTML = `<div class="callout small-callout">${ic('mega')}<div><p class="small">Kelola berita & kegiatan seluruh lembaga dari satu halaman. Berita tampil di halaman lembaga, di panel <b>Berita & Kegiatan Lembaga</b> pada beranda, dan memiliki halaman baca sendiri yang bisa dibagikan.</p></div></div>
+    <div class="chips"><a class="chip ${!katKey ? 'active' : ''}" href="#/admin/lembaga/berita">Semua kategori</a>${KATEGORI.map((x) => `<a class="chip ${x.key === katKey ? 'active' : ''}" href="#/admin/lembaga/berita?k=${x.key}">${esc(x.short)}</a>`).join('')}</div>
+    <div class="panel" id="bn-all"></div>`;
+  beritaPanel($('#bn-all'), katKey, { compact: false });
+}
+function beritaPanel(box, katKey, { compact }) {
+  if (!box) return;
+  const ls = editableLembaga(katKey);
+  const draw = () => {
+    const q = norm(beritaAdm.q);
+    const rows = ls.filter((l) => !beritaAdm.lid || l.id === beritaAdm.lid).flatMap((l) => (l.berita || []).map((b, i) => ({ l, b, i })))
+      .filter(({ l, b }) => !q || norm([b.judul, plainText(b.isi || ''), l.nama, l.singkatan].join(' ')).includes(q))
+      .sort((a, c) => String(c.b.tanggal || '').localeCompare(String(a.b.tanggal || '')));
+    const shown = compact ? rows.slice(0, 6) : rows;
+    box.innerHTML = `<div class="master-head"><h3>${ic('mega')} Berita & Kegiatan Lembaga <small class="muted">(${rows.length})</small></h3><div class="row-gap">${compact ? `<a class="btn btn-ghost btn-sm" href="#/admin/lembaga/berita${katKey ? `?k=${katKey}` : ''}">Kelola semua →</a>` : ''}<button class="btn btn-primary btn-sm" data-bn-new ${ls.length ? '' : 'disabled'}>${ic('plus')} Tulis berita</button></div></div>
+      ${compact ? '' : `<div class="toolbar"><div class="search">${ic('search')}<input data-noguard id="bn-q" placeholder="Cari judul atau isi berita…" value="${esc(beritaAdm.q)}"></div><select data-noguard id="bn-l" title="Saring per lembaga"><option value="">Semua lembaga (${ls.length})</option>${ls.map((l) => `<option value="${esc(l.id)}" ${beritaAdm.lid === l.id ? 'selected' : ''}>${esc(l.singkatan || l.nama)}</option>`).join('')}</select></div>`}
+      <div class="info-admin">${shown.map(({ l, b, i }) => { const th = beritaThumb(b); return `<div class="info-row">${th ? `<img src="${esc(th)}" alt="">` : `<div class="info-ph">${ic('mega')}</div>`}<div class="info-row-main"><div class="info-meta"><span class="badge">${esc(l.singkatan || l.nama)}</span>${b.media?.length ? `<span class="badge badge-muted">${b.media.length} media</span>` : ''}</div><h4>${esc(b.judul)}</h4><p class="muted small">${esc(fmtDate(b.tanggal))}${b.penulis ? ` • oleh ${esc(penulisLabel(b.penulis))}` : ''}</p></div>
+        <div class="info-row-actions"><a class="icon-btn" href="#/lembaga/${esc(l.id)}/berita/${esc(beritaId(b, i))}" target="_blank" title="Lihat halaman baca">${ic('eye')}</a><button class="icon-btn" data-bn-ed="${esc(l.id)}|${i}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-bn-rm="${esc(l.id)}|${i}" title="Hapus">${ic('trash')}</button></div></div>`; }).join('') || emptyBox(ls.length ? 'Belum ada berita. Klik “Tulis berita” untuk menambahkan.' : 'Belum ada lembaga yang dapat Anda kelola di kategori ini.')}</div>
+      ${compact && rows.length > shown.length ? `<p class="muted small">+${rows.length - shown.length} berita lain — <a href="#/admin/lembaga/berita${katKey ? `?k=${katKey}` : ''}">lihat semua</a></p>` : ''}`;
+    $('[data-bn-new]', box)?.addEventListener('click', () => beritaDialog(ls, beritaAdm.lid || ls[0]?.id, null, draw));
+    $$('[data-bn-ed]', box).forEach((x) => x.onclick = () => { const [lid, i] = x.dataset.bnEd.split('|'); beritaDialog(ls, lid, +i, draw); });
+    $$('[data-bn-rm]', box).forEach((x) => x.onclick = async () => {
+      const [lid, i] = x.dataset.bnRm.split('|'); const l = state.lembaga.find((y) => y.id === lid); const b = l?.berita?.[+i]; if (!b) return;
+      if (!await confirmDelete(`Hapus berita “${b.judul}” dari ${l.singkatan || l.nama}?`)) return;
+      const berita = l.berita.filter((_, j) => j !== +i);
+      try { await F.updateDoc(C(`lembaga/${lid}`), { berita, updatedAt: F.serverTimestamp(), updatedBy: state.user.email }); l.berita = berita; logAudit('lembaga', 'hapus_berita', `Menghapus berita “${b.judul}” — ${l.nama}`, { targetId: lid }); toast('Berita dihapus', 'success'); draw(); }
+      catch (e) { toast('Gagal menghapus: ' + e.message, 'error'); }
+    });
+    $('#bn-q', box)?.addEventListener('input', debounce((e) => { beritaAdm.q = e.target.value; draw(); $('#bn-q', box)?.focus(); const el = $('#bn-q', box); el?.setSelectionRange(el.value.length, el.value.length); }, 250));
+    $('#bn-l', box)?.addEventListener('change', (e) => { beritaAdm.lid = e.target.value; draw(); });
+  };
+  draw();
+}
+// Dialog tulis/ubah berita lembaga (dipakai panel kategori, halaman Berita & Kegiatan, dan editor lembaga)
+export function beritaDialog(ls, lid, idx, onSaved) {
+  const l0 = state.lembaga.find((x) => x.id === lid) || ls[0]; if (!l0) return;
+  const b = idx == null ? { tanggal: todayISO() } : { ...(l0.berita || [])[idx] };
+  const m = modal({ title: idx == null ? 'Tulis Berita & Kegiatan Lembaga' : 'Ubah Berita Lembaga', size: 'lg', body: `<form id="bdf" class="form-grid">
+    <label class="field span-2"><span>Lembaga *</span><select name="lid" ${idx == null ? '' : 'disabled title="Lembaga tidak dapat diganti saat mengubah berita"'}>${ls.map((l) => `<option value="${esc(l.id)}" ${l.id === l0.id ? 'selected' : ''}>${esc(katOf(l.kategori).short)} — ${esc(l.singkatan || l.nama)}</option>`).join('')}</select></label>
+    <label class="field span-2"><span>Judul berita *</span><input name="judul" value="${esc(b.judul || '')}" placeholder="mis. Posyandu Balita Bulan Oktober Diikuti 45 Anak"></label>
+    <label class="field"><span>Tanggal kegiatan</span><input type="date" name="tanggal" value="${esc(b.tanggal || '')}" title="Tanggal kegiatan / berita"></label>
+    <div class="field"><span>Ditulis oleh</span><input value="${esc(penulisLabel(b.penulis || penulisNow()))}" disabled title="Diisi otomatis dari akun Anda"></div>
+    <label class="field span-2"><span>Isi berita <small class="muted">— tempel link YouTube/TikTok/Instagram/Facebook/foto di baris tersendiri agar langsung tampil sebagai pemutar/foto</small></span><textarea name="isi" rows="9" data-rich placeholder="Ceritakan kegiatannya: apa, siapa, kapan, di mana, hasilnya…">${esc(b.isi || '')}</textarea></label>
+    <label class="field span-2"><span>Foto & video dari URL <small class="muted">— satu per baris, boleh ditambah “| keterangan”. YouTube, TikTok, Instagram, Facebook, Vimeo, Google Drive, link foto</small></span><textarea name="media" rows="3" placeholder="https://youtu.be/xxxxxxxxxxx | Dokumentasi kegiatan&#10;https://www.instagram.com/p/xxxx/ | Foto bersama&#10;https://contoh.com/foto.jpg">${esc(mediaLinesText(b.media))}</textarea></label>
+    <div class="span-2 media-grid sm" id="bd-prev"></div></form>`,
+    footer: '<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="bd-ok">Simpan berita</button>' });
+  const f = $('#bdf', m.el); bindRich(f);
+  const prev = () => { $('#bd-prev', m.el).innerHTML = parseMediaLines(f.elements.media.value).map(mediaEmbed).join(''); };
+  f.elements.media.addEventListener('input', debounce(prev, 400)); prev();
+  $('#bd-ok', m.el).onclick = async () => {
+    const judul = f.elements.judul.value.trim(); if (!judul) return toast('Judul berita wajib diisi', 'error');
+    const l = state.lembaga.find((x) => x.id === (idx == null ? f.elements.lid.value : l0.id)); if (!l) return;
+    const nb = { ...b, judul, tanggal: f.elements.tanggal.value, isi: f.elements.isi.value, media: parseMediaLines(f.elements.media.value), penulis: b.penulis || penulisNow(), id: b.id || Math.random().toString(36).slice(2, 10) };
+    if (idx != null) nb.diubahOleh = penulisNow();
+    const berita = [...(l.berita || [])]; if (idx == null) berita.push(nb); else berita[idx] = nb;
+    if (JSON.stringify(berita).length > 700_000) return toast('Data berita lembaga ini terlalu besar. Gunakan link foto alih-alih unggahan.', 'error');
+    const btn = $('#bd-ok', m.el); btn.disabled = true;
+    try {
+      await F.updateDoc(C(`lembaga/${l.id}`), { berita, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+      l.berita = berita; if (editorState?.id === l.id) editorState.l.berita = structuredClone(berita);
+      logAudit('lembaga', idx == null ? 'tambah_berita' : 'ubah_berita', `${idx == null ? 'Menambah' : 'Mengubah'} berita “${judul}” — ${l.nama}`, { targetId: l.id });
+      m.close(); toast('Berita disimpan', 'success'); onSaved?.();
+    } catch (e) { btn.disabled = false; toast('Gagal menyimpan: ' + e.message, 'error'); }
   };
 }
 

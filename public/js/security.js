@@ -3,7 +3,7 @@ import { APP } from './config.js';
 import { F, ic, state, C, clean, emptyBox, loadingBox, batchWrite, PERMS, PERM_PRESETS, KADUS_PERMS, KADUS_DEFAULT, isSuper, can, hasGreen, avatar, ROLE_LABEL, AUDIT_CATS, logAudit, requirePassword, superEmail, loginFailed } from './core.js';
 import * as Sync from './sync.js';
 import { track } from './usage.js';
-import { esc, $, $$, norm, debounce, toDate, fmtDate, fmtNum, todayISO, toast, modal, confirmDialog, promptDialog, downloadBlob, authErrorMessage } from './ui.js';
+import { esc, $, $$, norm, debounce, toDate, fmtDate, fmtNum, todayISO, toast, modal, confirmDialog, promptDialog, downloadBlob, authErrorMessage, humanErr } from './ui.js';
 import { exportExcel, exportPdf } from './exporter.js';
 import { badgeRow, badgeDialog, normBadges, BADGES } from './badges.js';
 import { KATEGORI } from './lembaga.js';
@@ -60,7 +60,7 @@ export function viewAdmins(main, r) {
     drawAdmins(main);
     const pre = r?.query?.get('kadus');
     if (pre) { history.replaceState(null, '', '#/admin/admin'); if (isSuper() || can('kelolaKadus')) adminForm(null, main, { role: 'kadus', dusun: pre }); }
-  }).catch((e) => { main.innerHTML = emptyBox('Gagal memuat daftar akun: ' + e.message); });
+  }).catch((e) => { main.innerHTML = emptyBox('Gagal memuat daftar akun: ' + humanErr(e)); });
 }
 function drawAdmins(main) {
   const permLabel = (u) => {
@@ -115,7 +115,7 @@ function drawAdmins(main) {
   });
   $$('[data-rm]', main).forEach((b) => b.onclick = async () => {
     const u = usersCache.find((x) => x.uid === b.dataset.rm);
-    if (!await confirmDialog(`Hapus akses dashboard untuk ${u.email}? Akun login tetap ada di Firebase Authentication namun tidak bisa masuk dashboard.`, { danger: true, okText: 'Hapus akses' })) return;
+    if (!await confirmDialog(`Hapus akses dashboard untuk ${u.email}? Akun login tetap ada di sistem login namun tidak bisa masuk dashboard.`, { danger: true, okText: 'Hapus akses' })) return;
     if (!await requirePassword(`Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}.`)) return;
     await F.deleteDoc(C(`users/${u.uid}`));
     logAudit('admin', 'hapus', `Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}`, { target: u.email, targetId: u.uid });
@@ -142,7 +142,7 @@ function adminForm(u, main, preset = {}) {
       ${isK ? '' : `<div class="field span-2"><span>Template hak akses</span><div class="chips">${Object.entries(PERM_PRESETS).map(([k, p]) => `<button type="button" class="chip" data-preset="${k}">${esc(p.label)}</button>`).join('')}<button type="button" class="chip" data-preset="none">Kosongkan</button></div></div>`}
       ${!isK && isSuper() ? `<div class="field span-2"><span>Pengelola lembaga (opsional) — admin hanya dapat mengubah lembaga yang dicentang, tanpa hak akses lain</span><div class="col-picker">${KATEGORI.filter((k) => LEMBAGA_DELEGASI.includes(k.key)).map((k) => `<div><b>${esc(k.short)}</b>${state.lembaga.filter((l) => l.kategori === k.key).map((l) => `<label class="check"><input type="checkbox" name="lg" value="${esc(l.id)}" ${(u?.lembagaIds || preset.lembagaIds || []).includes(l.id) ? 'checked' : ''}> ${esc(l.singkatan || l.nama)}</label>`).join('') || '<small class="muted">Belum ada lembaga</small>'}</div>`).join('')}</div></div>` : ''}
       <div class="span-2 col-picker">${groups.map((g) => `<div><b>${esc(g)}</b>${list.filter((p) => p[2] === g).map(([k, l]) => `<label class="check"><input type="checkbox" name="perm" value="${k}" ${perms[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>`).join('')}</div>
-      <p class="muted small span-2">${isK ? 'Kepala Dusun hanya dapat melihat & mengelola warga di dusunnya sendiri. Batasan ini dikunci oleh Firestore Rules.' : 'Fitur khusus Super Admin (Audit Log, Cadangan & Pemulihan, akun Admin) tidak dapat diberikan ke admin.'}</p>
+      <p class="muted small span-2">${isK ? 'Kepala Dusun hanya dapat melihat & mengelola warga di dusunnya sendiri. Batasan ini dikunci oleh sistem keamanan server.' : 'Fitur khusus Super Admin (Audit Log, Cadangan & Pemulihan, akun Admin) tidak dapat diberikan ke admin.'}</p>
     </form>`,
     footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="usr-ok">${u ? 'Simpan' : 'Daftarkan'}</button>`,
   });
@@ -181,7 +181,7 @@ function adminForm(u, main, preset = {}) {
       m.close(); viewAdmins(main);
     } catch (e) {
       btn.disabled = false; btn.textContent = u ? 'Simpan' : 'Daftarkan';
-      toast(e.code === 'auth/email-already-in-use' ? 'Email sudah terdaftar di Firebase Authentication. Gunakan email lain, atau hapus akunnya di Firebase Console lalu daftarkan ulang.' : e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed' ? 'Pendaftaran akun dimatikan di Firebase Console (Authentication → Settings → User actions → Enable create). Aktifkan agar bisa mendaftarkan akun.' : 'Gagal: ' + (e.message || e), 'error', { duration: 10000 });
+      toast(e.code === 'auth/email-already-in-use' ? (isSuper() ? 'Email sudah terdaftar di Firebase Authentication. Gunakan email lain, atau hapus akunnya di Firebase Console lalu daftarkan ulang.' : 'Email sudah terdaftar. Gunakan email lain atau hubungi Super Admin.') : e.code === 'auth/admin-restricted-operation' || e.code === 'auth/operation-not-allowed' ? (isSuper() ? 'Pendaftaran akun dimatikan di Firebase Console (Authentication → Settings → User actions → Enable create). Aktifkan agar bisa mendaftarkan akun.' : 'Pendaftaran akun sedang dinonaktifkan. Hubungi Super Admin.') : 'Gagal: ' + (e.message || e), 'error', { duration: 10000 });
     }
   };
 }

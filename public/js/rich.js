@@ -12,14 +12,25 @@ const FONT_OK = new Set(FONTS.map((f) => f[0].toLowerCase()).filter(Boolean));
 
 // ---------------------------------------------------------------- sanitasi
 const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'BR', 'P', 'DIV', 'SPAN', 'UL', 'OL', 'LI', 'A', 'BLOCKQUOTE', 'H3', 'H4']);
+// Warna netral (hampir hitam / hampir putih / abu tua) → biarkan tema yang menentukan warna teks
+function neutralColor(v) {
+  let r, g, b; const s = v.trim().toLowerCase();
+  let m = s.match(/^#([0-9a-f]{3,8})$/);
+  if (m) { let h = m[1]; if (h.length <= 4) h = h.split('').map((c) => c + c).join(''); r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16); }
+  else { m = s.match(/rgba?\(([^)]+)\)/); if (!m) return false; [r, g, b] = m[1].split(',').map((x) => parseFloat(x)); }
+  const max = Math.max(r, g, b), min = Math.min(r, g, b); const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return (max - min < 28 && (lum < 0.32 || lum > 0.85)) || lum > 0.94;
+}
 function cleanStyle(style) {
   const out = [];
   for (const part of String(style || '').split(';')) {
     const [k, ...rest] = part.split(':'); const prop = (k || '').trim().toLowerCase(); const val = rest.join(':').trim();
     if (!val || /url\(|expression|javascript|[<>]/i.test(val)) continue;
-    if (prop === 'color' || prop === 'background-color') { if (/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(val)) out.push(`${prop}:${val}`); }
+    // v2.7: warna latar dari teks tempelan (Word, WhatsApp Web, situs lain) TIDAK dipakai — itulah "kotak putih
+    // kaku" di belakang tulisan. Warna teks hitam/putih bawaan tempelan juga dibuang agar mengikuti tema (terang/gelap).
+    if (prop === 'color') { if (/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(val) && !neutralColor(val)) out.push(`color:${val}`); }
     else if (prop === 'font-family') { const f = val.split(',')[0].replace(/["']/g, '').trim(); if (FONT_OK.has(f.toLowerCase())) out.push(`font-family:'${f}'`); }
-    else if (prop === 'font-size') { if (/^(\d{1,2}(\.\d+)?(em|rem|px|%)|small|medium|large|x-large|xx-large)$/i.test(val)) out.push(`font-size:${val}`); }
+    else if (prop === 'font-size') { if (/^(\d{1,2}(\.\d+)?(em|rem|%)|small|medium|large|x-large|xx-large)$/i.test(val)) out.push(`font-size:${val}`); } // px dari tempelan diabaikan agar ukuran baca konsisten
     else if (prop === 'font-weight') { if (/^(bold|normal|[1-9]00)$/i.test(val)) out.push(`font-weight:${val}`); }
     else if (prop === 'font-style') { if (/^(italic|normal)$/i.test(val)) out.push(`font-style:${val}`); }
     else if (prop === 'text-decoration' || prop === 'text-decoration-line') { if (/^(underline|line-through|none)$/i.test(val)) out.push(`text-decoration:${val}`); }
@@ -54,7 +65,35 @@ export function sanitizeHtml(html) {
 }
 export const isHtml = (s) => /<\/?(b|i|u|s|em|strong|span|p|div|br|ul|ol|li|a|h3|h4|blockquote)\b/i.test(String(s || ''));
 // Tampilkan teks deskripsi: HTML aman, atau teks lama bergaya WhatsApp
-export const richRender = (s) => (isHtml(s) ? sanitizeHtml(s) : waFormat(s || ''));
+// v2.7: tautan yang berdiri sendiri di satu baris otomatis menjadi pemutar video / foto (YouTube, TikTok,
+// Instagram, Facebook, Vimeo, X, Spotify, Google Drive, gambar, video .mp4). Tautan lain menjadi kartu tautan.
+export const richRender = (s, { embed = true } = {}) => { const h = isHtml(s) ? sanitizeHtml(s) : waFormat(s || ''); return embed ? enhanceLinks(h) : h; };
+const URL_RE = /(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]])/g;
+function enhanceLinks(html) {
+  if (!/https?:\/\//i.test(html)) return html;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html'); const root = doc.body.firstChild;
+  // 1) URL teks biasa → tautan
+  const tw = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT); const texts = []; while (tw.nextNode()) if (!tw.currentNode.parentElement.closest('a')) texts.push(tw.currentNode);
+  for (const t of texts) {
+    const v = t.nodeValue; if (!URL_RE.test(v)) continue; URL_RE.lastIndex = 0;
+    const frag = doc.createDocumentFragment(); let last = 0;
+    v.replace(URL_RE, (u, _g, i) => { frag.append(v.slice(last, i)); const a = doc.createElement('a'); a.href = u; a.textContent = u; a.target = '_blank'; a.rel = 'noopener nofollow'; frag.append(a); last = i + u.length; return u; });
+    frag.append(v.slice(last)); t.replaceWith(frag);
+  }
+  // 2) tautan yang berdiri sendiri pada barisnya → sematan
+  const blank = (n) => !n || (n.nodeType === 3 && !n.nodeValue.trim());
+  const edge = (n, dir) => { let x = n[dir]; while (x && blank(x) && x.nodeType === 3) x = x[dir]; return !x || x.nodeName === 'BR'; };
+  for (const a of [...root.querySelectorAll('a[href]')]) {
+    const href = a.getAttribute('href'); const kind = mediaKind(href);
+    if (!kind || kind === 'link' && a.textContent.trim() !== href) continue;
+    let host = a; while (host.parentElement && host.parentElement !== root && ['SPAN', 'B', 'STRONG', 'I', 'EM', 'U'].includes(host.parentElement.tagName) && host.parentElement.textContent.trim() === a.textContent.trim()) host = host.parentElement;
+    if (!edge(host, 'previousSibling') || !edge(host, 'nextSibling')) continue;
+    const box = doc.createElement('div'); box.className = 'rich-embed'; box.innerHTML = kind === 'link' ? linkCard(href) : mediaEmbed({ url: href });
+    const blockParent = host.parentElement !== root && ['P', 'DIV'].includes(host.parentElement.tagName) && host.parentElement.textContent.trim() === a.textContent.trim() ? host.parentElement : host;
+    blockParent.replaceWith(box);
+  }
+  return root.innerHTML;
+}
 // HTML → teks WhatsApp (*tebal*, _miring_, ~coret~)
 export function htmlToWa(s) {
   if (!isHtml(s)) return String(s || '');
@@ -152,12 +191,24 @@ export function driveId(url) {
 }
 export const isImageUrl = (u) => /^data:image\//.test(u) || /\.(jpe?g|png|gif|webp|avif|svg)(\?|#|$)/i.test(u) || /googleusercontent\.com|cdninstagram|fbcdn\.net|imgur\.com\/\w+\.(jpe?g|png)/i.test(u);
 export const safeUrl = (u) => (/^https?:\/\//i.test(String(u || '').trim()) || /^data:image\//.test(String(u || '')) ? String(u).trim() : '');
+export const tiktokId = (u) => (String(u).match(/tiktok\.com\/(?:@[\w.-]+\/video|embed(?:\/v2)?|v)\/(\d{8,})/i) || [])[1] || '';
+export const instaCode = (u) => { const m = String(u).match(/instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]{5,})/i); return m ? { t: m[1] === 'reels' ? 'reel' : m[1], c: m[2] } : null; };
+export const vimeoId = (u) => (String(u).match(/vimeo\.com\/(?:video\/)?(\d{6,})/i) || [])[1] || '';
+export const tweetId = (u) => (String(u).match(/(?:twitter|x)\.com\/[\w]+\/status(?:es)?\/(\d{8,})/i) || [])[1] || '';
+export const isFacebook = (u) => /(?:facebook\.com|fb\.watch)\//i.test(u) && /(\/videos?\/|\/reel\/|watch|\/posts\/|\/permalink|story\.php|fb\.watch|\/share\/[vrp]\/)/i.test(u);
+export const spotifyPath = (u) => (String(u).match(/open\.spotify\.com\/(?:intl-\w+\/)?((?:track|album|playlist|episode|show)\/[\w]+)/i) || [])[1] || '';
 export function mediaKind(url) {
   const u = safeUrl(url); if (!u) return '';
   if (youtubeId(u)) return 'youtube';
+  if (tiktokId(u)) return 'tiktok';
+  if (instaCode(u)) return 'instagram';
+  if (isFacebook(u)) return 'facebook';
+  if (vimeoId(u)) return 'vimeo';
+  if (tweetId(u)) return 'x';
+  if (spotifyPath(u)) return 'spotify';
   if (driveId(u)) return 'drive';
   if (isImageUrl(u)) return 'image';
-  if (/\.(mp4|webm|ogg)(\?|$)/i.test(u)) return 'video';
+  if (/\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(u)) return 'video';
   return 'link';
 }
 // Gambar mini (untuk kartu berita)
@@ -165,6 +216,7 @@ export function mediaThumb(url) {
   const k = mediaKind(url);
   if (k === 'youtube') return `https://img.youtube.com/vi/${youtubeId(url)}/hqdefault.jpg`;
   if (k === 'drive') return `https://drive.google.com/thumbnail?id=${driveId(url)}&sz=w800`;
+  if (k === 'vimeo') return `https://vumbnail.com/${vimeoId(url)}.jpg`;
   if (k === 'image') return safeUrl(url);
   return '';
 }
@@ -174,11 +226,25 @@ export function mediaEmbed(item) {
   const k = mediaKind(url); const u = safeUrl(url);
   const cap = judul ? `<figcaption>${esc(judul)}</figcaption>` : '';
   if (k === 'youtube') return `<figure class="media media-video"><div class="ratio"><iframe src="https://www.youtube-nocookie.com/embed/${youtubeId(u)}" title="${esc(judul || 'Video YouTube')}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>${cap}</figure>`;
+  const frame = (src, title, cls = '', extra = '') => `<figure class="media media-video ${cls}"><div class="ratio">${''}<iframe src="${esc(src)}" title="${esc(judul || title)}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" ${extra}></iframe></div>${cap}<a class="media-src" href="${esc(u)}" target="_blank" rel="noopener nofollow">Buka di ${esc(title)} ↗</a></figure>`;
+  if (k === 'tiktok') return frame(`https://www.tiktok.com/embed/v2/${tiktokId(u)}`, 'TikTok', 'portrait');
+  if (k === 'instagram') { const ig = instaCode(u); return frame(`https://www.instagram.com/${ig.t}/${ig.c}/embed/captioned/`, 'Instagram', 'portrait insta'); }
+  if (k === 'facebook') return frame(`https://www.facebook.com/plugins/${/\/posts\/|permalink|story\.php|\/share\/p\//i.test(u) ? 'post' : 'video'}.php?href=${encodeURIComponent(u)}&show_text=false&width=560`, 'Facebook', /reel|\/share\/r\//i.test(u) ? 'portrait' : '');
+  if (k === 'vimeo') return frame(`https://player.vimeo.com/video/${vimeoId(u)}?dnt=1`, 'Vimeo');
+  if (k === 'x') return frame(`https://platform.twitter.com/embed/Tweet.html?id=${tweetId(u)}&dnt=true`, 'X (Twitter)', 'tweet');
+  if (k === 'spotify') return `<figure class="media media-audio"><iframe src="https://open.spotify.com/embed/${esc(spotifyPath(u))}" title="${esc(judul || 'Spotify')}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" height="152"></iframe>${cap}</figure>`;
   if (k === 'drive') return `<figure class="media media-video"><div class="ratio"><iframe src="https://drive.google.com/file/d/${driveId(u)}/preview" title="${esc(judul || 'Google Drive')}" loading="lazy" allow="autoplay" allowfullscreen></iframe></div>${cap}</figure>`;
-  if (k === 'image') return `<figure class="media"><a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(judul)}" loading="lazy"></a>${cap}</figure>`;
+  if (k === 'image') return `<figure class="media media-img"><a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(driveImgFix(u))}" alt="${esc(judul)}" loading="lazy" onerror="this.closest('figure').classList.add('broken')"></a>${cap}</figure>`;
   if (k === 'video') return `<figure class="media media-video"><video src="${esc(u)}" controls preload="metadata"></video>${cap}</figure>`;
-  if (k === 'link') return `<a class="media-link" href="${esc(u)}" target="_blank" rel="noopener nofollow">🔗 ${esc(judul || u.replace(/^https?:\/\//, '').slice(0, 60))}</a>`;
+  if (k === 'link') return linkCard(u, judul);
   return '';
+}
+const driveImgFix = (u) => u;
+// Kartu tautan (untuk tautan yang bukan video/foto)
+export function linkCard(url, judul = '') {
+  const u = safeUrl(url); if (!u) return '';
+  let host = ''; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch { /* */ }
+  return `<a class="link-card" href="${esc(u)}" target="_blank" rel="noopener nofollow"><img src="https://www.google.com/s2/favicons?domain=${esc(host)}&sz=64" alt="" loading="lazy" onerror="this.remove()"><span><b>${esc(judul || host)}</b><small>${esc(u.replace(/^https?:\/\//, '').slice(0, 80))}</small></span><i>↗</i></a>`;
 }
 // "url | judul" per baris → [{url, judul}]
 export function parseMediaLines(text) {
