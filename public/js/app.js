@@ -23,6 +23,7 @@ import * as Sync from './sync.js';
 import { recordVisit, startPresence, stopPresence, mountVisitorWidget, unmountVisitorWidget, startUsageFlush, flushUsage } from './analytics.js';
 import { lembagaNewsPanel, startNewsScroller, viewWidget, widgetCfg } from './widgets.js';
 import { viewMonitor } from './monitor.js';
+import { scanIcons } from './motion.js';
 import { badgeRow } from './badges.js';
 import { viewTampilan, viewLatar } from './tampilan.js';
 import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS } from './rich.js';
@@ -415,10 +416,11 @@ function render(soft = false) {
   if (!soft) { guard.dirty = false; lastHash = location.hash; }
   if (!soft) routeBar();
   const r = parseRoute(); state.route = r;
-  document.body.classList.remove('nav-open', 'pubnav-open');
+  if (!soft) document.body.classList.remove('nav-open', 'pubnav-open'); // pembaruan data di latar tidak menutup menu yang sedang dibuka
   state.timers.forEach(clearInterval); state.timers = [];
   applyBranding();
   const p0 = r.parts[0];
+  requestAnimationFrame(() => requestAnimationFrame(scanIcons));
   if (p0 === 'admin') {
     if (!state.authReady) { root.dataset.shell = ''; root.innerHTML = splash(); return; }
     if (!state.isAdmin) { location.replace('#/login'); return; }
@@ -484,10 +486,18 @@ function renderPublic(r, soft) {
   </header>
   <div class="pub-frame ${p0 === '' ? 'is-home' : ''} ${leftKeys.length || editing ? '' : 'no-left'} ${rightKeys.length || editing ? '' : 'no-right'}">
     <aside class="side side-left" data-sort="sideLeft" aria-label="Panel kiri">${side(leftKeys)}</aside>
-    <main class="pub-main">${content}</main>
+    <main class="pub-main">${content}<div class="m-credit"><span class="copyright" data-copyright>${esc(APP.credit)}</span><small>${APP.name} ${APP.versionLabel}</small></div></main>
     <aside class="side side-right" data-sort="sideRight" aria-label="Panel kanan">${side(rightKeys)}</aside>
   </div>
   ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}
+  <div class="mnav-scrim" id="mnav-scrim"></div>
+  <nav class="mnav" aria-label="Navigasi cepat">
+    <a href="#/" class="${p0 === '' ? 'on' : ''}">${ic('home')}<span>Beranda</span></a>
+    <a href="#/informasi" class="${p0 === 'informasi' ? 'on' : ''}">${ic('mega')}<span>Info</span></a>
+    <a href="#/lembaga" class="${p0 === 'lembaga' || p0 === 'dokumen' ? 'on' : ''}">${ic('shield')}<span>Lembaga</span></a>
+    <a href="#/data" class="${p0 === 'data' || p0 === 'infografis' ? 'on' : ''}">${ic('chart')}<span>Data</span></a>
+    <button type="button" id="mnav-menu" class="${p0 === 'profil' || p0 === 'highlight' ? 'on' : ''}" aria-label="Menu lainnya">${ic('menu')}<span>Menu</span></button>
+  </nav>
   ${pubFooter(ticker, rt)}
   ${isSuper() && p0 === '' ? layoutBar('public') : ''}`;
   applyTheme(state.config.tema);
@@ -720,6 +730,8 @@ function bindPublic() {
   $$('[data-copy-link]').forEach((b) => b.onclick = () => copyText(b.dataset.copyLink));
   if (state.deferredPrompt) $$('[data-install]').forEach((b) => b.hidden = false);
   $('#pubnav-toggle')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
+  $('#mnav-menu')?.addEventListener('click', () => document.body.classList.toggle('pubnav-open'));
+  $('#mnav-scrim')?.addEventListener('click', () => document.body.classList.remove('pubnav-open'));
   // Dropdown: di desktop terbuka saat diarahkan & TIDAK langsung tertutup ketika kursor pindah ke submenu
   const hoverable = () => matchMedia('(hover: hover) and (min-width: 861px)').matches;
   $$('.dropdown').forEach((dd) => {

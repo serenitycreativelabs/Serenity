@@ -1,5 +1,24 @@
 # Catatan Perubahan
 
+## v2.6.0 “Orbit” — 2026.10.29 (Build 2026.10.29 · R12 · Stable)
+### Animasi Kursor & Ikon (Super Admin › Tampilan & Tema)
+- **5 model kursor**: Mati, **Dot + Ring** (membesar di tombol, menyempit jadi garis di kolom teks), **Glow Spotlight**, **Jejak Neon**, **Blob Cair** (meregang saat bergerak cepat). Ukuran 60–180%, tombol **magnetic**, opsi sembunyikan panah asli.
+- **Efek klik**: Ripple, Sparkle, Konfeti mini.
+- **Ikon animasi** 3 tingkat: *Halus* (ikon bergerak sesuai jenisnya saat diarahkan — lonceng bergoyang, refresh berputar, unduh memantul, lokasi jatuh, dll.), *Sedang* (+ ikon muncul saat digulir, garis ikon “tergambar”, kilau logo), *Ramai* (+ gerak halus terus-menerus).
+- Cakupan: halaman publik saja atau publik + dasbor. Otomatis mati di layar sentuh & bila perangkat meminta “kurangi gerakan”. Satu animasi frame yang berhenti sendiri saat kursor diam — ringan & tanpa pustaka.
+- Gaya Gen Z kini membawa paket animasi masing-masing (Dot + Ring, Glow, Jejak Neon, Blob).
+### Tema baru: macOS
+- Efek **macOS**: menu bar kaca (vibrancy), panel & hero berbentuk jendela dengan lampu lalu lintas, dialog ala jendela Mac (lampu merah = tutup), tombol & kontrol segmen ala Mac, menu dropdown dengan sorotan biru, sidebar ala Finder, scrollbar tipis, wallpaper lembut ala Sonoma.
+- Di ponsel/tablet navigasi bawah berubah menjadi **dock** melayang.
+- Gaya siap pakai **macOS Sonoma** (terang) & **macOS Dark**; palet **macOS Aqua, Graphite, Purple, Green**; huruf **SF Pro (Apple System)** dengan pengganti Inter di Windows/Android.
+### Tampilan ringkas ponsel & tablet (semua tema)
+- **Navigasi bawah** (Beranda, Info, Lembaga, Data, Menu) dan menu lengkap berbentuk **lembar bawah**.
+- Hero lebih padat (tombol bergeser horizontal, 6 statistik ringkas), berita & galeri **bergeser horizontal**, layanan & data publik 2 kolom, jadwal sholat ringkas 4 kolom, panel berita lembaga lebih pendek.
+- Dialog berbentuk **bottom sheet** dengan pegangan, tombol aksi menempel di bawah; dasbor admin 2 kolom statistik, formulir 1 kolom, tab bergeser.
+- Mendukung area aman iPhone (notch / home indicator). Tablet memakai jarak yang lebih rapat.
+### Perbaikan
+- Menu ponsel tidak lagi tertutup sendiri saat data diperbarui di latar.
+
 ## v2.5.0 “Prisma” — 2026.10.29 (Build 2026.10.29 · R11 · Stable)
 ### Gaya baru: Gen Z Vibrant
 - Efek visual baru **Gen Z Vibrant**: blob neon bergerak, tekstur grain halus, judul tebal bergradasi, tombol pil bercahaya, kartu “sticker” dengan bayangan geser, garis gradasi pada judul bagian, running text & hitung mundur sholat bergradasi, animasi muncul saat digulir. Ringan (GPU) dan menghormati pengaturan “kurangi gerakan”.

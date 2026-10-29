@@ -2,6 +2,7 @@
 // (Super Admin), penjaga isian belum disimpan, konfirmasi keluar, dan running text dinamis.
 // Powered by Serenity Creativa Labs. © 2026 All Rights Reserved
 import { esc, $, $$, confirmDialog } from './ui.js';
+import { applyFx } from './motion.js';
 
 // ---------------------------------------------------------------- tema
 // Warna tema. bg/surface = nuansa latar mode terang; bgDark/surfaceDark = nuansa mode gelap (opsional)
@@ -10,6 +11,10 @@ export const THEME_PRESETS = {
   acid: { label: 'Acid Lime', desc: 'Indigo × hijau limau', group: 'Gen Z', brand: '#4f46e5', accent: '#65a30d', bg: '#f6f7ff', surface: '#ffffff', line: '#e2e5fb', bgDark: '#0a0b14', surfaceDark: '#131520' },
   sunset: { label: 'Sunset Pop', desc: 'Oranye × magenta', group: 'Gen Z', brand: '#ea580c', accent: '#db2777', bg: '#fff7f2', surface: '#ffffff', line: '#fde3d4', bgDark: '#140c0a', surfaceDark: '#1f1410' },
   ocean: { label: 'Cyber Ocean', desc: 'Biru elektrik × toska', group: 'Gen Z', brand: '#2563eb', accent: '#0891b2', bg: '#f3f8ff', surface: '#ffffff', line: '#dbe7fb', bgDark: '#070c16', surfaceDark: '#0f1724' },
+  macos: { label: 'macOS Aqua', desc: 'Biru sistem Apple', group: 'macOS', brand: '#007aff', accent: '#ff9500', bg: '#f5f5f7', surface: '#ffffff', line: '#e3e3e8', bgDark: '#1c1c1e', surfaceDark: '#2c2c2e' },
+  macgraphite: { label: 'macOS Graphite', desc: 'Abu grafit elegan', group: 'macOS', brand: '#636366', accent: '#0a84ff', bg: '#f2f2f4', surface: '#ffffff', line: '#e0e0e5', bgDark: '#1a1a1c', surfaceDark: '#2a2a2d' },
+  macpurple: { label: 'macOS Purple', desc: 'Ungu aksen Apple', group: 'macOS', brand: '#af52de', accent: '#ff2d55', bg: '#f6f4f8', surface: '#ffffff', line: '#e6e1ec', bgDark: '#1c1a1f', surfaceDark: '#2c2930' },
+  macgreen: { label: 'macOS Green', desc: 'Hijau sistem Apple', group: 'macOS', brand: '#28a745', accent: '#007aff', bg: '#f3f6f4', surface: '#ffffff', line: '#dfe7e2', bgDark: '#181c19', surfaceDark: '#272c28' },
   teal: { label: 'Teal Gampong', group: 'Klasik', brand: '#0f766e', accent: '#b45309' },
   biru: { label: 'Biru Laut', group: 'Klasik', brand: '#1d4ed8', accent: '#ea580c' },
   hijau: { label: 'Hijau Sawah', group: 'Klasik', brand: '#15803d', accent: '#a16207' },
@@ -36,6 +41,7 @@ export const EFFECTS = {
   glass: { label: 'Glassy', desc: 'Panel kaca bening (glassmorphism)' },
   aurora: { label: 'Blurry Aurora', desc: 'Latar gradien blur yang bergerak lembut' },
   genz: { label: 'Gen Z Vibrant', desc: 'Gradasi neon, blob bergerak, judul tebal, kartu “sticker”' },
+  macos: { label: 'macOS', desc: 'Jendela & menu bar ala Mac, vibrancy, dock di ponsel' },
 };
 // Pasangan huruf. gf = parameter Google Fonts (dimuat hanya saat dipakai)
 export const FONT_PAIRS = {
@@ -60,6 +66,7 @@ export const FONT_PAIRS = {
 // dan otomatis memakai pengganti gratis yang paling mirip bila tidak ada.
 export const FONT_CATS = { sans: 'Sans-serif modern', display: 'Display & judul', serif: 'Serif / elegan', mono: 'Monospace', sys: 'Huruf sistem & klasik' };
 export const FONT_LIST = {
+  sf: { label: 'SF Pro (Apple System)', fam: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter'", cat: 'sans', src: 'g', q: 'family=Inter:wght@400;500;600;700;800', note: 'huruf Apple — pengganti di Windows/Android: Inter' },
   jakarta: { label: 'Plus Jakarta Sans', fam: "'Plus Jakarta Sans'", cat: 'sans', src: 'g', q: 'family=Plus+Jakarta+Sans:wght@400;500;600;700;800' },
   inter: { label: 'Inter', fam: "'Inter'", cat: 'sans', src: 'g', q: 'family=Inter:wght@400;500;600;700;800' },
   satoshi: { label: 'Satoshi', fam: "'Satoshi'", cat: 'sans', src: 'fs', q: 'satoshi@400,500,700,900' },
@@ -119,10 +126,12 @@ export const STYLE_PRESETS = {
   aurora: { label: 'Aurora Dinamis', desc: 'Latar blur bergerak, tipografi Sora', tema: { preset: 'lavender', efek: 'aurora', font: 'sora', mode: 'auto', radius: 'bulat', model: 'klasik' } },
   hangat: { label: 'Terracotta Hangat', desc: 'Palet earthy, huruf Outfit', tema: { preset: 'terracotta', efek: 'solid', font: 'outfit', mode: 'light', radius: 'sedang', model: 'klasik' } },
   golden: { label: 'Golden Hour', desc: 'Warm autumn, judul Playfair', tema: { preset: 'autumn', efek: 'solid', font: 'elegan', mode: 'light', radius: 'sedang', model: 'majalah' } },
-  genz: { label: 'Gen Z Vibrant', desc: 'Neon ungu-pink, Clash Display + Satoshi', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'clash', fBody: 'satoshi', mode: 'auto', radius: 'kapsul', model: 'kartu' } },
-  genznight: { label: 'Gen Z Neon Night', desc: 'Mode gelap bercahaya, Cabinet Grotesk', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'cabinet', fBody: 'generalsans', mode: 'dark', radius: 'kapsul', model: 'kartu' } },
-  genzacid: { label: 'Gen Z Acid', desc: 'Indigo × lime, Syne + Space Grotesk', badge: 'BARU', tema: { preset: 'acid', efek: 'genz', font: 'modern', fHead: 'syne', fBody: 'spacegrotesk', mode: 'light', radius: 'kapsul', model: 'kartu' } },
-  genzsunset: { label: 'Gen Z Sunset', desc: 'Oranye-magenta, Bebas Neue + Outfit', badge: 'BARU', tema: { preset: 'sunset', efek: 'genz', font: 'modern', fHead: 'bebas', fBody: 'outfit', mode: 'light', radius: 'bulat', model: 'kartu' } },
+  genz: { label: 'Gen Z Vibrant', desc: 'Neon ungu-pink, Clash Display + Satoshi', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'clash', fBody: 'satoshi', mode: 'auto', radius: 'kapsul', model: 'kartu', fx: { cursor: 'dotring', ikon: 'sedang', click: 'sparkle', magnetic: true } } },
+  macos: { label: 'macOS Sonoma', desc: 'Jendela kaca, menu bar & dock — terang', badge: 'BARU', tema: { preset: 'macos', efek: 'macos', font: 'modern', fHead: 'sf', fBody: 'sf', mode: 'light', radius: 'sedang', model: 'kartu', fx: { cursor: 'off', ikon: 'halus', click: 'off' } } },
+  macosdark: { label: 'macOS Dark', desc: 'Mode gelap ala Mac, aksen biru', badge: 'BARU', tema: { preset: 'macos', efek: 'macos', font: 'modern', fHead: 'sf', fBody: 'sf', mode: 'dark', radius: 'sedang', model: 'kartu', fx: { cursor: 'off', ikon: 'halus', click: 'off' } } },
+  genznight: { label: 'Gen Z Neon Night', desc: 'Mode gelap bercahaya, Cabinet Grotesk', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'cabinet', fBody: 'generalsans', mode: 'dark', radius: 'kapsul', model: 'kartu', fx: { cursor: 'glow', ikon: 'ramai', click: 'ripple', magnetic: true } } },
+  genzacid: { label: 'Gen Z Acid', desc: 'Indigo × lime, Syne + Space Grotesk', badge: 'BARU', tema: { preset: 'acid', efek: 'genz', font: 'modern', fHead: 'syne', fBody: 'spacegrotesk', mode: 'light', radius: 'kapsul', model: 'kartu', fx: { cursor: 'trail', ikon: 'sedang', click: 'confetti', magnetic: true } } },
+  genzsunset: { label: 'Gen Z Sunset', desc: 'Oranye-magenta, Bebas Neue + Outfit', badge: 'BARU', tema: { preset: 'sunset', efek: 'genz', font: 'modern', fHead: 'bebas', fBody: 'outfit', mode: 'light', radius: 'bulat', model: 'kartu', fx: { cursor: 'blob', ikon: 'sedang', click: 'sparkle', magnetic: true } } },
 };
 export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', fHead: '', fBody: '', radius: 'sedang', mode: 'auto', toggle: true };
 
@@ -167,6 +176,7 @@ export function applyTheme(tema, { fromServer = false } = {}) {
   html.style.setProperty('--font-head', fH ? fontStack(fH) : `${fp.head}, ${fp.font}, system-ui, sans-serif`);
   html.style.setProperty('--font-mono', fp.mono ? `${fp.mono}, ui-monospace, SFMono-Regular, Menlo, monospace` : 'var(--font-head)');
   html.dataset.fh = fH; // mis. Bebas Neue (kapital) butuh penyesuaian kecil di CSS
+  applyFx(currentTema.fx, document.getElementById('app')?.dataset.shell || '');
   html.dataset.model = MODELS[currentTema.model] ? currentTema.model : 'klasik';
   html.dataset.font = currentTema.font; html.dataset.efek = EFFECTS[currentTema.efek] ? currentTema.efek : 'solid';
   html.dataset.mono = fp.mono ? '1' : '';
@@ -176,7 +186,7 @@ export function applyTheme(tema, { fromServer = false } = {}) {
   if (fromServer) {
     try {
       localStorage.setItem('dd:tema', JSON.stringify(tema || {}));
-      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono, fh: html.dataset.fh }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, links: [fp.gf ? `https://fonts.googleapis.com/css2?${fp.gf}&display=swap` : '', fontUrl(fB), fontUrl(fH)].filter(Boolean), meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
+      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono, fh: html.dataset.fh, ican: html.dataset.ican }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, links: [fp.gf ? `https://fonts.googleapis.com/css2?${fp.gf}&display=swap` : '', fontUrl(fB), fontUrl(fH)].filter(Boolean), meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
     } catch { /* */ }
   }
   $$('[data-theme-toggle]').forEach((b) => { b.hidden = currentTema.toggle === false; b.innerHTML = themeIcon(); b.title = html.dataset.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'; });

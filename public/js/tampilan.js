@@ -7,6 +7,7 @@ import {
   applyTheme, applyIcon, applyBackground, ensureFonts, backgroundKind, makeIconPng, guard,
   THEME_PRESETS, MODELS, FONT_PAIRS, RADII, EFFECTS, STYLE_PRESETS, DEFAULT_TEMA, FONT_LIST, FONT_CATS, fontStack, ensureFontIds,
 } from './layout.js';
+import { CURSORS, CLICKS, ICON_LEVELS, FX_DEFAULT, applyFx } from './motion.js';
 
 const deny = (main, t = 'Khusus Super Admin') => { main.innerHTML = `<div class="callout">${ic('lock')}<div><b>${esc(t)}</b><p>Menu ini hanya dapat diubah oleh Super Admin${t.includes('izin') ? ' atau admin yang diberi izin' : ''}.</p></div></div>`; };
 
@@ -16,6 +17,7 @@ export function viewTampilan(main) {
   if (!isSuper()) return deny(main);
   main.setAttribute('data-guard', '');
   const t = { ...DEFAULT_TEMA, ...(state.config.tema || {}) };
+  const fx = { ...FX_DEFAULT, ...(t.fx || {}) };
   ensureFonts(Object.keys(FONT_PAIRS)); // pratinjau semua huruf (hanya di halaman ini)
   ensureFontIds(Object.keys(FONT_LIST));
   const fontSel = (id, cur, label) => `<label class="field"><span>${label}</span><select id="${id}"><option value="">— ikuti pasangan huruf di atas —</option>${Object.entries(FONT_CATS).map(([c, cl]) => `<optgroup label="${esc(cl)}">${Object.entries(FONT_LIST).filter(([, f]) => f.cat === c).map(([k, f]) => `<option value="${k}" ${cur === k ? 'selected' : ''} style="font-family:${esc(fontStack(k))}">${esc(f.label)}${f.note ? ` (${esc(f.note)})` : ''}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
@@ -49,6 +51,21 @@ export function viewTampilan(main) {
     <div class="font-live" id="tm-font-live"><span class="eyebrow">Pratinjau huruf</span><h2>Portal Data & Informasi Gampong</h2><p>Informasi kegiatan, data penduduk, dan layanan gampong dalam satu tempat — 0123456789.</p><button type="button" class="btn btn-primary btn-sm">Tombol contoh</button></div>
     <details class="fieldset"><summary>Lihat semua huruf</summary><div class="font-gallery">${Object.entries(FONT_LIST).map(([k, f]) => `<div class="fg-item"><b style="font-family:${esc(fontStack(k))}">${esc(f.label)}</b><small style="font-family:${esc(fontStack(k))}">Aa Bb 123 — Gampong</small><span><button type="button" class="chip" data-fpick="tm-fhead" data-fv="${k}">Judul</button><button type="button" class="chip" data-fpick="tm-fbody" data-fv="${k}">Teks</button></span></div>`).join('')}</div></details></div>
 
+  <div class="panel" id="tm-fx"><h3>${ic('star')} Animasi Kursor & Ikon</h3>
+    <p class="muted small">Kursor animasi hanya aktif di komputer/laptop (mouse). Di HP & tablet otomatis mati. Semua animasi berhenti bila perangkat pengunjung meminta “kurangi gerakan”. Gerakkan mouse di halaman ini untuk pratinjau.</p>
+    <h4 class="detail-h">Model kursor</h4>
+    <div class="choices">${opt('cursor', Object.entries(CURSORS), fx.cursor, (k, v) => `<span class="cur-prev cur-${k}"><i></i><i></i></span><b>${esc(v.label)}</b><small>${esc(v.desc)}</small>`)}</div>
+    <div class="form-grid" style="margin-top:12px">
+      <label class="field"><span>Ukuran kursor — <b id="tm-cs-v">${Math.round(fx.size * 100)}%</b></span><input type="range" id="tm-cs" min="0.6" max="1.8" step="0.1" value="${esc(fx.size)}"></label>
+      <label class="field"><span>Efek saat klik</span><select id="tm-click">${Object.entries(CLICKS).map(([k, l]) => `<option value="${k}" ${fx.click === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="field"><span>Ikon animasi</span><select id="tm-ikon">${Object.entries(ICON_LEVELS).map(([k, l]) => `<option value="${k}" ${fx.ikon === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="field"><span>Berlaku di</span><select id="tm-scope"><option value="publik" ${fx.scope !== 'semua' ? 'selected' : ''}>Halaman publik saja (dasbor admin tetap tenang)</option><option value="semua" ${fx.scope === 'semua' ? 'selected' : ''}>Halaman publik + dasbor admin</option></select></label>
+      <label class="check"><input type="checkbox" id="tm-mag" ${fx.magnetic ? 'checked' : ''}> Tombol “magnetic” (tertarik ke arah kursor)</label>
+      <label class="check"><input type="checkbox" id="tm-hide" ${fx.hideNative ? 'checked' : ''}> Sembunyikan panah kursor asli (kolom isian tetap memakai kursor teks)</label>
+    </div>
+    <div class="fx-demo"><span class="muted small">Coba arahkan kursor & klik:</span><button type="button" class="btn btn-primary btn-sm">${ic('send')} Kirim</button><button type="button" class="btn btn-ghost btn-sm">${ic('bell')} Notifikasi</button><button type="button" class="btn btn-ghost btn-sm">${ic('refresh')} Muat ulang</button><button type="button" class="btn btn-ghost btn-sm">${ic('download')} Unduh</button><button type="button" class="icon-btn" title="Lokasi">${ic('loc')}</button><button type="button" class="icon-btn" title="Bintang">${ic('star')}</button><input placeholder="Kolom teks…" style="max-width:180px"></div>
+  </div>
+
   <div class="panel-grid two">
     <div class="panel"><h3>Sudut Panel</h3><div class="choices">${opt('radius', Object.entries(RADII), t.radius, (k, v) => `<span class="rd" style="border-radius:${v.v}"></span><small>${esc(v.label)}</small>`)}</div></div>
     <div class="panel"><h3>${ic('moon')} Mode Gelap / Terang (bawaan)</h3>
@@ -74,9 +91,11 @@ export function viewTampilan(main) {
 
   let brand = t.brand, accent = t.accent;
   const val = (n) => $(`input[name=${n}]:checked`, main)?.value;
-  const read = () => ({ preset: val('preset'), model: val('model'), efek: val('efek'), font: val('font'), fHead: $('#tm-fhead').value, fBody: $('#tm-fbody').value, radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
+  const read = () => ({ preset: val('preset'), model: val('model'), efek: val('efek'), font: val('font'), fHead: $('#tm-fhead').value, fBody: $('#tm-fbody').value, fx: { cursor: val('cursor') || 'off', size: Number($('#tm-cs').value) || 1, click: $('#tm-click').value, ikon: $('#tm-ikon').value, scope: $('#tm-scope').value, magnetic: $('#tm-mag').checked, hideNative: $('#tm-hide').checked }, radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
   const mark = () => $$('.choice', main).forEach((c) => c.classList.toggle('on', !!c.querySelector('input')?.checked));
-  const preview = () => { mark(); applyTheme(read()); };
+  // pratinjau di dasbor: animasi diterapkan walau cakupan "publik saja" (agar bisa dicoba di halaman ini)
+  const preview = () => { mark(); const r = read(); applyTheme(r); applyFx({ ...r.fx, scope: 'semua' }, 'admin'); const v = $('#tm-cs-v'); if (v) v.textContent = `${Math.round(r.fx.size * 100)}%`; };
+  applyFx({ ...fx, scope: 'semua' }, 'admin');
   const setRadio = (n, v) => { const r = $(`input[name=${n}][value="${v}"]`, main); if (r) r.checked = true; };
   // onchange (bukan addEventListener) agar tidak menumpuk saat #admin-main dipakai ulang oleh menu lain
   main.onchange = (e) => {
@@ -89,6 +108,7 @@ export function viewTampilan(main) {
     const sp = STYLE_PRESETS[b.dataset.style].tema;
     Object.entries(sp).forEach(([k, v]) => setRadio(k, v));
     $('#tm-fhead').value = sp.fHead || ''; $('#tm-fbody').value = sp.fBody || '';
+    if (sp.fx) { const f = { ...FX_DEFAULT, ...sp.fx }; setRadio('cursor', f.cursor); $('#tm-cs').value = f.size; $('#tm-click').value = f.click; $('#tm-ikon').value = f.ikon; $('#tm-mag').checked = f.magnetic; $('#tm-hide').checked = f.hideNative; }
     brand = ''; accent = ''; const p = THEME_PRESETS[sp.preset]; $('#tm-brand').value = p.brand; $('#tm-accent').value = p.accent;
     guard.dirty = true; preview();
     // pratinjau mode juga untuk Super Admin yang sudah memilih mode sendiri
@@ -97,6 +117,7 @@ export function viewTampilan(main) {
     toast(`Gaya “${STYLE_PRESETS[b.dataset.style].label}” diterapkan sebagai pratinjau — klik Simpan Tema`, 'info');
   });
   $$('[data-fpick]', main).forEach((b) => b.onclick = () => { $('#' + b.dataset.fpick).value = b.dataset.fv; guard.dirty = true; preview(); toast(`${FONT_LIST[b.dataset.fv].label} dipakai untuk ${b.dataset.fpick === 'tm-fhead' ? 'judul' : 'teks'} (pratinjau)`, 'info'); });
+  $('#tm-cs').oninput = () => preview();
   $('#tm-brand').oninput = (e) => { brand = e.target.value; preview(); };
   $('#tm-accent').oninput = (e) => { accent = e.target.value; preview(); };
   $('#tm-brand-clear').onclick = () => { brand = ''; preview(); };
