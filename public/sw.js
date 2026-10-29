@@ -1,12 +1,12 @@
 /* Serenity Service Worker — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
-const VERSION = '2.7.0';
+const VERSION = '2.8.0';
 const SHELL = `serenity-shell-v${VERSION}`;
 const RUNTIME = `serenity-runtime-v${VERSION}`;
 const SHELL_FILES = [
   './', './index.html', './login.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/config.js', './js/firebase.js', './js/fields.js', './js/ui.js', './js/wilayah.js', './js/exporter.js',
   './js/core.js', './js/cms.js', './js/security.js', './js/praytimes.js', './js/firebase-config.js', './js/rich.js', './js/layout.js', './js/lembaga.js', './js/badges.js', './js/tampilan.js',
-  './js/usage.js', './js/sync.js', './js/analytics.js', './js/widgets.js', './js/monitor.js', './js/motion.js',
+  './js/usage.js', './js/sync.js', './js/analytics.js', './js/widgets.js', './js/monitor.js', './js/motion.js', './js/chat.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
 // Pustaka & data yang aman di-cache (Firebase SDK, SheetJS, jsPDF, font, data wilayah)
@@ -30,6 +30,12 @@ self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.ski
 // Klik notifikasi (mis. pengingat cadangan tanggal 29) → buka halaman Cadangan & Pemulihan
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const chat = e.notification.data && e.notification.data.chat;
+  // Notifikasi chat: fokuskan tab yang sudah terbuka lalu buka percakapannya (tanpa pindah halaman)
+  if (chat) {
+    e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => { const c = cs.find((x) => x.url.startsWith(self.registration.scope)); if (c) { c.postMessage({ type: 'open-chat', chat }); return c.focus(); } return self.clients.openWindow(new URL('./#/admin', self.registration.scope).href); }));
+    return;
+  }
   const url = new URL('./#/admin/cadangan', self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => { const c = cs.find((x) => x.url.startsWith(self.registration.scope)); if (c) { c.navigate(url); return c.focus(); } return self.clients.openWindow(url); }));
 });

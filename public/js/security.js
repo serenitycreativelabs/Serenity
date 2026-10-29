@@ -110,6 +110,7 @@ function drawAdmins(main) {
     const u = usersCache.find((x) => x.uid === b.dataset.tg); const act = u.active === false;
     if (!await confirmDialog(`${act ? 'Aktifkan' : 'Nonaktifkan'} akun ${u.email}?${act ? '' : ' Pengguna akan langsung dikeluarkan dari dashboard.'}`, { danger: !act, okText: act ? 'Aktifkan' : 'Nonaktifkan' })) return;
     await F.updateDoc(C(`users/${u.uid}`), { active: act, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+    F.updateDoc(C(`staf/${u.uid}`), { aktif: act }).catch(() => {}); // kontak chat ikut nonaktif
     logAudit('admin', act ? 'aktifkan' : 'nonaktifkan', `${act ? 'Mengaktifkan' : 'Menonaktifkan'} ${ROLE_LABEL[u.role]} ${u.email}`, { target: u.email, targetId: u.uid });
     viewAdmins(main);
   });
@@ -118,6 +119,7 @@ function drawAdmins(main) {
     if (!await confirmDialog(`Hapus akses dashboard untuk ${u.email}? Akun login tetap ada di sistem login namun tidak bisa masuk dashboard.`, { danger: true, okText: 'Hapus akses' })) return;
     if (!await requirePassword(`Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}.`)) return;
     await F.deleteDoc(C(`users/${u.uid}`));
+    F.deleteDoc(C(`staf/${u.uid}`)).catch(() => {}); // hapus dari daftar kontak chat (riwayat chat tetap tersimpan)
     logAudit('admin', 'hapus', `Menghapus akses ${ROLE_LABEL[u.role]} ${u.email}`, { target: u.email, targetId: u.uid });
     toast('Akses dihapus', 'success'); viewAdmins(main);
   });

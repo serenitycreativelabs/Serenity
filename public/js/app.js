@@ -20,6 +20,7 @@ import {
   cfgUpdate, isPengelola, hasGreen,
 } from './core.js';
 import * as Sync from './sync.js';
+import { mountChat, unmountChat } from './chat.js';
 import { recordVisit, startPresence, stopPresence, mountVisitorWidget, unmountVisitorWidget, startUsageFlush, flushUsage } from './analytics.js';
 import { lembagaNewsPanel, startNewsScroller, viewWidget, widgetCfg } from './widgets.js';
 import { viewMonitor } from './monitor.js';
@@ -268,6 +269,7 @@ function startAdmin() {
     state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
     if (changed) { toast('Hak akses Anda diperbarui', 'info'); root.dataset.shell = ''; startAdmin(); render(); }
   }, () => {}));
+  mountChat();
   F.getDoc(C('config/auth')).then((s) => { state.authCfg = s.data() || {}; }).catch(() => {});
   if (!can('warga')) state.wargaReady = true;
   Sync.startAdmin(state.user.uid).then(() => {
@@ -297,6 +299,7 @@ function startAdmin() {
 }
 function stopAdmin() {
   adminGen++;
+  unmountChat();
   state.adminUnsubs.forEach((f) => f()); state.adminUnsubs = [];
   Sync.stopAdmin();
   state.warga = []; state.dusun = []; state.master = {}; state.wargaReady = false; state.masterReady = false;

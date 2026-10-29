@@ -48,6 +48,9 @@ export const I = {
   activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   news: '<path d="M4 4h13v16H6a2 2 0 0 1-2-2z"/><path d="M17 8h3v10a2 2 0 0 1-2 2"/><path d="M8 8h5M8 12h5M8 16h3"/>',
+  chat: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.1 9.1 0 0 1-3.9-.9L3 20.5l1.5-4.4A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/><path d="M8 10.5h8M8 14h5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   archive: '<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
 };
 export const ic = (n, cls = '') => `<svg class="ic ${cls}" data-i="${n}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ''}</svg>`;
@@ -171,7 +174,7 @@ function deviceInfo() {
 export const AUDIT_CATS = {
   auth: 'Login & Akun', warga: 'Data Warga', import: 'Import', export: 'Ekspor', dusun: 'Dusun', master: 'Data Master',
   informasi: 'Informasi', broadcast: 'WhatsApp', instagram: 'Instagram', profil: 'Profil Gampong', kegiatan: 'Kegiatan Rutin',
-  pengaturan: 'Pengaturan', latar: 'Latar Belakang', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data', sistem: 'Sistem & Widget',
+  pengaturan: 'Pengaturan', latar: 'Latar Belakang', admin: 'Manajemen Akun', lembaga: 'Lembaga Gampong', dokumen: 'Dokumen Publik', tampilan: 'Tampilan & Tema', cadangan: 'Cadangan & Pemulihan', akses: 'Akses Data', sistem: 'Sistem & Widget', chat: 'Chat Staf',
 };
 // Catat aktivitas. cat = kategori; action = kode singkat; label = kalimat yang mudah dibaca
 export function logAudit(cat, action, label, extra = {}) {
@@ -182,7 +185,7 @@ export function logAudit(cat, action, label, extra = {}) {
     target: extra.target ? String(extra.target).slice(0, 200) : undefined,
     targetId: extra.targetId, count: extra.count,
     changes: extra.changes && Object.keys(extra.changes).length ? extra.changes : undefined,
-    detail: extra.detail ? String(extra.detail).slice(0, 1000) : undefined,
+    detail: extra.detail ? String(extra.detail).slice(0, cat === 'chat' ? 2600 : 1000) : undefined,
     device: deviceInfo(), session: SESSION_ID, path: location.hash.slice(0, 120),
   });
   return F.addDoc(F.collection(F.db, 'audit'), data).catch((e) => console.warn('audit', e));

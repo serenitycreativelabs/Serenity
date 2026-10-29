@@ -77,6 +77,7 @@ git push origin --force --all
 - Cache offline di perangkat **dihapus saat logout**; logout otomatis setelah tidak aktif.
 - Berkas cadangan JSON berisi NIK & data pribadi — simpan di tempat terenkripsi, jangan dibagikan.
 - Semua akses detail warga, ekspor, dan perubahan tercatat permanen di **Audit Log**.
+- **Chat Staf** (v2.8): percakapan 1-lawan-1 hanya bisa dibaca kedua anggotanya (dikunci Firestore Rules); pesan permanen; isi setiap pesan tersalin ke Audit Log yang hanya bisa dibuka Super Admin.
 
 
 ## 6. Daftar periksa keamanan (v2.3.0)

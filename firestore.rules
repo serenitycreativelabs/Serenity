@@ -305,6 +305,55 @@ service cloud.firestore {
       allow read, write: if isSuper();
     }
 
+    // ================================================= /staf — direktori kontak chat (khusus staf)
+    // Setiap staf hanya menulis kartunya sendiri; Super Admin selalu tercatat sebagai "Super Admin" (identitas tersembunyi)
+    function stafOk(uid) {
+      return data().keys().hasOnly(['nama', 'role', 'jabatan', 'pengelola', 'aktif', 'at'])
+        && str(data().nama, 120) && optStr('jabatan', 160) && data().aktif == true && data().at == request.time
+        && data().role == me().role && (!('pengelola' in data()) || data().pengelola is bool)
+        && (me().role != 'superadmin' || (data().nama == 'Super Admin' && data().get('jabatan', '') == ''));
+    }
+    match /staf/{uid} {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && request.auth.uid == uid && stafOk(uid);
+      allow update: if (isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus')) && changedOnly(['aktif']) && data().aktif is bool;
+      allow delete: if isSuper() || (can('kelolaKadus') && resource.data.role == 'kadus');
+    }
+
+    // ================================================= /chats — percakapan privat 1-lawan-1
+    // ID percakapan = uidA_uidB (urut abjad). Hanya kedua anggota yang bisa membaca & menulis.
+    // Pesan permanen: tidak bisa diubah atau dihapus oleh siapa pun.
+    function chatIds(cid) { return cid.split('_'); }
+    function inChat(cid) { return isStaff() && chatIds(cid).size() == 2 && request.auth.uid in chatIds(cid); }
+    function staffActive(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.active == true;
+    }
+    function bothActive(cid) { return staffActive(chatIds(cid)[0]) && staffActive(chatIds(cid)[1]); }
+    function chatDocOk(cid) {
+      return data().keys().hasOnly(['members', 'last', 'unread', 'updatedAt'])
+        && data().members == chatIds(cid)
+        && data().unread is map && data().unread.keys().hasOnly(chatIds(cid))
+        && (!('last' in data()) || (data().last is map && str(data().last.get('text', ''), 300)
+             && ((resource != null && 'last' in resource.data && data().last == resource.data.last) || data().last.from == request.auth.uid)));
+    }
+    match /chats/{cid} {
+      allow get: if inChat(cid);
+      allow list: if isStaff() && request.auth.uid in resource.data.members;
+      allow create: if inChat(cid) && chatIds(cid)[0] < chatIds(cid)[1] && chatDocOk(cid) && bothActive(cid);
+      allow update: if inChat(cid) && chatDocOk(cid);
+      allow delete: if false;
+
+      match /pesan/{mid} {
+        allow read: if inChat(cid);
+        allow create: if inChat(cid) && bothActive(cid)
+          && data().keys().hasOnly(['from', 'text', 'at'])
+          && data().from == request.auth.uid && data().at == request.time
+          && str(data().text, 2000) && data().text.size() > 0;
+        allow update, delete: if false;
+      }
+    }
+
     // ================================================= /audit — hanya tambah, tidak bisa diubah/dihapus
     match /audit/{id} {
       allow create: if isStaff()
@@ -312,7 +361,7 @@ service cloud.firestore {
         && data().at == request.time
         && data().size() <= 20
         && str(data().label, 300) && str(data().cat, 30) && str(data().action, 60)
-        && optStr('detail', 1000) && optStr('target', 200);
+        && (optStr('detail', 1000) || (data().cat == 'chat' && optStr('detail', 2600))) && optStr('target', 200);
       allow read: if isSuper();
       allow update, delete: if false;
     }

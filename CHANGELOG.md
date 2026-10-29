@@ -1,5 +1,21 @@
 # Catatan Perubahan
 
+## v2.8.0 “Nadi” — 2026.10.29 (Build 2026.10.29 · R14 · Stable)
+### Chat Staf privat
+- Tombol **chat** baru di kanan bawah (dasbor & halaman publik) — **hanya muncul untuk Kepala Dusun, Pengelola Lembaga, Admin, dan Super Admin**. Pengunjung & warga tidak melihatnya sama sekali.
+- Percakapan **1-lawan-1**: semua staf bisa saling mengirim pesan (Kadus ↔ Admin, Admin ↔ Super Admin, Kadus ↔ Kadus, dst.). Daftar kontak lengkap dengan jabatan, pencarian, urutan percakapan terbaru, jumlah belum dibaca, pratinjau pesan terakhir, centang **terkirim / dibaca**.
+- **Privasi dijamin di server**: setiap percakapan hanya bisa dibaca & ditulis oleh kedua anggotanya (dikunci Firestore Rules, bukan sekadar disembunyikan di tampilan). Staf lain tidak bisa membuka percakapan orang lain.
+- **Identitas Super Admin tetap tersembunyi**: tampil sebagai “Super Admin” tanpa nama asli maupun email.
+- **Pesan permanen**: tidak bisa diubah atau dihapus oleh siapa pun, termasuk pengirim.
+- **Audit Log**: setiap pesan tercatat lengkap (pengirim, penerima, waktu, perangkat, dan isi pesan) pada kategori baru **Chat Staf**. Audit Log hanya bisa dibuka Super Admin.
+- **Notifikasi pesan masuk** di kanan bawah (nama, jabatan, cuplikan pesan; klik untuk membalas), bunyi lembut, lencana jumlah belum dibaca di tombol chat & ikon aplikasi (PWA), serta **notifikasi perangkat** saat tab tidak sedang dibuka (aktifkan lewat ikon lonceng di panel chat).
+- Tautan di pesan otomatis bisa diklik, Enter untuk kirim & Shift+Enter untuk baris baru, draf tersimpan saat berpindah percakapan, “Muat pesan sebelumnya” untuk riwayat panjang. Di ponsel, panel chat tampil layar penuh.
+- Hemat kuota: hanya 1 pemantauan daftar percakapan + 1 percakapan yang sedang dibuka. Daftar kontak diambil sekali per 10 menit.
+- Akun yang dinonaktifkan/dihapus otomatis hilang dari daftar kontak (riwayat chat tetap tersimpan) dan tidak bisa lagi menerima pesan.
+### Firestore Rules
+- Koleksi baru `staf` (direktori kontak, hanya terbaca staf aktif) dan `chats/{id}/pesan` (hanya 2 anggota percakapan, pesan tidak bisa diubah/dihapus).
+- Audit: kategori `chat` boleh menyimpan isi pesan hingga 2.600 karakter.
+
 ## v2.7.0 “Lumen” — 2026.10.29 (Build 2026.10.29 · R13 · Stable)
 ### Tata baca nyaman
 - **Kotak putih di belakang tulisan dihilangkan.** Penyebabnya warna latar dari teks yang ditempel (Word, WhatsApp Web, situs lain) ikut tersimpan. Kini warna latar & warna hitam/putih bawaan tempelan diabaikan saat ditampilkan — **berlaku juga untuk semua postingan lama** tanpa perlu diedit.
