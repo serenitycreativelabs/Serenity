@@ -53,10 +53,9 @@
 - `v1.2.0` - `Iris`     : Minor hotfix and bug fixes
 - `v1.1.1` - `Node`     : Maintenance hotfix and general patches
 - `v1.1.0` - `Spectra`  : Dark mode theme and internationalization (i18n)
-- `v1.0.1` - `Halo`     : General bug fixes
-- `v1.0.0` - `Nova`     : Advanced search, filters, and feature enhancements
+- `v1.0.1` - `Halo`     : General bug fixes, Advanced search, filters, and feature enhancements
 
-## Versi v1.0.0 
+## Versi v1.0.0 **Nova**
 - Development, Building & Minor Release
 
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
