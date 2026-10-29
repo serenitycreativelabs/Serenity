@@ -1,4 +1,4 @@
-# Serenity — Sistem Informasi Gampong Digital
+# WebKit Sistem Informasi Digital by Creativa Labs
 
 ![versi](https://img.shields.io/badge/versi-2.6.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
@@ -40,7 +40,7 @@
 - Hak akses baru: `lembaga`, `dokumen` (diatur Super Admin di Manajemen Akun).
 
 ## Minor Release Version (Latest Work).
-## ○ v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
+○ v2.0.0 — Major Architecture Overhaul (Breaking Changes), migrasi data ke versi terbaru - **Aero**
  ⤷ v1.9.0 — Deprecation Warning & Migration Preparation
  ⤷ v1.8.0 — Developement Integrations API, Security, Cloud System, Safety & Webhook Integrations
  ⤷ v1.7.0 — Performance, Caching & PWA Support
