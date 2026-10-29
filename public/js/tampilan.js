@@ -191,7 +191,7 @@ export function viewLatar(main) {
     <label class="field"><span>Kepekatan lapisan warna (agar teks tetap terbaca): <b id="lt-ov-v">${L.overlay}%</b></span><input type="range" name="overlay" min="0" max="95" step="5" value="${esc(L.overlay)}"></label>
     <label class="field"><span>Efek blur: <b id="lt-bl-v">${L.blur}px</b></span><input type="range" name="blur" min="0" max="20" step="1" value="${esc(L.blur)}"></label>
     <label class="field span-2"><span>Gambar cadangan (poster) untuk ponsel / hemat data — opsional</span><input name="poster" value="${esc(L.poster || '')}" placeholder="https://…/poster.jpg"></label>
-    <label class="check span-2"><input type="checkbox" name="hemat" ${L.hemat !== false ? 'checked' : ''}> Mode hemat: di ponsel & mode hemat data, video diganti gambar diam (disarankan agar website tetap ringan)</label>
+    <label class="check span-2"><input type="checkbox" name="hemat" ${L.hemat !== false ? 'checked' : ''}> Mode hemat: video diganti gambar diam hanya bila perangkat pengunjung memakai mode Hemat Data; di ponsel kualitas video maksimal 720p (matikan untuk 1080p di semua perangkat)</label>
   </form>
   <h4 class="detail-h">Pratinjau</h4><div class="bg-prev" id="lt-prev"></div>
   <p class="muted small">Catatan: video YouTube sebagai latar memuat pemutar YouTube (±1 MB). Untuk performa terbaik gunakan foto atau video MP4 pendek (≤ 5 MB).</p></div>

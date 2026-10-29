@@ -1872,3 +1872,9 @@ body.has-bg .reader .rv-card, body.has-bg .rv-more-list a, body.has-bg .rv-box {
   .ch-back { display: inline-grid; }
   .ch-list { max-height: none; }
 }
+
+/* v2.9.2 — video YouTube latar: bersih tanpa tombol/judul, muncul halus setelah berputar */
+#bg-layer .bg-yt-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#bg-layer .bg-yt { position: absolute; top: 50%; left: 50%; transform-origin: center; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#bg-layer .bg-yt.on { opacity: 1; }
+#bg-layer .bg-yt iframe { position: absolute; inset: 0; width: 100% !important; height: 100% !important; border: 0; transform: none; top: 0; left: 0; pointer-events: none; }

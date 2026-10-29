@@ -1,5 +1,19 @@
 # Catatan Perubahan
 
+## v2.9.2 “Kirana” — 2026.10.29 (Build 2026.10.29 · R18 · Stable)
+### Video YouTube latar belakang
+- **Langsung berjalan** saat halaman dibuka — bisu, tanpa tombol play/kontrol, tanpa judul & logo YouTube, berulang terus. Sebelumnya: di layar < 700 px & saat “Mode hemat” aktif video sengaja diganti gambar diam, dan video dimuat malas (*lazy*) sehingga tertunda.
+- Gambar sampul video tampil lebih dulu, lalu video **muncul halus setelah benar-benar berputar** — tombol play, judul, atau layar hitam YouTube tidak pernah terlihat. Tepi pemutar sedikit diperbesar agar sisa logo/judul terpotong keluar layar.
+- **Kualitas tinggi**: pemutar dirender minimal 1920 px sehingga YouTube memilih **1080p / 1080p60** bila video tersedia dalam kualitas itu (kualitas akhir tetap ditentukan YouTube sesuai kecepatan internet pengunjung).
+- Otomatis mencoba memutar ulang bila browser menahan putar otomatis (mis. mode hemat daya iPhone) — video berjalan saat pengunjung menyentuh/menggulir halaman; diputar ulang saat tab kembali dibuka.
+- “Mode hemat” kini hanya mengganti video dengan gambar diam bila perangkat pengunjung memakai mode **Hemat Data**; di ponsel kualitas dibatasi 720p (matikan Mode hemat untuk 1080p di semua perangkat). Video MP4/WebM juga dipaksa berputar otomatis.
+### Layar memuat & pemberitahuan
+- Layar memuat (splash) kini memakai **ikon aplikasi terbaru** & nama gampong — tersimpan di perangkat sehingga langsung tampil sejak detik pertama, bukan ikon bawaan lama.
+- Kotak “Website belum dapat dimuat” kini **mengikuti warna, huruf & sudut tema website** (termasuk mode gelap) dan menampilkan ikon terbaru — tidak lagi hijau & putih bawaan.
+### Judul tab berjalan lebih mulus
+- Ritme tetap & rapat (1 huruf tiap 0,15 detik) tanpa jeda berhenti-jalan; waktu dihitung dari jam sehingga tidak tersendat.
+- Detak dari Web Worker sehingga judul **tetap bergerak lancar saat tab sedang tidak dibuka** (sebelumnya browser memperlambatnya menjadi 1× per detik — justru saat judul tab sedang terlihat).
+
 ## v2.9.1 “Kirana” — 2026.10.29 (Build 2026.10.29 · R17 · Stable)
 ### Perbaikan
 - **Notifikasi palsu “Hak akses Anda diperbarui”** yang muncul berulang (terutama pada admin ber-badge seperti Centang Hijau) saat menyimpan data atau membuka halaman. Penyebab: profil akun dibandingkan sebagai teks mentah, padahal urutan field dari server bisa berbeda walau isinya sama, dan perubahan non-akses (login terakhir, nama, foto, catatan badge) ikut dihitung. Kini yang dibandingkan hanya isi hak akses secara kanonik: peran, izin aktif, lembaga yang dikelola, jenis badge, dan dusun.

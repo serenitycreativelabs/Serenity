@@ -89,7 +89,7 @@ function boot() {
   if (F.configError) { renderConfigError(); return; }
   // v2.4: semua data publik lewat Sinkron Bertahap → kunjungan berikutnya hanya membaca yang berubah
   Sync.startPublic();
-  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; state.cfgLoaded = true; applyTheme(state.config.tema, { fromServer: true }); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); if (cfgWaiting) { cfgWaiting = false; render(); return; } softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
+  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; state.cfgLoaded = true; applyTheme(state.config.tema, { fromServer: true }); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); saveBrandCache(); if (cfgWaiting) { cfgWaiting = false; render(); return; } softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
   Sync.watch({ id: 'config:stats', scope: 'pub', doc: 'config/stats', onData: (d) => { state.stats = d || {}; softRerender(['public']); } });
   Sync.watch({ id: 'instagram', scope: 'pub', col: 'instagram', limit: 150, onData: (list) => {
     state.ig = list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
@@ -153,7 +153,7 @@ function renderConfigError() {
   // Pengunjung umum: pesan netral tanpa detail teknis. Detail hanya di komputer pengembang atau dengan ?setup
   const dev = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(host) || /[?&#]setup\b/.test(location.search + location.hash);
   if (!dev) {
-    root.innerHTML = `<div class="login-page"><div class="login-card"><div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div><h1>Website belum dapat dimuat</h1><p class="muted">Koneksi ke server sedang bermasalah atau website sedang dalam pemeliharaan. Silakan muat ulang beberapa saat lagi.</p><button class="btn btn-primary btn-block" id="cfg-retry">${ic('refresh')} Muat ulang</button><p class="muted small center" data-copyright>${esc(APP.credit)}</p></div></div>`;
+    root.innerHTML = `<div class="login-page"><div class="login-card"><div class="logo-mark big">${appIconImg()}</div><h1>Website belum dapat dimuat</h1><p class="muted">Koneksi ke server sedang bermasalah atau website sedang dalam pemeliharaan. Silakan muat ulang beberapa saat lagi.</p><button class="btn btn-primary btn-block" id="cfg-retry">${ic('refresh')} Muat ulang</button><p class="muted small center" data-copyright>${esc(APP.credit)}</p></div></div>`;
     $('#cfg-retry').onclick = () => location.reload();
     return;
   }
@@ -479,7 +479,18 @@ function render(soft = false) {
   }
   return renderPublic(r, soft);
 }
-const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${logoImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : APP.name)}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
+// v2.9.2: layar memuat & halaman galat memakai ikon aplikasi TERBARU (disimpan di perangkat agar langsung tampil
+// sebelum pengaturan termuat), bukan ikon bawaan lama
+const brandCache = () => { try { return JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; } catch { return {}; } };
+function saveBrandCache() {
+  try {
+    const c = state.config; const small = (u) => (u && u.length < 250000 ? u : '');
+    localStorage.setItem('dd:brand', JSON.stringify({ icon: small(c.ikon?.src), logo: small(c.logo), nama: c.namaDesa ? `${desaJenis()} ${desaName()}`.trim() : '' }));
+  } catch { /* */ }
+}
+const appIconSrc = () => state.config.ikon?.src || state.config.logo || brandCache().icon || brandCache().logo || 'icons/icon-192.png';
+const appIconImg = () => { const s = appIconSrc(); return `<img src="${esc(s)}" alt=""${s.startsWith('icons/') ? '' : ' data-logo'}>`; };
+const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${appIconImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : brandCache().nama || APP.name)}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
 const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="" data-logo>` : `<img src="icons/icon-192.png" alt="">`;
 
 // ================================================================ PUBLIK

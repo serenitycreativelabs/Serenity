@@ -50,8 +50,16 @@
 </head>
 <body>
   <div id="app">
-    <div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div></div><b class="splash-title">Serenity</b><div class="splash-bar"><span></span></div><small class="muted">Memuat portal data…</small></div>
+    <div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big"><img id="splash-ic" src="icons/icon-192.png" alt=""></div></div><b class="splash-title" id="splash-nm">Serenity</b><div class="splash-bar"><span></span></div><small class="muted">Memuat portal data…</small></div>
   </div>
+  <script>
+    // Layar memuat langsung memakai ikon aplikasi & nama terbaru yang tersimpan di perangkat
+    (function () { try {
+      var b = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; var ic = b.icon || localStorage.getItem('dd:icon') || b.logo;
+      var im = document.getElementById('splash-ic'); if (im && ic && /^(data:image\/|https:\/\/)/.test(ic)) { im.src = ic; im.setAttribute('data-logo', ''); }
+      var nm = document.getElementById('splash-nm'); if (nm && b.nama) nm.textContent = b.nama;
+    } catch (e) {} })();
+  </script>
   <noscript>Aplikasi ini membutuhkan JavaScript.</noscript>
   <script>
     // Petunjuk bila aplikasi tidak bisa dimuat (mis. dibuka dengan dobel-klik / file://)
@@ -59,10 +67,14 @@
       function help(reason) {
         var el = document.getElementById('app');
         if (!el || !el.querySelector('.splash')) return;
-        el.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:28px;font-family:system-ui,sans-serif;line-height:1.6;background:#fff;color:#111;border:1px solid #e3e1d8;border-radius:16px;text-align:center">' +
-          '<h2 style="margin-top:0;color:#0f766e">Website belum dapat dimuat</h2><p>' + reason + '</p>' +
-          '<p><button onclick="location.reload()" style="padding:10px 18px;border:0;border-radius:10px;background:#0f766e;color:#fff;font-weight:600;cursor:pointer">Muat ulang</button></p>' +
-          '<p style="color:#7a8481;font-size:13px">Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved</p></div>';
+        // Warna mengikuti tema website (variabel tema sudah terpasang oleh skrip awal di <head>)
+        var src = 'icons/icon-192.png';
+        try { var bc = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; var c = bc.icon || localStorage.getItem('dd:icon') || bc.logo; if (c && /^(data:image\/|https:\/\/)/.test(c)) src = c; } catch (e) {}
+        el.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:28px;font-family:var(--font,system-ui,sans-serif);line-height:1.6;background:var(--surface,#fff);color:var(--ink,#111);border:1px solid var(--line,#e3e1d8);border-radius:calc(var(--radius,12px) + 4px);box-shadow:var(--shadow-lg,none);text-align:center">' +
+          '<img src="' + src + '" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:16px;margin:0 auto 6px;display:block">' +
+          '<h2 style="margin-top:0;color:var(--primary,#0f766e);font-family:var(--font-head,inherit)">Website belum dapat dimuat</h2><p>' + reason + '</p>' +
+          '<p><button onclick="location.reload()" style="padding:10px 18px;border:0;border-radius:var(--radius,10px);background:var(--primary,#0f766e);color:var(--primary-ink,#fff);font:inherit;font-weight:600;cursor:pointer">Muat ulang</button></p>' +
+          '<p style="color:var(--muted,#7a8481);font-size:13px">Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved</p></div>';
       }
       if (location.protocol === 'file:') {
         window.addEventListener('DOMContentLoaded', function () { help('Halaman ini harus dibuka melalui alamat website, bukan dari berkas di komputer.'); });

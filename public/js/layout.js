@@ -295,26 +295,92 @@ export function applyBackground(latar, { isHome = false } = {}) {
   const key = on ? JSON.stringify(latar) : '';
   document.body.classList.toggle('has-bg', !!on);
   let layer = document.getElementById('bg-layer');
-  if (!on) { layer?.remove(); bgKey = ''; return; }
+  if (!on) { if (layer) { try { ytPlayer?.destroy?.(); } catch { /* */ } ytPlayer = null; layer.remove(); } bgKey = ''; return; }
   if (layer && key === bgKey) return; bgKey = key;
   layer?.remove(); layer = document.createElement('div'); layer.id = 'bg-layer'; layer.setAttribute('aria-hidden', 'true');
   const kind = latar.jenis && latar.jenis !== 'auto' ? latar.jenis : backgroundKind(latar.url);
-  const saveData = navigator.connection?.saveData || matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const lite = latar.hemat !== false && (saveData || innerWidth < 700);
+  // v2.9.2: video tetap berjalan di semua perangkat; gambar diam hanya bila perangkat memakai mode Hemat Data
+  const saveData = !!navigator.connection?.saveData;
+  const lite = latar.hemat !== false && saveData;
   const blur = Math.min(20, Math.max(0, Number(latar.blur) || 0));
   const style = blur ? `filter:blur(${blur}px);transform:scale(1.06)` : '';
   let media = '';
   if (kind === 'youtube' && ytId(latar.url)) {
     const id = ytId(latar.url);
-    media = lite ? `<img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="" style="${style}">`
-      : `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&showinfo=0&modestbranding=1&playsinline=1&rel=0&disablekb=1&iv_load_policy=3" allow="autoplay; encrypted-media" tabindex="-1" title="" style="${style}" loading="lazy"></iframe>`;
+    // Gambar sampul tampil lebih dulu; video muncul halus setelah BENAR-BENAR berputar → tidak ada tombol play,
+    // judul, atau logo YouTube yang terlihat. Bisu, tanpa kontrol, berulang terus.
+    media = `<img class="bg-yt-poster" src="https://i.ytimg.com/vi/${id}/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${id}/hqdefault.jpg'" alt="" style="${style}">${lite ? '' : `<div class="bg-yt" style="${style}"><div id="bg-yt-player"></div></div>`}`;
   } else if (kind === 'video') {
     media = lite && latar.poster ? `<img src="${esc(latar.poster)}" alt="" style="${style}">` : `<video src="${esc(latar.url)}" ${latar.poster ? `poster="${esc(latar.poster)}"` : ''} autoplay muted loop playsinline preload="metadata" style="${style}"></video>`;
   } else media = `<img src="${esc(driveImg(latar.url))}" alt="" style="${style}" decoding="async">`;
   const ov = Math.min(95, Math.max(0, Number(latar.overlay ?? 55)));
   layer.innerHTML = `${media}<span class="bg-ov" style="opacity:${ov / 100}"></span>`;
   document.body.prepend(layer);
+  if (kind === 'youtube' && ytId(latar.url) && !lite) startYtBackground(layer, ytId(latar.url), latar.hemat !== false);
+  if (kind === 'video') { const v = layer.querySelector('video'); v?.play?.().catch(() => retryOnGesture(() => v.play())); }
 }
+
+// ---------------------------------------------------------------- video YouTube latar (IFrame API)
+let ytApi = null, ytPlayer = null, ytFit = null;
+function loadYtApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (ytApi) return ytApi;
+  ytApi = new Promise((res, rej) => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { try { prev?.(); } catch { /* */ } res(window.YT); };
+    const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; s.async = true;
+    s.onerror = () => { ytApi = null; rej(new Error('YouTube tidak dapat dimuat')); };
+    document.head.appendChild(s);
+  });
+  return ytApi;
+}
+function retryOnGesture(fn) {
+  const go = () => { try { fn(); } catch { /* */ } };
+  ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach((ev) => addEventListener(ev, go, { once: true, passive: true, capture: true }));
+}
+// Ukuran pemutar: menutupi seluruh layar, lebar tata letak minimal 1920 px (YouTube memilih kualitas
+// berdasarkan ukuran pemutar → 1080p/1080p60 bila tersedia), lalu diperkecil secara visual & sedikit
+// diperbesar (zoom 12%) agar tepi judul/logo YouTube terpotong keluar layar.
+function fitYt(wrap, saver) {
+  const vw = innerWidth, vh = innerHeight;
+  const coverW = Math.max(vw, vh * 16 / 9), coverH = coverW * 9 / 16;
+  const minW = saver && vw < 700 ? 1280 : 1920;
+  const W = Math.max(coverW, minW), H = W * 9 / 16;
+  const scale = (coverW / W) * 1.12;
+  wrap.style.width = `${W}px`; wrap.style.height = `${H}px`;
+  wrap.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  void coverH;
+}
+async function startYtBackground(layer, id, saver) {
+  const wrap = layer.querySelector('.bg-yt'); if (!wrap) return;
+  ytPlayer?.destroy?.(); ytPlayer = null;
+  if (ytFit) removeEventListener('resize', ytFit);
+  ytFit = () => fitYt(wrap, saver); ytFit(); addEventListener('resize', ytFit, { passive: true });
+  let YT; try { YT = await loadYtApi(); } catch { return; } // tetap tampil gambar sampul
+  if (!layer.isConnected) return;
+  let shown = false;
+  const show = () => { if (shown) return; shown = true; setTimeout(() => wrap.classList.add('on'), 900); }; // jeda singkat: lewati judul awal YouTube
+  ytPlayer = new YT.Player('bg-yt-player', {
+    host: 'https://www.youtube-nocookie.com', videoId: id, width: '100%', height: '100%',
+    playerVars: { autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0, loop: 1, playlist: id, enablejsapi: 1, origin: location.origin, vq: 'hd1080' },
+    events: {
+      onReady: (e) => {
+        const p = e.target;
+        try { p.mute(); p.setVolume?.(0); p.setPlaybackQuality?.('hd1080'); p.playVideo(); } catch { /* */ }
+        const f = p.getIframe?.(); if (f) { f.setAttribute('tabindex', '-1'); f.setAttribute('aria-hidden', 'true'); f.setAttribute('allow', 'autoplay; encrypted-media'); f.title = ''; }
+        setTimeout(() => { try { if (p.getPlayerState?.() !== 1) { p.mute(); p.playVideo(); retryOnGesture(() => { p.mute(); p.playVideo(); }); } } catch { /* */ } }, 1500);
+      },
+      onStateChange: (e) => {
+        const S = YT.PlayerState;
+        if (e.data === S.PLAYING) { try { e.target.setPlaybackQuality?.('hd1080'); } catch { /* */ } show(); }
+        if (e.data === S.ENDED) { try { e.target.seekTo(0, true); e.target.playVideo(); } catch { /* */ } }
+        if (e.data === S.PAUSED && !document.hidden) { try { e.target.playVideo(); } catch { /* */ } }
+      },
+      onError: () => { wrap.remove(); },
+    },
+  });
+}
+document.addEventListener('visibilitychange', () => { try { if (!document.hidden && ytPlayer?.getPlayerState?.() !== 1) ytPlayer?.playVideo?.(); } catch { /* */ } });
 
 // ---------------------------------------------------------------- urutan tata letak
 // Urutkan daftar kunci sesuai urutan tersimpan; kunci baru ditambahkan di akhir
