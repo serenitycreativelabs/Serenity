@@ -5,7 +5,7 @@ import { ic, state, isSuper, can, logAudit, diff, cfgUpdate } from './core.js';
 import { esc, $, $$, toast, confirmDialog, debounce } from './ui.js';
 import {
   applyTheme, applyIcon, applyBackground, ensureFonts, backgroundKind, makeIconPng, guard,
-  THEME_PRESETS, MODELS, FONT_PAIRS, RADII, EFFECTS, STYLE_PRESETS, DEFAULT_TEMA,
+  THEME_PRESETS, MODELS, FONT_PAIRS, RADII, EFFECTS, STYLE_PRESETS, DEFAULT_TEMA, FONT_LIST, FONT_CATS, fontStack, ensureFontIds,
 } from './layout.js';
 
 const deny = (main, t = 'Khusus Super Admin') => { main.innerHTML = `<div class="callout">${ic('lock')}<div><b>${esc(t)}</b><p>Menu ini hanya dapat diubah oleh Super Admin${t.includes('izin') ? ' atau admin yang diberi izin' : ''}.</p></div></div>`; };
@@ -17,6 +17,8 @@ export function viewTampilan(main) {
   main.setAttribute('data-guard', '');
   const t = { ...DEFAULT_TEMA, ...(state.config.tema || {}) };
   ensureFonts(Object.keys(FONT_PAIRS)); // pratinjau semua huruf (hanya di halaman ini)
+  ensureFontIds(Object.keys(FONT_LIST));
+  const fontSel = (id, cur, label) => `<label class="field"><span>${label}</span><select id="${id}"><option value="">— ikuti pasangan huruf di atas —</option>${Object.entries(FONT_CATS).map(([c, cl]) => `<optgroup label="${esc(cl)}">${Object.entries(FONT_LIST).filter(([, f]) => f.cat === c).map(([k, f]) => `<option value="${k}" ${cur === k ? 'selected' : ''} style="font-family:${esc(fontStack(k))}">${esc(f.label)}${f.note ? ` (${esc(f.note)})` : ''}</option>`).join('')}</optgroup>`).join('')}</select></label>`;
   const opt = (name, entries, cur, render, cls = '') => entries.map(([k, v]) => `<label class="choice ${cls} ${cur === k ? 'on' : ''}"><input type="radio" name="${name}" value="${k}" ${cur === k ? 'checked' : ''}>${render(k, v)}</label>`).join('');
   const groups = [...new Set(Object.values(THEME_PRESETS).map((p) => p.group))];
   const ikon = state.config.ikon || {};
@@ -24,7 +26,7 @@ export function viewTampilan(main) {
   <div class="callout">${ic('eye')}<div><b>Tampilan & Tema — khusus Super Admin</b><p>Warna, model tampilan, efek, huruf, sudut panel, dan ikon berlaku untuk seluruh pengunjung & admin. Admin lain dan pengunjung hanya dapat mengganti <b>mode gelap/terang</b> (tombol ☾). Perubahan tampil sebagai pratinjau; klik <b>Simpan Tema</b> untuk menerapkan.</p></div></div>
 
   <div class="panel"><h3>${ic('star')} Gaya Siap Pakai</h3><p class="muted small">Satu klik untuk mengisi warna, efek, huruf, sudut, dan mode sekaligus — lalu sesuaikan bila perlu.</p>
-    <div class="style-presets">${Object.entries(STYLE_PRESETS).map(([k, sp]) => { const p = THEME_PRESETS[sp.tema.preset]; const dark = sp.tema.mode === 'dark'; return `<button type="button" class="style-preset" data-style="${k}"><span class="sp-sw" style="background:${dark ? `radial-gradient(circle at 25% 30%, ${p.brand}88, transparent 60%), radial-gradient(circle at 80% 70%, ${p.accent}77, transparent 60%), #0f1419` : `linear-gradient(135deg, ${p.bg || '#f5f6f8'}, ${p.brand}33), ${p.bg || '#fff'}`}"></span><b>${esc(sp.label)}</b><small>${esc(sp.desc)}</small></button>`; }).join('')}</div></div>
+    <div class="style-presets">${Object.entries(STYLE_PRESETS).map(([k, sp]) => { const p = THEME_PRESETS[sp.tema.preset]; const dark = sp.tema.mode === 'dark'; return `<button type="button" class="style-preset" data-style="${k}"><span class="sp-sw ${sp.tema.efek === 'genz' ? 'sp-genz' : ''}" style="--c:${p.brand};--a:${p.accent};background:${dark ? `radial-gradient(circle at 25% 30%, ${p.brand}88, transparent 60%), radial-gradient(circle at 80% 70%, ${p.accent}77, transparent 60%), #0f1419` : `linear-gradient(135deg, ${p.bg || '#f5f6f8'}, ${p.brand}33), ${p.bg || '#fff'}`}"></span><b>${esc(sp.label)}${sp.badge ? ` <em class="sp-new">${esc(sp.badge)}</em>` : ''}</b><small>${esc(sp.desc)}</small></button>`; }).join('')}</div></div>
 
   <div class="panel"><h3>${ic('grid')} Warna Tema</h3>
     ${groups.map((g) => `<h4 class="detail-h">${esc(g)}</h4><div class="choices colors">${opt('preset', Object.entries(THEME_PRESETS).filter(([, v]) => v.group === g), t.preset, (k, v) => `<span class="sw" style="--c:${v.brand};--a:${v.accent}${v.bg ? `;background:${v.bg}` : ''}"><i></i><i></i></span><b>${esc(v.label)}</b>${v.desc ? `<small>${esc(v.desc)}</small>` : ''}`)}</div>`).join('')}
@@ -40,7 +42,12 @@ export function viewTampilan(main) {
     <div class="choices models">${opt('model', Object.entries(MODELS), t.model, (k, v) => `<span class="mdl mdl-${k}"><i></i><i></i><i></i></span><b>${esc(v.label.split(' — ')[0])}</b><small>${esc(v.label.split(' — ')[1] || '')}</small>`)}</div></div>
 
   <div class="panel"><h3>Aa Huruf (Tipografi)</h3>
-    <div class="font-choices">${opt('font', Object.entries(FONT_PAIRS), t.font, (k, v) => `<b style="font-family:${v.head}, ${v.font}, sans-serif">Aa 123</b><small style="font-family:${v.font}, sans-serif">${esc(v.label)}</small>`)}</div></div>
+    <div class="font-choices">${opt('font', Object.entries(FONT_PAIRS), t.font, (k, v) => `<b style="font-family:${v.head}, ${v.font}, sans-serif">Aa 123</b><small style="font-family:${v.font}, sans-serif">${esc(v.label)}</small>`)}</div>
+    <h4 class="detail-h">Pustaka Huruf — ${Object.keys(FONT_LIST).length} pilihan (atur huruf judul & teks secara terpisah)</h4>
+    <p class="muted small">Huruf dari Google Fonts & Fontshare dimuat hanya bila dipakai. Huruf komersial/sistem (Proxima Nova, Butler, Perpetua, Lucida Bright, Cambria, Helvetica, dll.) memakai huruf yang terpasang di perangkat pengunjung, dan otomatis diganti huruf gratis yang paling mirip bila tidak ada.</p>
+    <div class="form-grid">${fontSel('tm-fhead', t.fHead, 'Huruf judul (heading)')}${fontSel('tm-fbody', t.fBody, 'Huruf teks (isi, menu, tombol)')}</div>
+    <div class="font-live" id="tm-font-live"><span class="eyebrow">Pratinjau huruf</span><h2>Portal Data & Informasi Gampong</h2><p>Informasi kegiatan, data penduduk, dan layanan gampong dalam satu tempat — 0123456789.</p><button type="button" class="btn btn-primary btn-sm">Tombol contoh</button></div>
+    <details class="fieldset"><summary>Lihat semua huruf</summary><div class="font-gallery">${Object.entries(FONT_LIST).map(([k, f]) => `<div class="fg-item"><b style="font-family:${esc(fontStack(k))}">${esc(f.label)}</b><small style="font-family:${esc(fontStack(k))}">Aa Bb 123 — Gampong</small><span><button type="button" class="chip" data-fpick="tm-fhead" data-fv="${k}">Judul</button><button type="button" class="chip" data-fpick="tm-fbody" data-fv="${k}">Teks</button></span></div>`).join('')}</div></details></div>
 
   <div class="panel-grid two">
     <div class="panel"><h3>Sudut Panel</h3><div class="choices">${opt('radius', Object.entries(RADII), t.radius, (k, v) => `<span class="rd" style="border-radius:${v.v}"></span><small>${esc(v.label)}</small>`)}</div></div>
@@ -67,7 +74,7 @@ export function viewTampilan(main) {
 
   let brand = t.brand, accent = t.accent;
   const val = (n) => $(`input[name=${n}]:checked`, main)?.value;
-  const read = () => ({ preset: val('preset'), model: val('model'), efek: val('efek'), font: val('font'), radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
+  const read = () => ({ preset: val('preset'), model: val('model'), efek: val('efek'), font: val('font'), fHead: $('#tm-fhead').value, fBody: $('#tm-fbody').value, radius: val('radius'), mode: val('mode'), toggle: $('#tm-toggle').checked, brand: brand || '', accent: accent || '' });
   const mark = () => $$('.choice', main).forEach((c) => c.classList.toggle('on', !!c.querySelector('input')?.checked));
   const preview = () => { mark(); applyTheme(read()); };
   const setRadio = (n, v) => { const r = $(`input[name=${n}][value="${v}"]`, main); if (r) r.checked = true; };
@@ -81,6 +88,7 @@ export function viewTampilan(main) {
   $$('[data-style]', main).forEach((b) => b.onclick = () => {
     const sp = STYLE_PRESETS[b.dataset.style].tema;
     Object.entries(sp).forEach(([k, v]) => setRadio(k, v));
+    $('#tm-fhead').value = sp.fHead || ''; $('#tm-fbody').value = sp.fBody || '';
     brand = ''; accent = ''; const p = THEME_PRESETS[sp.preset]; $('#tm-brand').value = p.brand; $('#tm-accent').value = p.accent;
     guard.dirty = true; preview();
     // pratinjau mode juga untuk Super Admin yang sudah memilih mode sendiri
@@ -88,13 +96,14 @@ export function viewTampilan(main) {
     applyTheme(read());
     toast(`Gaya “${STYLE_PRESETS[b.dataset.style].label}” diterapkan sebagai pratinjau — klik Simpan Tema`, 'info');
   });
+  $$('[data-fpick]', main).forEach((b) => b.onclick = () => { $('#' + b.dataset.fpick).value = b.dataset.fv; guard.dirty = true; preview(); toast(`${FONT_LIST[b.dataset.fv].label} dipakai untuk ${b.dataset.fpick === 'tm-fhead' ? 'judul' : 'teks'} (pratinjau)`, 'info'); });
   $('#tm-brand').oninput = (e) => { brand = e.target.value; preview(); };
   $('#tm-accent').oninput = (e) => { accent = e.target.value; preview(); };
   $('#tm-brand-clear').onclick = () => { brand = ''; preview(); };
   $('#tm-accent-clear').onclick = () => { accent = ''; preview(); };
   $('#tm-save').onclick = async () => {
     const tema = read();
-    try { await cfgUpdate({ tema }); state.config.tema = tema; guard.dirty = false; logAudit('tampilan', 'tema', `Mengubah tema (${THEME_PRESETS[tema.preset]?.label}, efek ${EFFECTS[tema.efek]?.label}, model ${tema.model}, huruf ${tema.font})`, { changes: diff(t, tema) }); toast('Tema disimpan', 'success'); }
+    try { await cfgUpdate({ tema }); state.config.tema = tema; guard.dirty = false; logAudit('tampilan', 'tema', `Mengubah tema (${THEME_PRESETS[tema.preset]?.label}, efek ${EFFECTS[tema.efek]?.label}, model ${tema.model}, huruf ${tema.fHead ? FONT_LIST[tema.fHead]?.label : tema.font}${tema.fBody ? ' / ' + FONT_LIST[tema.fBody]?.label : ''})`, { changes: diff(t, tema) }); toast('Tema disimpan', 'success'); }
     catch (e) { toast('Gagal: ' + e.message, 'error'); }
   };
   $('#tm-reset').onclick = async () => { if (!await confirmDialog('Kembalikan tema ke bawaan (Teal Gampong, Solid, model Klasik)?', { okText: 'Kembalikan' })) return; await cfgUpdate({ tema: DEFAULT_TEMA }); state.config.tema = DEFAULT_TEMA; guard.dirty = false; logAudit('tampilan', 'tema_reset', 'Mengembalikan tema bawaan'); viewTampilan(main); };

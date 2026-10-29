@@ -1,6 +1,6 @@
 # Serenity — Sistem Informasi Gampong Digital
 
-![versi](https://img.shields.io/badge/versi-2.4.2-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-2.5.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -8,6 +8,10 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 
 ---
 
+
+## Baru di v2.5.0 “Prisma”
+- 🎨 Gaya **Gen Z Vibrant** (+ Neon Night, Acid, Sunset) dan 4 palet warna Gen Z di **Sistem › Tampilan & Tema**.
+- 🔤 **Pustaka 38 huruf** — atur huruf judul & teks secara terpisah (Super Admin).
 
 ## Baru di v2.4.0 “Nebula”
 - ⚡ **Sinkron Bertahap (delta sync)** — data disimpan di perangkat; saat dibuka hanya dokumen yang berubah yang dibaca. Kunjungan ulang beranda: **±3 read** (sebelumnya puluhan–ratusan). Data admin dienkripsi AES-GCM 256-bit.

@@ -1,5 +1,16 @@
 # Catatan Perubahan
 
+## v2.5.0 “Prisma” — 2026.10.29 (Build 2026.10.29 · R11 · Stable)
+### Gaya baru: Gen Z Vibrant
+- Efek visual baru **Gen Z Vibrant**: blob neon bergerak, tekstur grain halus, judul tebal bergradasi, tombol pil bercahaya, kartu “sticker” dengan bayangan geser, garis gradasi pada judul bagian, running text & hitung mundur sholat bergradasi, animasi muncul saat digulir. Ringan (GPU) dan menghormati pengaturan “kurangi gerakan”.
+- 4 gaya siap pakai: **Gen Z Vibrant** (Clash Display + Satoshi), **Gen Z Neon Night** (mode gelap, Cabinet Grotesk + General Sans), **Gen Z Acid** (Syne + Space Grotesk), **Gen Z Sunset** (Bebas Neue + Outfit).
+- 4 palet warna baru grup **Gen Z**: Gen Z Electric, Acid Lime, Sunset Pop, Cyber Ocean. Semua tetap bisa diganti warna kustom oleh Super Admin.
+### Pustaka Huruf (Super Admin)
+- **38 huruf** yang bisa dipilih terpisah untuk **judul** dan **teks**: Plus Jakarta Sans, Inter, Satoshi, Outfit, General Sans, Clash Display, Syne, Cabinet Grotesk, Bebas Neue, Playfair Display, Cinzel, Fraunces, Instrument Serif, Sora, Space Grotesk, Lexend, JetBrains Mono, Space Mono, Helvetica, Arial, Verdana, Open Sans, Poppins, Lato, Roboto, Montserrat, Times New Roman, Cambria, Geneva, Courier, Butler, Lucida Bright, Raleway, Merriweather, Nunito, Garamond, Perpetua, Proxima Nova.
+- Pratinjau langsung, galeri semua huruf, dan tombol cepat “Judul / Teks”. Huruf dimuat hanya bila dipakai (Google Fonts & Fontshare).
+- Huruf komersial/sistem memakai huruf terpasang di perangkat pengunjung bila ada, dengan pengganti gratis yang mirip (Proxima Nova → Montserrat, Butler → Playfair Display, Perpetua → Cormorant Garamond, Lucida Bright → Libre Baskerville, Cambria → Caladea, Garamond → EB Garamond).
+- Huruf pilihan ikut diingat perangkat sehingga tampil benar sejak halaman pertama dibuka.
+
 ## v2.4.2 — 2026.10.29 (R10 · Stable)
 ### Perbaikan
 - **Tema/warna lama sesekali muncul saat website dibuka.** Halaman pertama sempat digambar dengan warna bawaan sebelum pengaturan tema Super Admin termuat. Kini tema terakhir (warna, huruf, model, efek, sudut, mode gelap/terang) diingat di perangkat dan diterapkan **sebelum halaman tampil**, dan tampilan pertama menunggu pengaturan termuat (maks. 2,5 detik).

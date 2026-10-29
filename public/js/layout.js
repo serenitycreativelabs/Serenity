@@ -6,6 +6,10 @@ import { esc, $, $$, confirmDialog } from './ui.js';
 // ---------------------------------------------------------------- tema
 // Warna tema. bg/surface = nuansa latar mode terang; bgDark/surfaceDark = nuansa mode gelap (opsional)
 export const THEME_PRESETS = {
+  genz: { label: 'Gen Z Electric', desc: 'Ungu listrik × pink neon', group: 'Gen Z', brand: '#7c3aed', accent: '#ec4899', bg: '#f8f5ff', surface: '#ffffff', line: '#e9e1fb', bgDark: '#0b0912', surfaceDark: '#15111f' },
+  acid: { label: 'Acid Lime', desc: 'Indigo × hijau limau', group: 'Gen Z', brand: '#4f46e5', accent: '#65a30d', bg: '#f6f7ff', surface: '#ffffff', line: '#e2e5fb', bgDark: '#0a0b14', surfaceDark: '#131520' },
+  sunset: { label: 'Sunset Pop', desc: 'Oranye × magenta', group: 'Gen Z', brand: '#ea580c', accent: '#db2777', bg: '#fff7f2', surface: '#ffffff', line: '#fde3d4', bgDark: '#140c0a', surfaceDark: '#1f1410' },
+  ocean: { label: 'Cyber Ocean', desc: 'Biru elektrik × toska', group: 'Gen Z', brand: '#2563eb', accent: '#0891b2', bg: '#f3f8ff', surface: '#ffffff', line: '#dbe7fb', bgDark: '#070c16', surfaceDark: '#0f1724' },
   teal: { label: 'Teal Gampong', group: 'Klasik', brand: '#0f766e', accent: '#b45309' },
   biru: { label: 'Biru Laut', group: 'Klasik', brand: '#1d4ed8', accent: '#ea580c' },
   hijau: { label: 'Hijau Sawah', group: 'Klasik', brand: '#15803d', accent: '#a16207' },
@@ -31,6 +35,7 @@ export const EFFECTS = {
   solid: { label: 'Solid & Bersih', desc: 'Tanpa efek, paling ringan' },
   glass: { label: 'Glassy', desc: 'Panel kaca bening (glassmorphism)' },
   aurora: { label: 'Blurry Aurora', desc: 'Latar gradien blur yang bergerak lembut' },
+  genz: { label: 'Gen Z Vibrant', desc: 'Gradasi neon, blob bergerak, judul tebal, kartu “sticker”' },
 };
 // Pasangan huruf. gf = parameter Google Fonts (dimuat hanya saat dipakai)
 export const FONT_PAIRS = {
@@ -49,6 +54,64 @@ export const FONT_PAIRS = {
   klasik: { label: 'Klasik — Lora untuk judul', font: "'Inter'", head: "'Lora'", gf: '' },
   ramah: { label: 'Ramah — Nunito', font: "'Nunito'", head: "'Nunito'", gf: '' },
 };
+// ---------------------------------------------------------------- pustaka huruf (Super Admin)
+// src: g = Google Fonts, fs = Fontshare (gratis), sys = huruf sistem (tanpa unduhan).
+// Huruf komersial (Proxima Nova, Butler, Perpetua, dll.) memakai huruf terpasang di perangkat bila ada,
+// dan otomatis memakai pengganti gratis yang paling mirip bila tidak ada.
+export const FONT_CATS = { sans: 'Sans-serif modern', display: 'Display & judul', serif: 'Serif / elegan', mono: 'Monospace', sys: 'Huruf sistem & klasik' };
+export const FONT_LIST = {
+  jakarta: { label: 'Plus Jakarta Sans', fam: "'Plus Jakarta Sans'", cat: 'sans', src: 'g', q: 'family=Plus+Jakarta+Sans:wght@400;500;600;700;800' },
+  inter: { label: 'Inter', fam: "'Inter'", cat: 'sans', src: 'g', q: 'family=Inter:wght@400;500;600;700;800' },
+  satoshi: { label: 'Satoshi', fam: "'Satoshi'", cat: 'sans', src: 'fs', q: 'satoshi@400,500,700,900' },
+  outfit: { label: 'Outfit', fam: "'Outfit'", cat: 'sans', src: 'g', q: 'family=Outfit:wght@400;500;600;700;800' },
+  generalsans: { label: 'General Sans', fam: "'General Sans'", cat: 'sans', src: 'fs', q: 'general-sans@400,500,600,700' },
+  sora: { label: 'Sora', fam: "'Sora'", cat: 'sans', src: 'g', q: 'family=Sora:wght@400;500;600;700;800' },
+  spacegrotesk: { label: 'Space Grotesk', fam: "'Space Grotesk'", cat: 'sans', src: 'g', q: 'family=Space+Grotesk:wght@400;500;600;700' },
+  lexend: { label: 'Lexend', fam: "'Lexend'", cat: 'sans', src: 'g', q: 'family=Lexend:wght@400;500;600;700;800' },
+  opensans: { label: 'Open Sans', fam: "'Open Sans'", cat: 'sans', src: 'g', q: 'family=Open+Sans:wght@400;500;600;700;800' },
+  poppins: { label: 'Poppins', fam: "'Poppins'", cat: 'sans', src: 'g', q: 'family=Poppins:wght@400;500;600;700;800' },
+  lato: { label: 'Lato', fam: "'Lato'", cat: 'sans', src: 'g', q: 'family=Lato:wght@400;700;900' },
+  roboto: { label: 'Roboto', fam: "'Roboto'", cat: 'sans', src: 'g', q: 'family=Roboto:wght@400;500;700;900' },
+  montserrat: { label: 'Montserrat', fam: "'Montserrat'", cat: 'sans', src: 'g', q: 'family=Montserrat:wght@400;500;600;700;800' },
+  raleway: { label: 'Raleway', fam: "'Raleway'", cat: 'sans', src: 'g', q: 'family=Raleway:wght@400;500;600;700;800' },
+  nunito: { label: 'Nunito', fam: "'Nunito'", cat: 'sans', src: 'g', q: 'family=Nunito:wght@400;600;700;800' },
+  proxima: { label: 'Proxima Nova', fam: "'Proxima Nova', 'Montserrat'", cat: 'sans', src: 'g', q: 'family=Montserrat:wght@400;500;600;700;800', note: 'komersial — pengganti: Montserrat' },
+  clash: { label: 'Clash Display', fam: "'Clash Display'", cat: 'display', src: 'fs', q: 'clash-display@400,500,600,700' },
+  cabinet: { label: 'Cabinet Grotesk', fam: "'Cabinet Grotesk'", cat: 'display', src: 'fs', q: 'cabinet-grotesk@400,500,700,800,900' },
+  syne: { label: 'Syne', fam: "'Syne'", cat: 'display', src: 'g', q: 'family=Syne:wght@400;500;600;700;800' },
+  bebas: { label: 'Bebas Neue', fam: "'Bebas Neue'", cat: 'display', src: 'g', q: 'family=Bebas+Neue', note: 'huruf kapital, cocok untuk judul' },
+  playfair: { label: 'Playfair Display', fam: "'Playfair Display'", cat: 'serif', src: 'g', q: 'family=Playfair+Display:wght@400;600;700;800' },
+  cinzel: { label: 'Cinzel', fam: "'Cinzel'", cat: 'serif', src: 'g', q: 'family=Cinzel:wght@400;600;700;800' },
+  fraunces: { label: 'Fraunces', fam: "'Fraunces'", cat: 'serif', src: 'g', q: 'family=Fraunces:wght@400;600;700;800' },
+  instrument: { label: 'Instrument Serif', fam: "'Instrument Serif'", cat: 'serif', src: 'g', q: 'family=Instrument+Serif:ital@0;1' },
+  merriweather: { label: 'Merriweather', fam: "'Merriweather'", cat: 'serif', src: 'g', q: 'family=Merriweather:wght@400;700;900' },
+  garamond: { label: 'Garamond', fam: "'Garamond', 'EB Garamond'", cat: 'serif', src: 'g', q: 'family=EB+Garamond:wght@400;500;600;700;800' },
+  butler: { label: 'Butler', fam: "'Butler', 'Playfair Display'", cat: 'serif', src: 'g', q: 'family=Playfair+Display:wght@400;600;700;800', note: 'tidak tersedia di CDN — pengganti: Playfair Display' },
+  perpetua: { label: 'Perpetua', fam: "'Perpetua', 'Cormorant Garamond'", cat: 'serif', src: 'g', q: 'family=Cormorant+Garamond:wght@400;500;600;700', note: 'komersial — pengganti: Cormorant Garamond' },
+  lucida: { label: 'Lucida Bright', fam: "'Lucida Bright', 'Libre Baskerville'", cat: 'serif', src: 'g', q: 'family=Libre+Baskerville:wght@400;700', note: 'huruf sistem — pengganti: Libre Baskerville' },
+  jetbrains: { label: 'JetBrains Mono', fam: "'JetBrains Mono'", cat: 'mono', src: 'g', q: 'family=JetBrains+Mono:wght@400;500;600;700' },
+  spacemono: { label: 'Space Mono', fam: "'Space Mono'", cat: 'mono', src: 'g', q: 'family=Space+Mono:wght@400;700' },
+  courier: { label: 'Courier', fam: "'Courier New', Courier", cat: 'mono', src: 'sys' },
+  helvetica: { label: 'Helvetica', fam: "Helvetica, 'Helvetica Neue', Arial", cat: 'sys', src: 'sys' },
+  arial: { label: 'Arial', fam: 'Arial, Helvetica', cat: 'sys', src: 'sys' },
+  verdana: { label: 'Verdana', fam: 'Verdana, Geneva', cat: 'sys', src: 'sys' },
+  geneva: { label: 'Geneva', fam: 'Geneva, Verdana', cat: 'sys', src: 'sys' },
+  times: { label: 'Times New Roman', fam: "'Times New Roman', Times", cat: 'sys', src: 'sys' },
+  cambria: { label: 'Cambria', fam: "Cambria, 'Caladea'", cat: 'sys', src: 'g', q: 'family=Caladea:wght@400;700', note: 'pengganti di HP/Mac: Caladea' },
+};
+const GENERIC = { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', display: 'system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: 'ui-monospace, SFMono-Regular, Menlo, monospace', sys: 'system-ui, sans-serif' };
+export const fontStack = (id) => { const f = FONT_LIST[id]; return f ? `${f.fam}, ${GENERIC[f.cat] || GENERIC.sans}` : ''; };
+export const fontUrl = (id) => {
+  const f = FONT_LIST[id]; if (!f?.q) return '';
+  return f.src === 'fs' ? `https://api.fontshare.com/v2/css?f[]=${f.q}&display=swap` : `https://fonts.googleapis.com/css2?${f.q}&display=swap`;
+};
+export function ensureFontIds(ids) {
+  for (const id of ids) {
+    const u = fontUrl(id); if (!u || document.getElementById(`ff-${id}`)) continue;
+    const l = document.createElement('link'); l.id = `ff-${id}`; l.rel = 'stylesheet'; l.href = u; document.head.appendChild(l);
+  }
+}
+
 export const RADII = { tegas: { label: 'Tegas', v: '6px' }, sedang: { label: 'Sedang', v: '12px' }, bulat: { label: 'Bulat', v: '18px' }, kapsul: { label: 'Ekstra bulat', v: '24px' } };
 export const STYLE_PRESETS = {
   darkglass: { label: 'Dark Glass Modern', desc: 'Mode gelap + glassmorphism + Inter & JetBrains Mono', tema: { preset: 'grafit', efek: 'glass', font: 'tech', mode: 'dark', radius: 'bulat', model: 'kartu' } },
@@ -56,8 +119,12 @@ export const STYLE_PRESETS = {
   aurora: { label: 'Aurora Dinamis', desc: 'Latar blur bergerak, tipografi Sora', tema: { preset: 'lavender', efek: 'aurora', font: 'sora', mode: 'auto', radius: 'bulat', model: 'klasik' } },
   hangat: { label: 'Terracotta Hangat', desc: 'Palet earthy, huruf Outfit', tema: { preset: 'terracotta', efek: 'solid', font: 'outfit', mode: 'light', radius: 'sedang', model: 'klasik' } },
   golden: { label: 'Golden Hour', desc: 'Warm autumn, judul Playfair', tema: { preset: 'autumn', efek: 'solid', font: 'elegan', mode: 'light', radius: 'sedang', model: 'majalah' } },
+  genz: { label: 'Gen Z Vibrant', desc: 'Neon ungu-pink, Clash Display + Satoshi', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'clash', fBody: 'satoshi', mode: 'auto', radius: 'kapsul', model: 'kartu' } },
+  genznight: { label: 'Gen Z Neon Night', desc: 'Mode gelap bercahaya, Cabinet Grotesk', badge: 'BARU', tema: { preset: 'genz', efek: 'genz', font: 'modern', fHead: 'cabinet', fBody: 'generalsans', mode: 'dark', radius: 'kapsul', model: 'kartu' } },
+  genzacid: { label: 'Gen Z Acid', desc: 'Indigo × lime, Syne + Space Grotesk', badge: 'BARU', tema: { preset: 'acid', efek: 'genz', font: 'modern', fHead: 'syne', fBody: 'spacegrotesk', mode: 'light', radius: 'kapsul', model: 'kartu' } },
+  genzsunset: { label: 'Gen Z Sunset', desc: 'Oranye-magenta, Bebas Neue + Outfit', badge: 'BARU', tema: { preset: 'sunset', efek: 'genz', font: 'modern', fHead: 'bebas', fBody: 'outfit', mode: 'light', radius: 'bulat', model: 'kartu' } },
 };
-export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', radius: 'sedang', mode: 'auto', toggle: true };
+export const DEFAULT_TEMA = { preset: 'teal', brand: '', accent: '', model: 'klasik', efek: 'solid', font: 'modern', fHead: '', fBody: '', radius: 'sedang', mode: 'auto', toggle: true };
 
 // Muat huruf Google Fonts sesuai kebutuhan (tidak membebani halaman bila tidak dipakai)
 export function ensureFonts(keys) {
@@ -93,9 +160,13 @@ export function applyTheme(tema, { fromServer = false } = {}) {
   html.style.setProperty('--radius', r); html.style.setProperty('--radius-sm', `calc(${r} * .66)`);
   const fp = FONT_PAIRS[currentTema.font] || FONT_PAIRS.modern;
   ensureFonts([currentTema.font]);
-  html.style.setProperty('--font', `${fp.font}, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`);
-  html.style.setProperty('--font-head', `${fp.head}, ${fp.font}, system-ui, sans-serif`);
+  // Huruf kustom per bagian (teks & judul) dari pustaka huruf — menimpa pasangan huruf bila dipilih
+  const fB = FONT_LIST[currentTema.fBody] ? currentTema.fBody : '', fH = FONT_LIST[currentTema.fHead] ? currentTema.fHead : '';
+  ensureFontIds([fB, fH].filter(Boolean));
+  html.style.setProperty('--font', fB ? fontStack(fB) : `${fp.font}, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`);
+  html.style.setProperty('--font-head', fH ? fontStack(fH) : `${fp.head}, ${fp.font}, system-ui, sans-serif`);
   html.style.setProperty('--font-mono', fp.mono ? `${fp.mono}, ui-monospace, SFMono-Regular, Menlo, monospace` : 'var(--font-head)');
+  html.dataset.fh = fH; // mis. Bebas Neue (kapital) butuh penyesuaian kecil di CSS
   html.dataset.model = MODELS[currentTema.model] ? currentTema.model : 'klasik';
   html.dataset.font = currentTema.font; html.dataset.efek = EFFECTS[currentTema.efek] ? currentTema.efek : 'solid';
   html.dataset.mono = fp.mono ? '1' : '';
@@ -105,7 +176,7 @@ export function applyTheme(tema, { fromServer = false } = {}) {
   if (fromServer) {
     try {
       localStorage.setItem('dd:tema', JSON.stringify(tema || {}));
-      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, gf: fp.gf ? `${currentTema.font}|${fp.gf}` : '', meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
+      localStorage.setItem('dd:temaSnap', JSON.stringify({ css: html.style.cssText.replace(/color-scheme[^;]*;?/g, ''), ds: { model: html.dataset.model, font: html.dataset.font, efek: html.dataset.efek, mono: html.dataset.mono, fh: html.dataset.fh }, mode: currentTema.mode || 'auto', toggle: currentTema.toggle !== false, links: [fp.gf ? `https://fonts.googleapis.com/css2?${fp.gf}&display=swap` : '', fontUrl(fB), fontUrl(fH)].filter(Boolean), meta: document.querySelector('meta[name=theme-color]')?.getAttribute('content') || '' }));
     } catch { /* */ }
   }
   $$('[data-theme-toggle]').forEach((b) => { b.hidden = currentTema.toggle === false; b.innerHTML = themeIcon(); b.title = html.dataset.theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'; });

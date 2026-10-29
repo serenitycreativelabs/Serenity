@@ -1,5 +1,5 @@
 /* Serenity Service Worker — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
-const VERSION = '2.4.2';
+const VERSION = '2.5.0';
 const SHELL = `serenity-shell-v${VERSION}`;
 const RUNTIME = `serenity-runtime-v${VERSION}`;
 const SHELL_FILES = [
@@ -10,7 +10,7 @@ const SHELL_FILES = [
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
 // Pustaka & data yang aman di-cache (Firebase SDK, SheetJS, jsPDF, font, data wilayah)
-const CACHEABLE_HOSTS = ['www.gstatic.com', 'cdn.sheetjs.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'www.emsifa.com', 'ibnux.github.io'];
+const CACHEABLE_HOSTS = ['www.gstatic.com', 'cdn.sheetjs.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'api.fontshare.com', 'cdn.fontshare.com', 'www.emsifa.com', 'ibnux.github.io'];
 // Jangan pernah di-cache (API dinamis & autentikasi)
 const BYPASS = ['/__/auth/', 'firebase-config.local.js', 'firestore.googleapis.com', 'firebaseappcheck.googleapis.com', 'recaptcha', 'www.google.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'graph.instagram.com', 'firebaseinstallations.googleapis.com', 'wa.me'];
 
