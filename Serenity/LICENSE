@@ -1,0 +1,10 @@
+Serenity — Sistem Informasi Desa Digital
+Copyright © Serenity Creativa 2026. Hak cipta dilindungi undang-undang.
+
+Perangkat lunak ini beserta seluruh kode sumber, desain, dan dokumentasinya
+adalah milik Serenity Creativa. Dilarang menyalin, mendistribusikan ulang,
+menjual, atau memodifikasi untuk tujuan komersial tanpa izin tertulis dari
+Serenity Creativa.
+
+Pustaka pihak ketiga yang digunakan (Firebase JS SDK, SheetJS, jsPDF,
+jsPDF-AutoTable) tunduk pada lisensinya masing-masing.
