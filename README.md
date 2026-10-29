@@ -40,7 +40,7 @@
 - Hak akses baru: `lembaga`, `dokumen` (diatur Super Admin di Manajemen Akun).
 
 ## Minor Release Version (Latest Work).
-- `v2.0.0`   : Big Update & Major Architecture Overhaul (Breaking Changes), migrasi data ke versi `v2.0.0` - `Aero`  
+- `v2.0.0`   : Big Update & Major Architecture Overhaul (Breaking Changes), migrasi data ke versi `v2.2.0` - `Aero`  
 - `v1.9.0` - `Solstice` : Deprecation warning and migration preparation
 - `v1.8.0` - `Meridian` : Development API integrations, cloud architecture, safety & webhooks
 - `v1.7.0` - `Pulsar`   : General bug fixes
