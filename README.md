@@ -1,4 +1,4 @@
-# WebKit Sistem Informasi Digital Berbasis Web by Serenity Creativa Labs
+# Sistem Informasi Digital Berbasis WebKit by Serenity Creativa Labs
 
 ![versi](https://img.shields.io/badge/versi-2.6.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16)
 
