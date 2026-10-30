@@ -33,7 +33,7 @@ export async function recordVisit() {
 }
 
 // ---------------------------------------------------------------- kehadiran (online)
-let beatT = 0, visBound = false, wOpen = false;
+let beatT = 0, visBound = false, wOpen = false, outBound = false;
 async function beat() {
   if (document.hidden) return;
   try {
@@ -86,14 +86,17 @@ function paintWidget() {
   const el = document.getElementById('vis-widget'); if (!el) return;
   const days = lastDays(7); const peak = Math.max(1, ...days.map((d) => d.n));
   el.classList.toggle('open', wOpen); const open = wOpen;
-  el.innerHTML = `<button type="button" class="vw-pill" aria-expanded="${open}" title="Statistik pengunjung realtime">
-      <span class="vw-live"><i></i>${A.online == null ? '…' : fmtNum(A.online)}</span><span class="vw-sep"></span>
-      <span class="vw-kv"><small>Hari ini</small><b>${fmtNum(todayVisits())}</b></span>
-      <span class="vw-kv"><small>Total</small><b>${fmtNum(A.summary?.total || 0)}</b></span></button>
-    <div class="vw-pop" role="dialog" aria-label="Kunjungan 7 hari terakhir"><b>Kunjungan 7 hari</b>
+  const on = A.online == null ? '–' : fmtNum(A.online);
+  // v2.9.11: di footer hanya titik hijau; angka online/hari ini/total ada di panel saat titik ditekan
+  el.innerHTML = `<button type="button" class="vw-pill vw-dot" aria-expanded="${open}" title="Pengunjung online: ${on} — tekan untuk statistik" aria-label="Statistik pengunjung realtime (${on} online)">
+      <span class="vw-live"><i></i></span></button>
+    <div class="vw-pop" role="dialog" aria-label="Statistik pengunjung"><b>Statistik pengunjung</b>
+      <div class="vw-stats"><span><small>Online</small><b>${on}</b></span><span><small>Hari ini</small><b>${fmtNum(todayVisits())}</b></span><span><small>Total</small><b>${fmtNum(A.summary?.total || 0)}</b></span></div>
+      <small class="vw-cap">Kunjungan 7 hari</small>
       <div class="vw-bars">${days.map((d) => `<span title="${esc(d.iso)}: ${fmtNum(d.n)} kunjungan"><i style="height:${Math.max(4, (d.n / peak) * 100)}%"></i><small>${esc(['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(d.iso + 'T12:00:00').getDay()])}</small></span>`).join('')}</div>
-      <p><span class="vw-live"><i></i></span> ${A.online == null ? '–' : fmtNum(A.online)} pengunjung sedang online · diperbarui tiap 90 detik</p></div>`;
+      <p><span class="vw-live"><i></i></span> ${on} pengunjung sedang online · diperbarui tiap 90 detik</p></div>`;
   el.querySelector('.vw-pill').onclick = () => { wOpen = !wOpen; el.classList.toggle('open', wOpen); el.querySelector('.vw-pill').setAttribute('aria-expanded', String(wOpen)); };
+  if (!outBound) { outBound = true; document.addEventListener('pointerdown', (e) => { if (wOpen && !e.target.closest?.('#vis-widget')) { wOpen = false; const w = document.getElementById('vis-widget'); w?.classList.remove('open'); w?.querySelector('.vw-pill')?.setAttribute('aria-expanded', 'false'); } }); }
 }
 
 // ---------------------------------------------------------------- kirim pemakaian Firestore (bertahap)

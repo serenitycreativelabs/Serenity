@@ -570,7 +570,6 @@ function renderPublic(r, soft) {
     <main class="pub-main">${content}<div class="m-credit"><span class="copyright" data-copyright>${esc(APP.credit)}</span><small>${APP.name} ${APP.versionLabel}</small></div></main>
     <aside class="side side-right" data-sort="sideRight" aria-label="Panel kanan">${side(rightKeys)}</aside>
   </div>
-  ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}
   <div class="mnav-scrim" id="mnav-scrim"></div>
   <nav class="mnav" aria-label="Navigasi cepat">
     <a href="#/" class="${p0 === '' ? 'on' : ''}">${ic('home')}<span>Beranda</span></a>
@@ -579,7 +578,7 @@ function renderPublic(r, soft) {
     <a href="#/data" class="${p0 === 'data' || p0 === 'infografis' ? 'on' : ''}">${ic('chart')}<span>Data</span></a>
     <button type="button" id="mnav-menu" class="${p0 === 'profil' || p0 === 'highlight' ? 'on' : ''}" aria-label="Menu lainnya">${ic('menu')}<span>Menu</span></button>
   </nav>
-  ${pubFooter(ticker, rt)}
+  ${pubFooter(ticker, rt, showVisits)}
   ${isSuper() && p0 === '' ? layoutBar('public') : ''}`;
   applyTheme(state.config.tema);
   applyBackground(state.config.latar, { isHome: p0 === '' });
@@ -611,18 +610,24 @@ function sideLayout(lay, withNews) {
   return { leftKeys, rightKeys: right };
 }
 
-// Footer statis & minimalis — semua informasi rata kanan; running text digerakkan JavaScript
-function pubFooter(ticker, rt = {}) {
+// Footer satu baris (v2.9.11): kiri = titik pengunjung online + running text, kanan = info footer.
+// Di HP/tablet bagian kanan disembunyikan (kredit tampil di bawah konten), baris kiri tetap di atas navigasi bawah.
+function pubFooter(ticker, rt = {}, showVisits = false) {
   const items = ticker ? String(rt.teks).split('\n').map((t) => t.trim()).filter(Boolean) : [];
   const speed = { lambat: 35, normal: 60, cepat: 100 }[rt.kecepatan] || 60;
   const bg = rt.bg ? `--tk:${esc(rt.bg)}` : ''; // warna latar pilihan → dipakai semi-transparan oleh CSS
-  return `<footer class="pub-foot">
-    ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan" style="${bg}"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" data-speed="${speed}" style="${tickerStyle(rt)}">${items.map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>` : ''}
+  return `<footer class="pub-foot ft2 ${items.length ? 'has-tk' : 'no-tk'} ${showVisits ? 'has-vis' : ''}">
     <div class="foot-line">
+    <div class="foot-start">
+    ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}
+    ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan" style="${bg}"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" data-speed="${speed}" style="${tickerStyle(rt)}">${items.map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>` : ''}
+    </div>
+    <div class="foot-end">
       <button class="link-btn" data-install hidden>${ic('phone')} Pasang aplikasi</button>
       ${state.config.telepon ? `<a href="${esc(waLink(state.config.telepon))}" target="_blank" rel="noopener">${ic('wa')} ${esc(state.config.telepon)}</a>` : ''}
       <span class="foot-ver" title="${esc(APP.buildLabel)}">${APP.name} ${APP.versionLabel}</span>
       <span class="copyright" data-copyright title="${esc(APP.credit)}">${esc(APP.credit)}</span>
+    </div>
     </div>
   </footer>`;
 }

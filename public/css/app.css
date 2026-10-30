@@ -2275,3 +2275,55 @@ body.viewas .sidebar { box-shadow: inset -3px 0 0 var(--accent); }
 .va-card .btn { flex: none; }
 /* kolom cari ber-ikon tetap memberi ruang untuk ikon kaca pembesar setelah dasbor dibuat ringkas */
 #app[data-shell="admin"] .search input { padding-left: 2.2em !important; }
+
+/* =============================================================
+   v2.9.11 — Running text & titik pengunjung online pindah ke dalam footer
+   Kiri: ● titik online + running text · Kanan: info footer (tidak bertabrakan)
+   ============================================================= */
+.pub-foot.ft2 .foot-line { justify-content: space-between !important; overflow: visible; gap: 14px; }
+.pub-foot.ft2 .foot-line::before { content: none; }
+.pub-foot.ft2 .foot-line > *::before { content: none !important; display: none !important; }
+.ft2 .foot-start { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; height: 100%; }
+.ft2 .foot-end { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 12px; white-space: nowrap; overflow: hidden; }
+.ft2 .foot-end > * { flex: none; white-space: nowrap; }
+.ft2 .foot-end > * + *::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--line); margin-right: 12px; vertical-align: middle; }
+.ft2 .foot-end > [hidden] + *::before { display: none; }
+.ft2.no-tk .foot-start { flex: 0 0 auto; }
+/* titik pengunjung online (tanpa angka) */
+.ft2 .vis-widget { position: relative; left: auto !important; bottom: auto !important; z-index: 2; flex: none; display: flex; }
+.vw-pill.vw-dot { width: 22px; height: 22px; padding: 0; gap: 0; justify-content: center; border-radius: 50%; box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); }
+.vw-pill.vw-dot:hover, .vis-widget.open .vw-dot { border-color: #16a34a; background: color-mix(in srgb, #16a34a 12%, var(--surface)); }
+.vw-dot .vw-live i { width: 8px; height: 8px; }
+.ft2 .vw-pop { bottom: calc(100% + 10px); left: -4px; width: 250px; font-size: .78rem; z-index: 5; white-space: normal; text-align: left; }
+.ft2 .vw-pop p { line-height: 1.35; align-items: flex-start; }
+.vw-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 6px; }
+.vw-stats span { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 10px; background: var(--surface-2, color-mix(in srgb, var(--ink) 5%, transparent)); }
+.vw-stats small, .vw-cap { color: var(--muted); font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.vw-stats b { font-variant-numeric: tabular-nums; font-size: .9rem; color: var(--ink); }
+.vw-cap { display: block; margin-top: 4px; }
+/* running text sebagai kapsul di kiri footer */
+.ft2 .ticker { flex: 1 1 auto; min-width: 0; height: 22px; border-radius: 999px; font-size: .72rem; }
+.ft2 .ticker-label { border-radius: 999px 0 0 999px; padding: 0 9px 0 10px; font-size: .6rem; }
+.ft2 .ticker-label .ic { width: 12px; height: 12px; }
+@media (min-width: 861px) {
+  body.has-ticker { --ticker-h: 0px; }                         /* tidak ada lagi baris terpisah di atas footer */
+  .ft2 .foot-end { flex: none; overflow: visible; }                 /* info kanan selalu utuh; running text memakai sisa ruang */
+}
+@media (min-width: 861px) and (max-width: 1180px) {
+  .ft2.has-tk .foot-end .foot-ver, .ft2.has-tk .foot-end > a[href*="wa.me"] { display: none; }
+  .ft2.has-tk .foot-end > .copyright::before { display: none; }
+}
+/* HP & tablet: baris tipis di atas navigasi bawah (titik + running text) */
+@media (max-width: 860px) {
+  .pub-foot.ft2 .foot-line { display: flex; height: var(--ticker-h); padding: 0 8px 0 10px; gap: 8px; }
+  .ft2 .foot-end { display: none; }
+  .ft2 .ticker { height: 20px; font-size: .7rem; }
+  .ft2 .vw-pill.vw-dot { width: 20px; height: 20px; }
+  .ft2 .vw-pop { width: min(250px, calc(100vw - 24px)); }
+  /* tanpa running text: hanya titik kecil yang melayang di kiri bawah, tanpa baris */
+  .pub-foot.ft2.no-tk .foot-line { height: 0; padding: 0; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }
+  .ft2.no-tk .vis-widget { position: absolute; left: 10px !important; bottom: 8px !important; }
+  .ft2.no-tk .vw-pill.vw-dot { width: 26px; height: 26px; box-shadow: var(--shadow); background: color-mix(in srgb, var(--surface) 90%, transparent); }
+  body.pubnav-open .ft2 .vis-widget { display: flex; }
+}
+@media (max-width: 860px) { body.pubnav-open .ft2.no-tk .vis-widget { display: none; } }

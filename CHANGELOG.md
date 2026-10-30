@@ -1,5 +1,14 @@
 # Catatan Perubahan
 
+## v2.9.11 “Kirana” — 2026.10.30 (Build 2026.10.30 · R27 · Stable)
+### Footer satu baris: running text & pengunjung online pindah ke dalam footer
+- **Desktop:** running text kini berada di **dalam footer sebelah kiri bawah** (bentuk kapsul, tetap semi-transparan & warna pilihan), info footer (WA, versi, copyright) tetap di kanan. Running text hanya memakai sisa ruang → tidak pernah bertabrakan; copyright selalu utuh. Baris running text terpisah di atas footer dihapus → ruang konten bertambah ±26 px.
+- Layar 861–1180 px (laptop kecil/tablet mendatar): nomor WA & versi disembunyikan otomatis bila running text aktif agar tetap lega.
+- **HP, tablet & PWA:** titik online + running text dalam satu baris tipis tepat di atas menu bawah; tanpa running text hanya titik kecil di kiri bawah (tanpa baris kosong).
+### Statistik pengunjung realtime: hanya titik hijau
+- Widget di footer kini hanya **titik hijau berkedip** (angka “Hari ini” & “Total” dihapus dari footer agar hemat ruang).
+- Tekan titik → panel statistik: **Online · Hari ini · Total**, grafik kunjungan 7 hari, dan keterangan pembaruan. Panel tertutup otomatis saat menekan di luar panel. Jumlah online juga tampil sebagai keterangan saat titik disorot.
+
 ## v2.9.10 “Kirana” — 2026.10.30 (Build 2026.10.30 · R26 · Stable)
 ### Footer & running text
 - Baris footer lebih ringkas: 40 → 30 px (desktop), tulisan & ikon sedikit lebih kecil, latar kaca lembut.

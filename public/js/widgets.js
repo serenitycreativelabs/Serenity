@@ -113,7 +113,7 @@ export function viewWidget(main) {
       <div class="kg-preview" id="wk-prev"></div>
     </div>
     <div class="panel"><h3>${ic('activity')} Widget Analitik Pengunjung</h3>
-      <p class="muted small">Widget kecil di kiri bawah beranda (di atas running text): jumlah pengunjung <b>online sekarang</b>, kunjungan <b>hari ini</b>, dan <b>total</b>. Klik widget untuk melihat grafik 7 hari. Hanya tampil di halaman depan.</p>
+      <p class="muted small">Titik hijau kecil di footer kiri bawah beranda (sebelum running text). Tekan titik untuk melihat pengunjung <b>online sekarang</b>, kunjungan <b>hari ini</b>, <b>total</b>, dan grafik 7 hari. Hanya tampil di halaman depan.</p>
       <label class="check"><input type="checkbox" id="wa-on" ${c.analitik.aktif ? 'checked' : ''}> Tampilkan widget analitik di beranda</label>
       <div class="callout small-callout">${ic('shield')}<div><p class="small">Hemat kuota: 1 tulis per sesi pengunjung, detak kehadiran tiap 2 menit hanya saat tab terlihat, dan hitungan online memakai <i>count aggregation</i> (1 read per 1.000 pengunjung). Tidak ada data pribadi yang disimpan.</p></div></div>
       <a class="btn btn-ghost btn-sm" href="#/admin/monitor">${ic('chart')} Buka Monitor & Analitik</a>
