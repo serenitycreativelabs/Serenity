@@ -35,70 +35,111 @@ export async function releaseOcr() { const w = await workerP?.catch(() => null);
 
 // ---------------------------------------------------------------- persiapan gambar
 // Orientasi EXIF, skala ke ±2000 px, abu-abu + kontras, dan (untuk tabel) hapus garis kisi.
-// sudut kemiringan teks (derajat) dengan metode profil proyeksi: baris teks paling "tajam" saat lurus
-function estimateSkew(gray, W, H) {
-  const step = Math.max(1, Math.round(W / 700)); const pts = [];
-  // hanya tepi goresan huruf (gelap dengan tetangga kanan terang) → bidang gelap besar (latar meja, bayangan) diabaikan
-  for (let y = 0; y < H; y += step) for (let x = 0; x < W - step; x += step) if (gray[y * W + x] < 120 && gray[y * W + x + step] > 160) pts.push(x, y);
-  if (pts.length < 400) return 0;
-  const score = (deg) => { const t = Math.tan((deg * Math.PI) / 180); const bins = new Float64Array(Math.ceil(H / step) + Math.ceil(W / step) + 4); const off = Math.ceil(W / step) + 2; for (let i = 0; i < pts.length; i += 2) { const b = Math.round((pts[i + 1] - pts[i] * t) / step) + off; if (b >= 0 && b < bins.length) bins[b]++; } let sum = 0, sq = 0; for (const v of bins) { sum += v; sq += v * v; } return sq - (sum * sum) / bins.length; };
+// ---------------------------------------------------------------- pengolahan gambar (v2.9.15: lebih tangguh untuk foto HP)
+// 1) analisis cepat di gambar kecil: arah miring + kotak area tulisan (dokumen dipotong dari latar meja/lantai)
+// 2) render ulang dari resolusi asli: luruskan, potong, perbesar sampai huruf ±30 px
+// 3) binarisasi adaptif (tahan bayangan, pantulan cahaya, pola latar KTP/KK) + hapus garis tabel
+const toGray = (d, n) => { const g = new Float32Array(n); for (let i = 0, p = 0; p < n; i += 4, p++) g[p] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000; return g; };
+// tepi goresan huruf: beda terang dengan tetangga (gradien) cukup besar
+function edgeMask(g, W, H, thr = 38) { const m = new Uint8Array(W * H); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const p = y * W + x; const gx = Math.abs(g[p + 1] - g[p - 1]), gy = Math.abs(g[p + W] - g[p - W]); if (gx + gy > thr) m[p] = 1; } return m; }
+// sudut kemiringan teks (derajat) dengan profil proyeksi tepi huruf
+function estimateSkew(mask, W, H) {
+  const pts = []; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[y * W + x]) pts.push(x, y);
+  if (pts.length < 300) return 0;
+  const score = (deg) => { const t = Math.tan((deg * Math.PI) / 180); const off = W + 2; const bins = new Float64Array(H + 2 * W + 4); for (let i = 0; i < pts.length; i += 2) { const b = Math.round(pts[i + 1] - pts[i] * t) + off; if (b >= 0 && b < bins.length) bins[b]++; } let sum = 0, sq = 0; for (const v of bins) { sum += v; sq += v * v; } return sq - (sum * sum) / bins.length; };
   let best = 0, bs = -1;
-  for (let a = -6; a <= 6.001; a += 0.5) { const v = score(a); if (v > bs) { bs = v; best = a; } }
-  for (let a = best - 0.45; a <= best + 0.451; a += 0.1) { const v = score(a); if (v > bs) { bs = v; best = a; } }
-  return Math.abs(best) < 0.15 ? 0 : best;
+  for (let a = -8; a <= 8.001; a += 0.5) { const v = score(a); if (v > bs) { bs = v; best = a; } }
+  for (let a = best - 0.45; a <= best + 0.451; a += 0.05) { const v = score(a); if (v > bs) { bs = v; best = a; } }
+  return Math.abs(best) < 0.12 ? 0 : best;
 }
-// Orientasi EXIF, skala, abu-abu + kontras, luruskan kemiringan, dan (untuk tabel) hapus garis kisi.
-export async function prepareImage(file, { removeLines = false, rotate = 0, target = 0, deskew = true } = {}) {
+// kotak area tulisan: baris/kolom yang padat tepi huruf (latar polos/bertekstur halus diabaikan)
+function contentBox(mask, W, H) {
+  const rows = new Float64Array(H), cols = new Float64Array(W); let tot = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[y * W + x]) { rows[y]++; cols[x]++; tot++; }
+  if (tot < 200) return null;
+  const span = (arr, n, lim) => { const thr = Math.max(2, lim); let a = 0, b = n - 1; while (a < n && arr[a] < thr) a++; while (b > a && arr[b] < thr) b--; return [a, b]; };
+  const [y0, y1] = span(rows, H, W * 0.012), [x0, x1] = span(cols, W, H * 0.012);
+  if (x1 - x0 < W * 0.15 || y1 - y0 < H * 0.1) return null;
+  return { x0, y0, x1, y1 };
+}
+// binarisasi adaptif Sauvola (integral image) → hitam = tulisan
+function sauvola(g, W, H, win, k = 0.28) {
+  const n = W * H, S = new Float64Array((W + 1) * (H + 1)), Q = new Float64Array((W + 1) * (H + 1));
+  for (let y = 1; y <= H; y++) { let rs = 0, rq = 0; for (let x = 1; x <= W; x++) { const v = g[(y - 1) * W + (x - 1)]; rs += v; rq += v * v; const i = y * (W + 1) + x; S[i] = S[i - W - 1] + rs; Q[i] = Q[i - W - 1] + rq; } }
+  const out = new Uint8ClampedArray(n); const r = Math.max(8, win >> 1);
+  for (let y = 0; y < H; y++) { const ya = Math.max(0, y - r), yb = Math.min(H, y + r + 1); for (let x = 0; x < W; x++) { const xa = Math.max(0, x - r), xb = Math.min(W, x + r + 1); const cnt = (yb - ya) * (xb - xa); const a = yb * (W + 1) + xb, b = ya * (W + 1) + xb, c = yb * (W + 1) + xa, d = ya * (W + 1) + xa; const sum = S[a] - S[b] - S[c] + S[d], sq = Q[a] - Q[b] - Q[c] + Q[d]; const m = sum / cnt, sd = Math.sqrt(Math.max(0, sq / cnt - m * m)); const t = m * (1 + k * (sd / 128 - 1)); out[y * W + x] = g[y * W + x] > t ? 255 : 0; } }
+  return out;
+}
+function removeGrid(bin, W, H) {
+  // garis tabel: deretan piksel hitam sangat panjang (boleh terputus ≤ 3 px)
+  const n = W * H, kill = new Uint8Array(n), GAP = 3, minH = Math.round(W / 10), minV = Math.round(H / 22);
+  const scan = (len, count, idx, min) => { for (let a = 0; a < count; a++) { let s = -1, last = -10; const flush = () => { if (s >= 0 && last - s + 1 >= min) for (let q = s; q <= last; q++) kill[idx(a, q)] = 1; }; for (let b = 0; b < len; b++) { if (bin[idx(a, b)] === 0) { if (s < 0 || b - last > GAP + 1) { flush(); s = b; } last = b; } } flush(); } };
+  scan(W, H, (y, x) => y * W + x, minH); scan(H, W, (x, y) => y * W + x, minV);
+  for (let p = 0; p < n; p++) if (kill[p]) { bin[p] = 255; if (p % W && kill[p - 1] === 0 && bin[p - 1] === 0 && (p + 1) % W && kill[p + 1]) bin[p - 1] = 255; }
+  // sisa tepi garis setebal 1–2 px di sebelah garis yang dihapus
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const p = y * W + x; if (bin[p] === 0 && ((kill[p - W] && kill[p + W]) || (kill[p - 1] && kill[p + 1]))) bin[p] = 255; }
+  for (let p = 0; p < n; p++) if (kill[p]) { if (p >= W && bin[p - W] === 0 && !(p >= 2 * W && bin[p - 2 * W] === 0)) bin[p - W] = 255; if (p + W < n && bin[p + W] === 0 && !(p + 2 * W < n && bin[p + 2 * W] === 0)) bin[p + W] = 255; }
+}
+const TARGET_W = { ktp: 2300, kk: 3600, doc: 2600 };
+/**
+ * Siapkan foto untuk OCR. Hasil: { bin, gray, info } — dua kanvas (hitam-putih adaptif & abu-abu) dari area dokumen yang sudah
+ * diluruskan dan diperbesar. kind: 'ktp' | 'kk' | 'doc'.
+ */
+export async function prepareImage(file, { kind = 'ktp', rotate = 0, crop = true } = {}) {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => null);
   const src = bmp || await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Berkas bukan gambar yang valid')); im.src = URL.createObjectURL(file); });
-  const w0 = src.width, h0 = src.height;
-  // KTP cukup ±2000 px; KK/dokumen (tulisan kecil, tabel) diperbesar sampai ±3200 px agar huruf terbaca
-  const maxL = target || 2400, minL = target ? Math.min(target, 3200) : 1400;
-  const long = Math.max(w0, h0); const k = long > maxL ? maxL / long : long < minL ? minL / long : 1;
-  const rot = ((rotate % 360) + 360) % 360, swap = rot === 90 || rot === 270;
-  const W = Math.round((swap ? h0 : w0) * k), H = Math.round((swap ? w0 : h0) * k), n = W * H;
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d', { willReadFrequently: true });
-  const render = (extraDeg) => {
-    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-    g.translate(W / 2, H / 2); g.rotate(((rot + extraDeg) * Math.PI) / 180);
-    g.drawImage(src, (-w0 * k) / 2, (-h0 * k) / 2, w0 * k, h0 * k);
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    const img = g.getImageData(0, 0, W, H); const d = img.data; const gray = new Uint8ClampedArray(n);
-    let lo = 255, hi = 0; const hist = new Uint32Array(256);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) { const v = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000; gray[p] = v; hist[v | 0]++; }
-    // regangkan kontras (abaikan 1% piksel paling gelap/terang)
-    let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * 0.01) { lo = v; break; } }
-    acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n * 0.01) { hi = v; break; } }
-    const span = Math.max(1, hi - lo);
-    for (let p = 0; p < n; p++) gray[p] = Math.max(0, Math.min(255, ((gray[p] - lo) * 255) / span));
-    return { img, gray };
-  };
-  let { img, gray } = render(0);
-  if (deskew) { const a = estimateSkew(gray, W, H); if (a) ({ img, gray } = render(-a)); }
-  if (removeLines) {
-    // garis kisi tabel: deretan piksel gelap yang sangat panjang (boleh terputus ≤ 3 px karena buram/miring)
-    const dark = (p) => gray[p] < 165; const minH = Math.round(W / 9), minV = Math.round(H / 20), GAP = 3;
-    const kill = new Uint8Array(n);
-    const scan = (len, count, idx) => { for (let a = 0; a < count; a++) { let s = -1, last = -10; for (let b = 0; b <= len; b++) { const on = b < len && dark(idx(a, b)); if (on) { if (s < 0 || b - last > GAP + 1) { if (s >= 0 && last - s + 1 >= (len === W ? minH : minV)) for (let q = s; q <= last; q++) kill[idx(a, q)] = 1; s = b; } last = b; } else if (b === len && s >= 0 && last - s + 1 >= (len === W ? minH : minV)) for (let q = s; q <= last; q++) kill[idx(a, q)] = 1; } } };
-    scan(W, H, (y, x) => y * W + x);      // garis mendatar
-    scan(H, W, (x, y) => y * W + x);      // garis tegak
-    // garis tebal/agak buram: hapus juga piksel di sekitarnya
-    for (let p = 0; p < n; p++) if (kill[p]) { gray[p] = 255; if (p % W) gray[p - 1] = Math.max(gray[p - 1], 215); if ((p + 1) % W) gray[p + 1] = Math.max(gray[p + 1], 215); if (p >= W) gray[p - W] = Math.max(gray[p - W], 215); if (p + W < n) gray[p + W] = Math.max(gray[p + W], 215); }
-  }
-  const d = img.data; for (let i = 0, p = 0; i < d.length; i += 4, p++) { d[i] = d[i + 1] = d[i + 2] = gray[p]; d[i + 3] = 255; }
-  g.putImageData(img, 0, 0);
+  const w0 = src.width, h0 = src.height, rot = ((rotate % 360) + 360) % 360, swap = rot === 90 || rot === 270;
+  const RW = swap ? h0 : w0, RH = swap ? w0 : h0;
+  const draw = (cw, ch, k, deg, ox = 0, oy = 0) => { const c = document.createElement('canvas'); c.width = cw; c.height = ch; const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); g.imageSmoothingQuality = 'high'; g.translate(cw / 2 - ox, ch / 2 - oy); g.rotate(((rot + deg) * Math.PI) / 180); g.drawImage(src, (-w0 * k) / 2, (-h0 * k) / 2, w0 * k, h0 * k); return c; };
+  // 1) analisis di ukuran kecil
+  const ka = Math.min(1, 1000 / Math.max(RW, RH)); const aw = Math.round(RW * ka), ah = Math.round(RH * ka);
+  let a = draw(aw, ah, ka, 0); let ag = toGray(a.getContext('2d').getImageData(0, 0, aw, ah).data, aw * ah);
+  let mask = edgeMask(ag, aw, ah); const skew = estimateSkew(mask, aw, ah);
+  if (skew) { a = draw(aw, ah, ka, -skew); ag = toGray(a.getContext('2d').getImageData(0, 0, aw, ah).data, aw * ah); mask = edgeMask(ag, aw, ah); }
+  let box = crop ? contentBox(mask, aw, ah) : null;
+  if (!box) box = { x0: 0, y0: 0, x1: aw - 1, y1: ah - 1 };
+  const padX = (box.x1 - box.x0) * 0.04 + 6, padY = (box.y1 - box.y0) * 0.05 + 6;
+  box = { x0: Math.max(0, box.x0 - padX), y0: Math.max(0, box.y0 - padY), x1: Math.min(aw - 1, box.x1 + padX), y1: Math.min(ah - 1, box.y1 + padY) };
+  // 2) render akhir: area tulisan diperbesar ke lebar target (huruf cukup besar untuk mesin OCR), maks. ±12 MP
+  const bw = (box.x1 - box.x0) / ka, bh = (box.y1 - box.y0) / ka;
+  let s = (TARGET_W[kind] || 2400) / bw; if (bw * s * bh * s > 12e6) s = Math.sqrt(12e6 / (bw * bh));
+  const W = Math.round(bw * s), H = Math.round(bh * s), kf = s;
+  const cx = ((box.x0 + box.x1) / 2 / ka - RW / 2) * kf, cy = ((box.y0 + box.y1) / 2 / ka - RH / 2) * kf;
+  const out = draw(W, H, kf, -skew, cx, cy);
+  const ctx = out.getContext('2d', { willReadFrequently: true }); const img = ctx.getImageData(0, 0, W, H); const d = img.data, n = W * H;
+  const g = toGray(d, n);
+  // abu-abu dengan kontras diregangkan (cadangan bila hitam-putih kurang cocok)
+  const hist = new Uint32Array(256); for (let p = 0; p < n; p++) hist[g[p] | 0]++;
+  let lo = 0, hi = 255, acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * 0.01) { lo = v; break; } } acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n * 0.01) { hi = v; break; } }
+  const span = Math.max(1, hi - lo); const gs = new Uint8ClampedArray(n); for (let p = 0; p < n; p++) gs[p] = ((g[p] - lo) * 255) / span;
+  // 3) hitam-putih adaptif (jendela ±1/28 lebar) + hapus garis tabel untuk KK
+  const bin = sauvola(gs, W, H, Math.round(Math.max(W, H) / 28), kind === 'ktp' ? 0.3 : 0.25);
+  if (kind === 'kk') removeGrid(bin, W, H);
+  const mk = (arr) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'); const im = x.createImageData(W, H); for (let i = 0, p = 0; p < n; i += 4, p++) { im.data[i] = im.data[i + 1] = im.data[i + 2] = arr[p]; im.data[i + 3] = 255; } x.putImageData(im, 0, 0); return c; };
+  if (kind === 'kk') { for (let p = 0; p < n; p++) if (bin[p] === 255) gs[p] = Math.max(gs[p], 235); } // garis yang dihapus juga dihilangkan di versi abu-abu
   bmp?.close?.();
-  return c;
+  return { bin: mk(bin), gray: mk(kind === 'kk' ? gs.map((v, p) => (bin[p] === 255 ? 255 : v)) : gs), info: { skew, crop: box, size: [W, H] } };
+}
+
+// susun ulang baris dari posisi kata (kolom label & nilai di KTP sering dipisah mesin OCR menjadi blok berbeda)
+export function linesFromWords(words) {
+  const ws = (words || []).filter((w) => w.text && w.text.trim() && w.confidence > 5).map((w) => ({ t: w.text.trim(), x0: w.bbox.x0, x1: w.bbox.x1, y0: w.bbox.y0, y1: w.bbox.y1, cy: (w.bbox.y0 + w.bbox.y1) / 2, h: w.bbox.y1 - w.bbox.y0 }));
+  if (!ws.length) return '';
+  const hs = ws.map((w) => w.h).sort((a, b) => a - b); const mh = hs[Math.floor(hs.length / 2)] || 20;
+  ws.sort((a, b) => a.cy - b.cy);
+  const lines = [];
+  for (const w of ws) { const L = lines.find((l) => Math.abs(l.cy - w.cy) < mh * 0.55); if (L) { L.ws.push(w); L.cy = (L.cy * (L.ws.length - 1) + w.cy) / L.ws.length; } else lines.push({ cy: w.cy, ws: [w] }); }
+  lines.sort((a, b) => a.cy - b.cy);
+  return lines.map((l) => { l.ws.sort((a, b) => a.x0 - b.x0); let out = '', px = null; for (const w of l.ws) { if (px != null) { const gap = w.x0 - px; out += gap > mh * 1.6 ? '   ' : ' '; } out += w.t; px = w.x1; } return out; }).join('\n');
 }
 
 export async function recognize(canvas, { psm = '3', progress } = {}) {
   onProg = progress || null;
   const w = await getWorker();
-  if (curPsm !== psm) { await w.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: '1' }); curPsm = psm; }
+  if (curPsm !== psm) { await w.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: '1', user_defined_dpi: '300' }); curPsm = psm; }
   const { data } = await w.recognize(canvas);
   onProg = null;
-  return { text: data.text || '', confidence: Math.round(data.confidence || 0) };
+  return { text: data.text || '', lines: linesFromWords(data.words), confidence: Math.round(data.confidence || 0) };
 }
 
 // ---------------------------------------------------------------- pembaca KTP & KK (fungsi murni, bisa diuji)
@@ -111,6 +152,20 @@ export function find16(s) {
   const tokens = String(s || '').match(/[0-9OoDQIlSBZG][0-9OoDQIl|!SBZG]{14,22}[0-9OoDQIl!SBZG]/g) || []; // tanpa spasi di tengah & tidak diawali garis tabel "|"
   for (const t of tokens) { const d = fixDigits(t.replace(/\s/g, '')); if (d.length === 16) return d; if (d.length > 16) { const m = d.match(/\d{16}/); if (m) return m[0]; } }
   return '';
+}
+// NIK menyimpan tanggal lahir (DDMMYY, perempuan DD+40) → dipakai untuk memeriksa & memperbaiki angka yang salah baca
+export function nikMatch(nik, iso, jk) {
+  if (!nik || nik.length !== 16 || !iso) return false;
+  let d = +nik.slice(6, 8); const m = +nik.slice(8, 10), y = nik.slice(10, 12);
+  if (jk === 'Perempuan' && d > 40) d -= 40; else if (!jk && d > 40) d -= 40;
+  const [Y, M, D] = iso.split('-');
+  return d === +D && m === +M && y === Y.slice(2);
+}
+export function nikRepair(line, nik, iso, jk) {
+  if (!iso || nikMatch(nik, iso, jk)) return nik;
+  const runs = String(line || '').match(/[0-9OoDQIl|!SBZG]{15,20}/g) || [];
+  for (const t of runs) { const d = fixDigits(t.replace(/[|!]/g, '1')).replace(/\D/g, ''); for (let i = 0; i + 16 <= d.length; i++) { const c = d.slice(i, i + 16); if (nikMatch(c, iso, jk)) return c; } }
+  return nik;
 }
 export function toIsoDate(s) {
   const m = String(s || '').replace(/[Oo]/g, '0').match(/(\d{1,2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{4})/);
@@ -144,80 +199,123 @@ const valueOf = (line, label) => { const i = line.indexOf(':'); let v = i >= 0 ?
 const cleanTail = (v) => String(v || '').replace(/\s+\d{1,2}-\d{1,2}-\d{4}\s*$/, '').replace(/\s{3,}.*$/, '').replace(/\s+(FOTO)\s*$/i, '').trim();
 const titleish = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
+// label KTP & variasinya (huruf hasil OCR sering sedikit keliru: "Tgl" → "Tg!", "Kel/Desa" → "KelDesa")
+const KTP_LABELS = [
+  ['nik', ['nik']], ['nama', ['nama']], ['ttl', ['tempattgllahir', 'tempattanggallahir', 'tempatlahir', 'tgllahir']], ['jk', ['jeniskelamin', 'jeniskel', 'kelamin']],
+  ['alamat', ['alamat']], ['rtrw', ['rtrw']], ['kel', ['keldesa', 'kelurahandesa', 'kelurahan', 'desa']], ['kec', ['kecamatan']], ['agama', ['agama']],
+  ['kawin', ['statusperkawinan', 'perkawinan', 'statusperk']], ['kerja', ['pekerjaan']], ['wn', ['kewarganegaraan']], ['berlaku', ['berlakuhingga']], ['gol', ['goldarah', 'golongandarah']],
+];
+const looseRe = (alias) => new RegExp('^[\\s\\W]*' + alias.split('').map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s./\\\\|\'’`-]*'), 'i');
+// kenali label di awal baris → [kunci, sisa teks sebagai nilai]
+function splitLabel(line) {
+  const raw = line.replace(/^[\s|]+/, '');
+  for (const [key, aliases] of KTP_LABELS) for (const al of aliases) { const m = raw.match(looseRe(al)); if (m) return [key, raw.slice(m[0].length)]; }
+  // fuzzy: bagian sebelum ":" atau 1–3 kata pertama
+  const ci = raw.search(/[:;=]/); const cands = [];
+  if (ci > 0 && ci < 28) cands.push([raw.slice(0, ci), raw.slice(ci)]);
+  const ws = raw.split(/\s+/); for (let k = 1; k <= Math.min(3, ws.length - 1); k++) cands.push([ws.slice(0, k).join(' '), ws.slice(k).join(' ')]);
+  let best = null, bs = 0;
+  for (const [lab, rest] of cands) { const L = nk(lab); if (L.length < 3) continue; for (const [key, aliases] of KTP_LABELS) for (const al of aliases) { const sc = 1 - lev(L, al) / Math.max(L.length, al.length); if (sc > bs) { bs = sc; best = [key, rest]; } } }
+  return bs >= 0.72 ? best : null;
+}
+const valueClean = (v) => String(v || '').replace(/^[\s:;.,=“"'’|_-]+/, '').replace(/\s{3,}.*$/, '').replace(/\s+\d{1,2}-\d{1,2}-\d{4}\s*$/, '').replace(/\s+(FOTO)\s*$/i, '').replace(/[|_]+$/, '').trim();
+
 /**
  * Baca teks KTP → { nik, nama, tempatLahir, tglLahir, jk, golDarah, alamat, rt, rw, kelurahan, kecamatan, kabupaten, provinsi, agama, statusKawin, pekerjaan }
  * opts.master(key) → daftar pilihan master (agama, statusKawin, pekerjaan, golDarah)
  */
 export function parseKTP(text, { master = () => [] } = {}) {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
-  const out = {}; const find = (re) => lines.find((l) => re.test(l));
-  const prov = find(/PROV[I1]NS[I1]/i); if (prov) out.provinsi = titleish(prov.replace(/.*PROV[I1]NS[I1]\s*/i, ''));
-  const kab = find(/^\s*(KABUPATEN|KOTA)\s+/i); if (kab) out.kabupaten = titleish(kab.trim());
-  const nikL = find(/^\s*N[I1l|]K\b/i) || lines.find((l) => find16(l)); out.nik = find16(nikL || '') || find16(text);
-  const nama = find(/^\s*Nama\b/i); if (nama) out.nama = cleanTail(valueOf(nama, /Nama/i));
-  const ttl = find(/Tempat|Tg[l1!I]\s*Lah|Lahir/i);
-  if (ttl) { const v = valueOf(ttl, /Tempat\s*\/?\s*Tg\S*\s*Lahir|Tempat|Lahir/i); const iso = toIsoDate(v); if (iso) out.tglLahir = iso; const tp = v.split(/[,.]\s*\d/)[0].replace(/\d.*$/, '').replace(/[,\s]+$/, ''); if (tp) out.tempatLahir = titleish(tp); }
-  const jk = find(/Jen[i1]s\s*Kel|Kelam[i1]n/i);
-  if (jk) { const v = valueOf(jk, /Jen\S*\s*Kel\S*/i).toUpperCase(); out.jk = /PEREM/.test(v) ? 'Perempuan' : /LAK/.test(v) ? 'Laki-laki' : ''; const gd = jk.match(/Darah\s*[:.]?\s*(AB|A|B|O)\b/i); if (gd) out.golDarah = gd[1].toUpperCase(); }
-  const al = find(/^\s*Alamat/i); if (al) out.alamat = cleanTail(valueOf(al, /Alamat/i));
-  const rtrw = find(/RT\s*[/\\|]?\s*RW/i); if (rtrw) { const m = valueOf(rtrw, /RT\s*\S?\s*RW/i).replace(/[Oo]/g, '0').match(/(\d{1,3})\s*[/\\|.,]\s*(\d{1,3})/); if (m) { out.rt = m[1].padStart(3, '0'); out.rw = m[2].padStart(3, '0'); } }
-  const kel = find(/Kel\s*[/\\|]?\s*Desa|Kelurahan|^\s*Desa/i); if (kel) out.kelurahan = cleanTail(valueOf(kel, /Kel\S*\s*\S?\s*Desa|Kelurahan|Desa/i)).replace(/^[“"']+/, '');
-  const kec = find(/Kecamatan/i); if (kec) out.kecamatan = cleanTail(valueOf(kec, /Kecamatan/i));
-  const ag = find(/Agama/i); if (ag) { const v = valueOf(ag, /Agama/i); out.agama = bestOption(v, master('agama')) || cleanTail(v); }
-  const sk = find(/Perkaw[i1]nan|Status\s*Perk/i); if (sk) { const v = valueOf(sk, /Status\s*Perkaw\S*/i); out.statusKawin = bestOption(v.replace(/TERCATAT/gi, ''), master('statusKawin')) || cleanTail(v); }
-  const pk = find(/Peker[jy]aan/i); if (pk) { const v = cleanTail(valueOf(pk, /Peker\S*/i)); out.pekerjaan = bestOption(v, master('pekerjaan'), { min: 0.8 }) || v; }
+  const out = {}; const got = {};
+  for (const l of lines) {
+    if (!out.provinsi && /PROV[I1l]NS[I1l]/i.test(l)) { out.provinsi = titleish(valueClean(l.replace(/.*PROV[I1l]NS[I1l]\s*/i, ''))); continue; }
+    if (!out.kabupaten && /^\s*(KABUPATEN|KOTA)\s+[A-Z]/i.test(l) && !/:/.test(l)) { out.kabupaten = titleish(valueClean(l.trim())); continue; }
+    const sp = splitLabel(l); if (!sp) continue;
+    const [key, rest] = sp; if (got[key]) continue; got[key] = rest;
+  }
+  out.nik = find16(got.nik || '') || find16(text);
+  if (got.nama) out.nama = valueClean(got.nama).replace(/[^A-Za-z.,'\s-]/g, '').replace(/\s+/g, ' ').trim();
+  if (got.ttl) { const v = got.ttl.replace(/^[\s:;.,=“"'’|_-]+/, '').replace(/\s{3,}.*$/, ''); const iso = toIsoDate(v); if (iso) out.tglLahir = iso; const tp = v.split(/[,.]?\s*\d/)[0].replace(/[^A-Za-z\s.-]/g, ' ').replace(/\s+/g, ' ').trim(); if (tp) out.tempatLahir = fixPlace(tp); }
+  else { const dl = lines.find((l) => toIsoDate(l) && !/Berlaku/i.test(l)); if (dl) out.tglLahir = toIsoDate(dl); }
+  const jkTxt = (got.jk || '').toUpperCase(); out.jk = /PEREM|PRMP|WANITA/.test(jkTxt) ? 'Perempuan' : /LAK|LAKI|PRIA/.test(jkTxt) ? 'Laki-laki' : '';
+  const gdl = lines.find((l) => /Darah/i.test(l)); const gd = (gdl || '').match(/Darah\s*[:;.]?\s*(AB|A|B|O|0)\b/i) || (got.gol || '').match(/\b(AB|A|B|O|0)\b/i); if (gd) out.golDarah = gd[1].toUpperCase().replace('0', 'O');
+  if (got.alamat) out.alamat = valueClean(got.alamat);
+  if (got.rtrw) { const m = valueClean(got.rtrw).replace(/[Oo]/g, '0').match(/(\d{1,3})\s*[/\\|.,l1I]?\s*(\d{3}|\d{1,3})/); if (m) { out.rt = m[1].padStart(3, '0'); out.rw = m[2].padStart(3, '0'); } }
+  if (got.kel) out.kelurahan = fixPlace(valueClean(got.kel));
+  if (got.kec) out.kecamatan = valueClean(got.kec);
+  if (got.agama) { const v = valueClean(got.agama); out.agama = bestOption(v, master('agama'), { min: 0.6 }) || v; }
+  if (got.kawin) { const v = valueClean(got.kawin).replace(/TERCATAT|BELUM\s+TERCATAT/gi, '').trim(); out.statusKawin = bestOption(v, master('statusKawin'), { min: 0.6 }) || v; }
+  if (got.kerja) { const v = valueClean(got.kerja); out.pekerjaan = bestOption(v, master('pekerjaan'), { min: 0.62 }) || (nk(v).length >= 5 ? v : ''); if (!out.pekerjaan) delete out.pekerjaan; }
   if (out.golDarah && master('golDarah').length) out.golDarah = bestOption(out.golDarah, master('golDarah'), { min: 1 }) || out.golDarah;
   Object.keys(out).forEach((k) => { if (!out[k]) delete out[k]; });
+  if (out.nik && out.tglLahir) out.nik = nikRepair(lines.find((l) => /NIK/i.test(l)) || '', out.nik, out.tglLahir, out.jk);
   return out;
 }
+export const scoreKTP = (v) => ['nik', 'nama', 'tempatLahir', 'tglLahir', 'jk', 'alamat', 'rt', 'kelurahan', 'kecamatan', 'agama', 'statusKawin', 'pekerjaan', 'golDarah', 'provinsi', 'kabupaten'].filter((k) => v[k]).length + (v.nik?.length === 16 ? 2 : 0) + (nikMatch(v.nik, v.tglLahir, v.jk) ? 2 : 0);
 
-const SK_RE = /(BELUM\s+KAWIN|KAWIN\s+BELUM\s+TERCATAT|KAWIN\s+TERCATAT|CERAI\s+HIDUP|CERAI\s+MATI|KAWIN)/i;
+const SK_RE = /((?:B\s*)?[EF]\s*L\s*[UV]\s*[MN]\s*KAWIN|KAWIN\s+BELUM\s+TERCATAT|KAWIN\s+TERCATAT|CERAI\s+HIDUP|CERAI\s+MATI|KAWIN)/i;
+// nama tempat yang sering tergabung hasil OCR ("BANDAACEH") → dipisah lagi
+const PLACES = ['BANDA ACEH', 'ACEH BESAR', 'ACEH JAYA', 'ACEH BARAT', 'ACEH BARAT DAYA', 'ACEH SELATAN', 'ACEH TENGAH', 'ACEH TENGGARA', 'ACEH TIMUR', 'ACEH TAMIANG', 'ACEH UTARA', 'ACEH SINGKIL', 'BENER MERIAH', 'BIREUEN', 'GAYO LUES', 'LANGSA', 'LHOKSEUMAWE', 'NAGAN RAYA', 'PIDIE', 'PIDIE JAYA', 'SABANG', 'SIMEULUE', 'SUBULUSSALAM', 'MEDAN', 'JAKARTA', 'BANDUNG', 'SURABAYA', 'YOGYAKARTA', 'DEAH GLUMPANG'];
+const fixPlace = (v) => { const n = nk(v); const hit = PLACES.find((p) => nk(p) === n) || PLACES.find((p) => nk(p).length > 5 && n.endsWith(nk(p)) && n.length - nk(p).length <= 3); return hit || v; };
+const KK_SHDK = ['KEPALA KELUARGA', 'SUAMI', 'ISTRI', 'ANAK', 'MENANTU', 'CUCU', 'ORANG TUA', 'MERTUA', 'FAMILI LAIN', 'PEMBANTU', 'LAINNYA'];
+// cari pilihan master yang paling cocok dengan salah satu potongan teks (urutan kolom boleh bergeser)
+function pickFrom(parts, options, min, used) {
+  let best = null;
+  parts.forEach((t, idx) => { if (used.has(idx)) return; for (let len = 1; len <= Math.min(3, parts.length - idx); len++) { const seg = parts.slice(idx, idx + len).join(' '); const o = bestOption(seg.replace(/\|/g, 'I'), options, { min }); if (!o) continue; const sc = 1 - lev(nk(seg), nk(o)) / Math.max(nk(seg).length, nk(o).length); if (!best || sc > best.sc) best = { o, sc, idx, len }; } });
+  if (best) for (let q = best.idx; q < best.idx + best.len; q++) used.add(q);
+  return best?.o || '';
+}
 /**
  * Baca teks Kartu Keluarga → { noKk, kepala, alamat, rt, rw, kelurahan, kecamatan, kabupaten, provinsi, anggota: [{ nama, nik, jk, tempatLahir, tglLahir, agama, pendidikan, pekerjaan, statusKawin, shdk }] }
  */
 export function parseKK(text, { master = () => [] } = {}) {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
   const out = { anggota: [] };
-  const top = lines.slice(0, 8).join('\n'); const kkL = lines.find((l) => /\bNo\b|Nomor/i.test(l) && find16(l)); out.noKk = find16(kkL || top);
+  const kkL = lines.find((l) => /\bN[oO0]\b|Nomor/i.test(l) && find16(l)) || lines.slice(0, 10).find((l) => find16(l) && !/NIK/i.test(l)); out.noKk = find16(kkL || '');
   // bagian kepala (dua kolom: "Label : nilai      Label : nilai")
   const segs = lines.flatMap((l) => l.split(/\s{3,}(?=[A-Za-z][A-Za-z /.]{2,30}\s*:)/));
-  const get = (re) => { const s = segs.find((x) => re.test(x) && x.includes(':')); return s ? s.slice(s.indexOf(':') + 1).trim() : ''; };
+  const get = (re) => { const s = segs.find((x) => re.test(x) && x.includes(':')); return s ? valueClean(s.slice(s.indexOf(':') + 1)) : ''; };
   out.kepala = get(/Kepala\s*Keluarga/i); out.alamat = get(/^\s*Alamat/i);
   const rr = get(/RT\s*[/\\]?\s*RW/i).replace(/[Oo]/g, '0').match(/(\d{1,3})\s*[/\\|]\s*(\d{1,3})/); if (rr) { out.rt = rr[1].padStart(3, '0'); out.rw = rr[2].padStart(3, '0'); }
-  out.kelurahan = get(/Desa|Kelurahan/i); out.kecamatan = get(/Kecamatan/i); out.kabupaten = get(/Kabupaten|Kota/i); out.provinsi = get(/Provinsi/i);
+  out.kelurahan = fixPlace(get(/Desa|Kelurahan/i)); out.kecamatan = get(/Kecamatan/i); out.kabupaten = fixPlace(get(/Kabupaten|Kota/i)); out.provinsi = get(/Provinsi/i);
   // tabel 1: baris yang mengandung NIK
-  const pend = master('pendidikan'), pek = master('pekerjaan'), ag = master('agama');
+  const pend = master('pendidikan'), pek = master('pekerjaan'), ag = master('agama'), gdl = master('golDarah');
   for (const l of lines) {
     const nik = find16(l); if (!nik || nik === out.noKk) continue;
-    const tk = l.trim().replace(/^\d{1,2}[.)]?\s+/, '').split(/\s{2,}/).map((t) => t.trim()).filter(Boolean);
-    let iN = tk.findIndex((t) => find16(t) === nik);
-    let nama = '', rest = [];
-    if (iN >= 0) { nama = tk.slice(0, iN).join(' '); rest = tk.slice(iN + 1); }
-    else { const s = l.replace(/^\s*\d{1,2}[.)]?\s+/, ''); const p = s.search(/[0-9OIlSB]{4}/); nama = s.slice(0, p).trim(); rest = s.slice(p).split(/\s{2,}/).slice(1); }
-    const r = { nama: nama.replace(/[^A-Za-z.'\s-]/g, '').trim(), nik };
-    let s = rest.join('  ');
-    const jk = s.match(/\b(LAKI\s*-?\s*LAKI|PEREMPUAN)\b/i); if (jk) { r.jk = /PER/i.test(jk[1]) ? 'Perempuan' : 'Laki-laki'; s = s.slice(jk.index + jk[0].length); }
-    const dt = s.match(/\d{1,2}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{4}/);
-    if (dt) { r.tglLahir = toIsoDate(dt[0]); r.tempatLahir = titleish(s.slice(0, dt.index).replace(/^[\s|]+|[\s|]+$/g, '')); s = s.slice(dt.index + dt[0].length); }
-    const parts = s.split(/\s{2,}/).map((t) => t.trim()).filter(Boolean);
-    if (parts.length) { r.agama = bestOption(parts[0], ag) || parts[0]; }
-    if (parts.length > 1) r.pendidikan = bestOption(parts[1].replace(/\|/g, 'I'), pend, { min: 0.6 }) || parts[1];
-    if (parts.length > 2) r.pekerjaan = bestOption(parts.slice(2).join(' '), pek, { min: 0.6 }) || parts.slice(2).join(' ');
+    const at = l.indexOf(nik) >= 0 ? l.indexOf(nik) : l.search(/[0-9OIlSB|]{8}/);
+    // nama: teks sebelum NIK, tanpa nomor urut & sisa garis/kotak (token pendek di depan)
+    let nameTk = l.slice(0, Math.max(0, at)).replace(/[|()\[\]“”"'_]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    while (nameTk.length && (nameTk[0].length <= 2 || /\d/.test(nameTk[0]) || !/^[A-Z][A-Z.'-]*$/.test(nameTk[0]))) nameTk.shift();
+    const r = { nama: nameTk.join(' ').replace(/[^A-Za-z.'\s-]/g, '').replace(/\s+/g, ' ').trim().replace(/^CONTOH(?=[A-Z]{3})/, 'CONTOH '), nik };
+    let rest = l.slice(at >= 0 ? at : 0).replace(/^[0-9OIlSB|!]{14,20}/, '');
+    const jk = rest.match(/(L[A-Z]{2,3}\s*-?\s*L[A-Z]{2,4}(?=\s|$)|LAKI\s*-?\s*LAKI|L\s*A\s*K\s*I|PEREMPUAN|PEREMPUA|EREMPUAN|P[EF]R[EF]MPU)/); if (jk) { r.jk = /PER|EREM/i.test(jk[1]) ? 'Perempuan' : 'Laki-laki'; rest = rest.slice(jk.index + jk[0].length); }
+    const dt = rest.match(/\d{1,2}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{4}/);
+    if (dt) { r.tglLahir = toIsoDate(dt[0]); const tp = rest.slice(0, dt.index).replace(/[^A-Za-z\s.-]/g, ' ').replace(/\s+/g, ' ').trim(); if (tp) r.tempatLahir = fixPlace(tp); rest = rest.slice(dt.index + dt[0].length); }
+    const parts = rest.replace(/[|“”"_]/g, ' ').split(/\s{2,}|\s(?=(?:ISLAM|KRISTEN|KATOLIK|HINDU|BUDDHA|BUDHA|KONGHUCU|KHONGHUCU)\b)/i).map((t) => t.trim()).filter((t) => t && /[A-Za-z]/.test(t));
+    if (r.tglLahir) r.nik = nikRepair(l, r.nik, r.tglLahir, r.jk);
+    const used = new Set();
+    r.agama = pickFrom(parts, ag, 0.7, used);
+    r.pendidikan = pickFrom(parts, pend, 0.6, used);
+    r.pekerjaan = pickFrom(parts, pek, 0.62, used);
+    const gd = parts.find((t, i) => !used.has(i) && /^(AB|A|B|O|TIDAK\s*TAHU)$/i.test(t)); if (gd && gdl.length) r.golDarah = bestOption(gd, gdl, { min: 0.8 }) || '';
+    Object.keys(r).forEach((k) => { if (!r[k]) delete r[k]; });
     out.anggota.push(r);
   }
-  // tabel 2: status perkawinan & hubungan keluarga, berurutan sesuai nomor
-  const shdkList = master('shdk');
-  const rows2 = lines.filter((l) => !find16(l) && SK_RE.test(l) && /^\s*\d{1,2}\b/.test(l));
-  rows2.forEach((l, i) => {
-    const no = Number((l.match(/^\s*(\d{1,2})/) || [])[1]) - 1; const r = out.anggota[Number.isFinite(no) && out.anggota[no] ? no : i]; if (!r) return;
-    const m = l.match(SK_RE); r.statusKawin = bestOption(m[1].replace(/TERCATAT|BELUM\s+TERCATAT/i, '').trim(), master('statusKawin')) || m[1];
-    const after = l.slice(m.index + m[0].length);
-    const seg = after.split(/\s{2,}/).map((t) => t.trim()).filter(Boolean).find((t) => !/^\d/.test(t)) || '';
-    r.shdk = bestOption(seg, shdkList, { min: 0.6 }) || seg;
+  // tabel 2: status perkawinan & hubungan keluarga — urut sesuai kemunculan
+  const shdkList = master('shdk').length ? master('shdk') : KK_SHDK;
+  const rows2 = lines.filter((l) => !find16(l) && SK_RE.test(l) && !/Status\s*Perkawinan/i.test(l));
+  rows2.slice(0, out.anggota.length).forEach((l, i) => {
+    const no = Number((l.match(/^\D{0,4}(\d{1,2})\b/) || [])[1]) - 1; const r = out.anggota[Number.isFinite(no) && no >= 0 && out.anggota[no] && !out.anggota[no].statusKawin ? no : i]; if (!r) return;
+    const m = l.match(SK_RE); r.statusKawin = bestOption(m[1].replace(/BELUM\s+TERCATAT|TERCATAT/i, '').trim(), master('statusKawin')) || titleish(m[1]);
+    const after = l.slice(m.index + m[0].length).replace(/\d{1,2}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{4}/g, ' ');
+    const parts = after.replace(/[|“”"_]/g, ' ').split(/\s{2,}/).map((t) => t.trim()).filter((t) => t && /[A-Za-z]{2}/.test(t));
+    const sh = pickFrom(parts.slice(0, 3), shdkList, 0.6, new Set()); if (sh) r.shdk = sh;
   });
   Object.keys(out).forEach((k) => { if (k !== 'anggota' && !out[k]) delete out[k]; });
   return out;
 }
+// skor hasil KK: jumlah anggota (×100) + rata-rata kelengkapan kolom per anggota (0–90)
+export const scoreKK = (v) => { const a = v.anggota || []; if (!a.length) return v.noKk ? 5 : 0; const f = ['nama', 'nik', 'jk', 'tempatLahir', 'tglLahir', 'agama', 'pendidikan', 'pekerjaan', 'statusKawin', 'shdk']; const avg = a.reduce((s, r) => s + f.filter((k) => r[k]).length + (nikMatch(r.nik, r.tglLahir, r.jk) ? 1 : 0), 0) / a.length; return a.length * 100 + Math.round(avg * 8) + (v.noKk ? 1 : 0); };
 // teks dokumen → paragraf rapi (baris yang terpotong disambung)
 export function tidyText(text) {
   // Tesseract sering memberi baris kosong di antara setiap baris → paragraf ditentukan ulang dari panjang baris
@@ -258,7 +356,7 @@ const TIPS = '<ul class="ocr-tips"><li>Letakkan kartu di permukaan datar dengan 
 
 const camErr = (e) => ({ NotAllowedError: 'Izin kamera ditolak. Izinkan akses kamera untuk situs ini di pengaturan browser, atau gunakan "Unggah foto".', NotFoundError: 'Kamera tidak ditemukan di perangkat ini. Gunakan "Unggah foto".', NotReadableError: 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi tersebut lalu coba lagi.', OverconstrainedError: 'Kamera tidak mendukung pengaturan ini. Coba "Ganti kamera".' }[e?.name] || (window.isSecureContext ? 'Kamera tidak dapat dibuka. Gunakan "Unggah foto".' : 'Kamera hanya bisa dipakai di alamat https://. Gunakan "Unggah foto".'));
 
-function bindPicker(root, { removeLines, psm, onText }) {
+function bindPicker(root, { evaluate, enough, onText }) {
   const $q = (s) => root.querySelector(s); const kind = root.querySelector('.ocr-pick')?.dataset.kind || 'ktp';
   const fileIn = $q('[data-ocr-file]'), choose = $q('.ocr-choose'), forTxt = $q('.ocr-for'), stage = $q('.ocr-stage'), prev = $q('.ocr-prev'), prog = $q('.ocr-prog');
   const cam = $q('.ocr-cam'), video = cam.querySelector('video'), guide = cam.querySelector('.ocr-guide'), torchBtn = $q('[data-cam-torch]');
@@ -266,17 +364,24 @@ function bindPicker(root, { removeLines, psm, onText }) {
   const setProg = (p, msg) => { prog.hidden = false; prog.querySelector('i').style.width = `${Math.round(p * 100)}%`; prog.querySelector('small').textContent = msg; };
   const label = (m) => ({ 'loading tesseract core': 'Mengunduh mesin OCR (sekali saja)…', 'initializing tesseract': 'Menyiapkan mesin OCR…', 'loading language traineddata': 'Mengunduh data bahasa Indonesia (sekali saja)…', 'initializing api': 'Menyiapkan…', 'recognizing text': 'Membaca tulisan…' }[m.status] || 'Memproses…');
   const show = (view) => { choose.hidden = forTxt.hidden = view !== 'choose'; cam.hidden = view !== 'cam'; stage.hidden = view !== 'stage'; };
+  // beberapa cara baca (hitam-putih/abu-abu × tata letak), pilih hasil terbaik; berhenti lebih awal bila sudah lengkap
+  const PASSES = { ktp: [['bin', '6'], ['gray', '6'], ['bin', '4'], ['gray', '3'], ['bin', '11']], kk: [['bin', '6'], ['gray', '6'], ['bin', '4'], ['gray', '4']], doc: [['gray', '3'], ['bin', '3']] }[kind] || [['gray', '3']];
   const run = async () => {
     if (!file || busy) return; busy = true;
     try {
-      setProg(0.02, 'Menyiapkan foto…');
-      const c = await prepareImage(file, { removeLines, rotate: rot, target: kind === 'kk' ? 3200 : 0 }); 
-      const k = Math.min(1, 560 / c.width); prev.width = c.width * k; prev.height = c.height * k; prev.getContext('2d').drawImage(c, 0, 0, prev.width, prev.height);
+      setProg(0.02, 'Menyiapkan & meluruskan foto…');
+      const prep = await prepareImage(file, { kind, rotate: rot });
+      const pc = prep.bin; const k = Math.min(1, 560 / pc.width); prev.width = pc.width * k; prev.height = pc.height * k; prev.getContext('2d').drawImage(pc, 0, 0, prev.width, prev.height);
       show('stage');
-      const t0 = performance.now();
-      const r = await recognize(c, { psm, progress: (m) => setProg(m.status === 'recognizing text' ? 0.35 + m.progress * 0.65 : Math.min(0.34, 0.05 + (m.progress || 0) * 0.3), label(m)) });
-      setProg(1, `Selesai dalam ${((performance.now() - t0) / 1000).toFixed(1)} detik · keyakinan ${r.confidence}%`);
-      onText(r);
+      const t0 = performance.now(); let best = null;
+      for (let i = 0; i < PASSES.length; i++) {
+        const [img, psm] = PASSES[i]; const base = i / PASSES.length, part = 1 / PASSES.length;
+        const r = await recognize(prep[img], { psm, progress: (m) => setProg(m.status === 'recognizing text' ? 0.3 + 0.7 * (base + part * m.progress) : Math.min(0.29, 0.05 + (m.progress || 0) * 0.24), m.status === 'recognizing text' ? `Membaca tulisan${PASSES.length > 1 ? ` (cara ${i + 1} dari ${PASSES.length})` : ''}…` : label(m)) });
+        for (const text of [r.lines, r.text]) { if (!text) continue; const sc = evaluate ? evaluate(text) : r.confidence; if (!best || sc > best.score || (sc === best.score && r.confidence > best.confidence)) best = { text, confidence: r.confidence, score: sc, pass: i + 1 }; }
+        if (enough && best && enough(best.score)) break;
+      }
+      setProg(1, `Selesai dalam ${((performance.now() - t0) / 1000).toFixed(1)} detik · keyakinan ${best.confidence}%`);
+      onText(best);
     } catch (e) { setProg(0, e.message || 'Gagal membaca foto'); toast(e.message || 'Gagal membaca foto', 'error'); }
     busy = false;
   };
@@ -356,7 +461,7 @@ export function ocrKtpDialog({ master, current = {}, existing = () => null, onAp
   const box = m.el.querySelector('.ocr-result'), applyBtn = m.el.querySelector('#ocr-apply'), openBtn = m.el.querySelector('#ocr-open');
   let dup = null;
   const countUpd = () => { const n = box.querySelectorAll('[data-k]:checked').length; applyBtn.innerHTML = `${ic('refresh')} Perbarui data terpilih (${n})`; applyBtn.disabled = !n; };
-  bindPicker(m.el, { removeLines: false, psm: '3', onText: ({ text, confidence }) => {
+  bindPicker(m.el, { evaluate: (t) => scoreKTP(parseKTP(t, { master })), enough: (sc) => sc >= 18, onText: ({ text, confidence }) => {
     const v = parseKTP(text, { master });
     const found = KTP_FIELDS.filter(([k]) => v[k]).length;
     dup = v.nik ? existing(v.nik) : null;
@@ -406,7 +511,7 @@ export function ocrKkDialog({ master, existingNik, dusunHtml = '', onSave }) {
   const diffList = (i) => { const ex = exs[i]; if (!ex) return []; const tr = box.querySelector(`tr[data-i="${i}"]`); const r = { ...header(), ...rowVals(tr) }; if (!r.dusun) delete r.dusun; return Object.entries(r).filter(([k, v]) => k !== 'nik' && v && !same(k, ex[k], v)).map(([k, v]) => [k, ex[k] || '', v]); };
   const paintDiff = (i) => { const det = box.querySelector(`tr[data-d="${i}"]`); if (!det) return; const act = box.querySelector(`[data-act="${i}"]`).value; const d = diffList(i); det.hidden = act !== 'update'; const prevOff = new Set([...det.querySelectorAll('[data-dk]:not(:checked)')].map((x) => x.dataset.dk)); det.querySelector('td').innerHTML = d.length ? `<b>Perubahan yang akan diterapkan ke data tersimpan:</b><div class="ocr-diffs">${d.map(([k, a, b]) => `<label class="check"><input type="checkbox" data-dk="${k}" ${prevOff.has(k) ? '' : 'checked'}> <span>${esc(KK_LBL[k] || k)}: <s>${esc(showVal(k, a)) || '—'}</s> → <b>${esc(showVal(k, b))}</b></span></label>`).join('')}</div>` : '<span class="muted">Tidak ada perbedaan — data tersimpan sudah sama dengan hasil scan.</span>'; det.querySelectorAll('[data-dk]').forEach((c) => { c.onchange = count; }); count(); };
   const count = () => { const nNew = [...box.querySelectorAll('tbody tr[data-i]')].filter((tr) => !exs[+tr.dataset.i] && tr.querySelector('[data-row]')?.checked).length; const nUpd = exs.map((ex, i) => ex && box.querySelector(`[data-act="${i}"]`)?.value === 'update' && box.querySelectorAll(`tr[data-d="${i}"] [data-dk]:checked`).length ? 1 : 0).reduce((a, b) => a + b, 0); saveBtn.innerHTML = `${ic('check')} Simpan (${nNew} baru${nUpd ? `, ${nUpd} diperbarui` : ''})`; saveBtn.disabled = !nNew && !nUpd; };
-  bindPicker(m.el, { removeLines: true, psm: '6', onText: ({ text, confidence }) => {
+  bindPicker(m.el, { evaluate: (t) => scoreKK(parseKK(t, { master })), enough: (sc) => sc >= 100 && sc % 100 >= 80, onText: ({ text, confidence }) => {
     parsed = parseKK(text, { master });
     const rows = parsed.anggota;
     exs = rows.map((r) => (r.nik && existingNik(r.nik)) || null);
@@ -451,7 +556,7 @@ export function ocrTextDialog({ onInsert }) {
   let raw = ''; const ta = m.el.querySelector('#ocr-text'), tidy = m.el.querySelector('#ocr-tidy');
   const show = () => { ta.value = tidy.checked ? tidyText(raw) : raw.trim(); };
   tidy.onchange = show;
-  bindPicker(m.el, { removeLines: false, psm: '3', onText: ({ text }) => { raw = text; m.el.querySelector('.ocr-result').hidden = false; show(); m.el.querySelector('#ocr-ins').disabled = m.el.querySelector('#ocr-copy').disabled = !text.trim(); } });
+  bindPicker(m.el, { evaluate: null, enough: (sc) => sc >= 80, onText: ({ text }) => { raw = text; m.el.querySelector('.ocr-result').hidden = false; show(); m.el.querySelector('#ocr-ins').disabled = m.el.querySelector('#ocr-copy').disabled = !text.trim(); } });
   m.el.querySelector('#ocr-copy').onclick = async () => { try { await navigator.clipboard.writeText(ta.value); toast('Teks disalin', 'success'); } catch { ta.select(); } };
   m.el.querySelector('#ocr-ins').onclick = () => { if (!ta.value.trim()) return; onInsert(ta.value); m.close(); };
   return m;
