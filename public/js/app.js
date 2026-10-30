@@ -774,6 +774,8 @@ function penulisSign(i, full = false) {
 }
 const infoThumb = (i) => i.gambar || (i.media || []).map((m) => mediaThumb(m.url)).find(Boolean) || '';
 const hasVideo = (i) => (i.media || []).some((m) => /youtu|drive\.google|\.mp4/i.test(m.url));
+// v2.9.13: tombol Sunting di kartu & halaman baca — hanya untuk staf yang berhak mengelola Papan Informasi
+const infoEditBtn = (i, sm = false) => (state.user && can('informasi') ? `<a class="btn ${sm ? 'btn-sm ' : ''}btn-ghost btn-edit" href="#/admin/informasi?edit=${esc(i.id)}" title="Sunting informasi ini (staf)">${ic('edit')} Sunting</a>` : '');
 function infoCard(i, featured = false) {
   const th = infoThumb(i); const txt = plainText(i.isi).replace(/\s+/g, ' ').trim();
   return `<article class="info-card ${featured ? 'featured' : ''}">
@@ -785,7 +787,7 @@ function infoCard(i, featured = false) {
       <p class="excerpt">${esc(txt.slice(0, featured ? 260 : 150))}${txt.length > (featured ? 260 : 150) ? '…' : ''}</p>
       ${penulisSign(i)}
       <div class="info-actions"><a class="btn btn-sm btn-ghost" href="#/informasi/${i.id}">Baca</a>
-      <a class="btn btn-sm btn-wa" href="${esc(waShareLink(infoMessage(i)))}" target="_blank" rel="noopener">${ic('wa')} Bagikan</a></div>
+      <a class="btn btn-sm btn-wa" href="${esc(waShareLink(infoMessage(i)))}" target="_blank" rel="noopener">${ic('wa')} Bagikan</a>${infoEditBtn(i, true)}</div>
     </div></article>`;
 }
 function infoMessage(i, withLink = true) {
@@ -826,7 +828,7 @@ function pubInfoDetail(id) {
     title: i.judul, date: fmtDate(i.createdAt, true), mins: readMins(plainText(i.isi)), byline: penulisSign(i, true), author: i.penulis?.nama ? penulisLabel(i.penulis) : '',
     event: ev, cover: i.gambar, body: `<div class="article-body rich">${richRender(i.isi)}</div>`,
     media: (i.media || []).length ? i.media.map(mediaEmbed).join('') : '',
-    actions: `<a class="btn btn-wa" href="${esc(share)}" target="_blank" rel="noopener">${ic('wa')} Bagikan ke WhatsApp</a><button class="btn btn-ghost" data-copy-link="${esc(appLink('/informasi/' + i.id))}">${ic('copy')} Salin tautan</button>`,
+    actions: `<a class="btn btn-wa" href="${esc(share)}" target="_blank" rel="noopener">${ic('wa')} Bagikan ke WhatsApp</a><button class="btn btn-ghost" data-copy-link="${esc(appLink('/informasi/' + i.id))}">${ic('copy')} Salin tautan</button>${infoEditBtn(i)}`,
     share: { href: share, label: 'Bagikan ke WhatsApp' },
     othersTitle: 'Informasi lainnya', others: pubInfo().filter((x) => x.id !== i.id).slice(0, 4).map((x) => ({ href: `#/informasi/${x.id}`, title: x.judul, sub: [x.kategori, fmtDate(x.createdAt)].filter(Boolean).join(' · ') })),
   });
@@ -1969,7 +1971,7 @@ function viewLaporan(main) {
 // ---------------------------------------------------------------- Papan Informasi
 function viewInformasi(main, r) {
   state.view = 'informasi';
-  main.innerHTML = `<div class="toolbar toolbar-actions"><button class="btn btn-primary" id="i-new">${ic('plus')} Tulis Informasi</button><a class="btn btn-ghost" href="#/informasi" target="_blank">${ic('ext')} Lihat halaman publik</a></div>
+  main.innerHTML = `<div class="toolbar toolbar-actions"><button class="btn btn-primary" id="i-new">${ic('plus')} Tulis Informasi</button><button class="btn btn-ghost" id="i-cat">${ic('filters')} Kelola Kategori <span class="badge">${masterItems('kategoriInfo').length}</span></button><a class="btn btn-ghost" href="#/informasi" target="_blank">${ic('ext')} Lihat halaman publik</a></div>
   <div class="info-admin">${state.info.map((i) => `<div class="info-row">
     ${infoThumb(i) ? `<img src="${esc(infoThumb(i))}" alt="">` : `<div class="info-ph">${ic('mega')}</div>`}
     <div class="info-row-main"><div class="info-meta"><span class="badge">${esc(i.kategori || '-')}</span><span class="badge ${i.published ? 'badge-ok' : 'badge-muted'}">${i.published ? 'Terbit' : 'Draf'}</span>${i.pinned ? `<span class="badge badge-warn">${ic('pin')} Disematkan</span>` : ''}${i.broadcastCount ? `<span class="badge">${ic('wa')} ${i.broadcastCount} terkirim</span>` : ''}</div>
@@ -1977,26 +1979,117 @@ function viewInformasi(main, r) {
     <div class="info-row-actions">${can('broadcast') ? '' : '<!--'}<button class="btn btn-sm btn-wa" data-bc="${i.id}">${ic('wa')} Sebarkan</button>${can('broadcast') ? '' : '-->'}<button class="icon-btn" data-copy="${i.id}" title="Salin teks WA">${ic('copy')}</button><button class="icon-btn" data-pin="${i.id}" title="Sematkan">${ic('pin')}</button><button class="icon-btn" data-ed="${i.id}" title="Ubah">${ic('edit')}</button><button class="icon-btn danger" data-del="${i.id}" title="Hapus">${ic('trash')}</button></div>
   </div>`).join('') || emptyBox('Belum ada informasi. Tulis pengumuman, berita kegiatan, atau acara desa pertama Anda.')}</div>`;
   $('#i-new').onclick = () => infoForm(null);
+  $('#i-cat').onclick = () => infoCatManager();
   $$('[data-ed]', main).forEach((b) => b.onclick = () => infoForm(state.info.find((i) => i.id === b.dataset.ed)));
   $$('[data-bc]', main).forEach((b) => b.onclick = () => { location.hash = `#/admin/broadcast?info=${b.dataset.bc}`; });
   $$('[data-copy]', main).forEach((b) => b.onclick = () => copyText(infoMessage(state.info.find((i) => i.id === b.dataset.copy))));
   $$('[data-pin]', main).forEach((b) => b.onclick = () => { const i = state.info.find((x) => x.id === b.dataset.pin); F.updateDoc(C(`informasi/${i.id}`), { pinned: !i.pinned }); logAudit('informasi', i.pinned ? 'lepas_sematan' : 'sematkan', `${i.pinned ? 'Melepas sematan' : 'Menyematkan'} informasi “${i.judul}”`, { targetId: i.id }); });
   $$('[data-del]', main).forEach((b) => b.onclick = async () => { const i = state.info.find((x) => x.id === b.dataset.del); if (await confirmDelete(`Hapus “${i.judul}”?`)) { await F.deleteDoc(C(`informasi/${i.id}`)); logAudit('informasi', 'hapus', `Menghapus informasi “${i.judul}”`, { targetId: i.id }); toast('Informasi dihapus', 'success'); } });
   if (r.query.get('baru')) { history.replaceState(null, '', '#/admin/informasi'); infoForm(null); }
+  // dari tombol "Sunting" di beranda / halaman baca
+  const eid = r.query.get('edit');
+  if (eid) { const it = state.info.find((x) => x.id === eid); if (it) { history.replaceState(null, '', '#/admin/informasi'); if (!document.querySelector('#if')) infoForm(it); } }
 }
+
+// ---------------------------------------------------------------- Kategori Papan Informasi (tambah / ubah nama / hapus)
+const INFO_CAT_SARAN = ['Pengumuman', 'Berita', 'Berita Kegiatan', 'Acara Desa', 'Undangan', 'Gotong Royong', 'Musyawarah', 'Kesehatan', 'Posyandu', 'Pendidikan', 'Keagamaan', 'Sosial', 'Bantuan Sosial', 'Ekonomi & UMKM', 'Pertanian & Perikanan', 'Pembangunan', 'Pemerintahan', 'Keuangan Gampong', 'Layanan Administrasi', 'Lingkungan & Kebersihan', 'Keamanan & Ketertiban', 'Kebencanaan', 'Pemuda & Olahraga', 'Budaya & Adat', 'Pariwisata', 'Prestasi', 'Lowongan & Peluang', 'Lainnya'];
+async function saveInfoCats(items, note) {
+  const uniq = []; for (const x of items.map((s) => String(s).trim()).filter(Boolean)) if (!uniq.some((u) => norm(u) === norm(x))) uniq.push(x);
+  await F.setDoc(C('master/kategoriInfo'), { items: uniq.slice(0, 200), label: MASTER_EXTRA_LABELS.kategoriInfo }, { merge: true });
+  state.master.kategoriInfo = { ...(state.master.kategoriInfo || {}), items: uniq.slice(0, 200) };
+  logAudit('informasi', 'kategori', note);
+  return uniq;
+}
+function infoCatManager() {
+  const m = modal({ title: 'Kelola Kategori Papan Informasi', size: 'lg', body: '<div id="icm"></div>', footer: '<button class="btn btn-primary" data-close>Selesai</button>' });
+  const box = $('#icm', m.el);
+  const used = (c) => state.info.filter((i) => norm(i.kategori || '') === norm(c));
+  const paint = () => {
+    const items = masterItems('kategoriInfo');
+    const orphan = [...new Set(state.info.map((i) => i.kategori).filter((k) => k && !items.some((x) => norm(x) === norm(k))))];
+    const saran = INFO_CAT_SARAN.filter((s) => !items.some((x) => norm(x) === norm(s)));
+    box.innerHTML = `<p class="muted small">Kategori dipakai untuk mengelompokkan berita di Papan Informasi dan ditampilkan sebagai label pada kartu berita. Perubahan langsung berlaku untuk semua admin.</p>
+      <form class="icm-add" id="icm-add"><input id="icm-new" maxlength="40" placeholder="Nama kategori baru, mis. Posyandu" aria-label="Nama kategori baru" autocomplete="off"><button class="btn btn-primary btn-sm">${ic('plus')} Tambah</button></form>
+      <div class="icm-list">${items.map((c, n) => { const u = used(c); const pub = u.filter((x) => x.published).length; return `<div class="icm-row"><span class="icm-name">${esc(c)}</span><span class="badge ${u.length ? '' : 'badge-muted'}">${u.length ? `${u.length} berita${u.length - pub ? ` · ${u.length - pub} draf` : ''}` : 'belum dipakai'}</span><span class="icm-act"><button class="icon-btn" data-icm-ren="${n}" title="Ubah nama">${ic('edit')}</button><button class="icon-btn danger" data-icm-del="${n}" title="Hapus kategori">${ic('trash')}</button></span></div>`; }).join('') || emptyBox('Belum ada kategori.')}</div>
+      ${orphan.length ? `<div class="callout small-callout">${ic('bulb')}<div><p class="small">Ada berita dengan kategori yang tidak ada di daftar: ${orphan.map((o) => `<b>${esc(o)}</b>`).join(', ')}. <button class="link-btn" id="icm-orphan">Masukkan ke daftar</button></p></div></div>` : ''}
+      ${saran.length ? `<div class="icm-saran"><div><b>Saran kategori</b> <small class="muted">— klik untuk menambahkan</small></div><div class="chips">${saran.map((s) => `<button class="chip" data-icm-saran="${esc(s)}">＋ ${esc(s)}</button>`).join('')}</div><button class="btn btn-ghost btn-sm" id="icm-all">${ic('plus')} Tambahkan semua saran (${saran.length})</button></div>` : ''}`;
+    $('#icm-add', box).onsubmit = async (e) => {
+      e.preventDefault(); const v = $('#icm-new', box).value.trim().replace(/\s+/g, ' ');
+      if (!v) return; if (items.some((x) => norm(x) === norm(v))) return toast(`Kategori “${v}” sudah ada`, 'error');
+      try { await saveInfoCats([...items, v], `Menambah kategori informasi “${v}”`); toast('Kategori ditambahkan', 'success'); paint(); } catch (err) { toast('Gagal: ' + err.message, 'error'); }
+    };
+    $$('[data-icm-saran]', box).forEach((b) => b.onclick = async () => { try { await saveInfoCats([...items, b.dataset.icmSaran], `Menambah kategori informasi “${b.dataset.icmSaran}”`); paint(); } catch (err) { toast('Gagal: ' + err.message, 'error'); } });
+    $('#icm-all', box)?.addEventListener('click', async () => { try { await saveInfoCats([...items.filter((x) => norm(x) !== 'lainnya'), ...saran, 'Lainnya'], `Menambah ${saran.length} kategori informasi dari saran`); toast(`${saran.length} kategori ditambahkan`, 'success'); paint(); } catch (err) { toast('Gagal: ' + err.message, 'error'); } });
+    $('#icm-orphan', box)?.addEventListener('click', async () => { try { await saveInfoCats([...items, ...orphan], `Memasukkan ${orphan.length} kategori lama ke daftar`); paint(); } catch (err) { toast('Gagal: ' + err.message, 'error'); } });
+    $$('[data-icm-ren]', box).forEach((b) => b.onclick = async () => {
+      const old = items[+b.dataset.icmRen]; const nv = (await promptDialog('Ubah nama kategori', 'Nama baru', old))?.trim(); if (!nv || nv === old) return;
+      if (items.some((x) => x !== old && norm(x) === norm(nv))) return toast(`Kategori “${nv}” sudah ada`, 'error');
+      const u = used(old);
+      try {
+        await saveInfoCats(items.map((x) => (x === old ? nv : x)), `Mengubah nama kategori informasi “${old}” → “${nv}”${u.length ? ` (${u.length} berita ikut diperbarui)` : ''}`);
+        if (u.length) await batchWrite(u.map((i) => ['update', C(`informasi/${i.id}`), { kategori: nv }]));
+        toast(u.length ? `Kategori diubah · ${u.length} berita diperbarui` : 'Kategori diubah', 'success'); paint();
+      } catch (err) { toast('Gagal: ' + err.message, 'error'); }
+    });
+    $$('[data-icm-del]', box).forEach((b) => b.onclick = () => deleteInfoCat(items[+b.dataset.icmDel], items, paint));
+  };
+  paint();
+}
+async function deleteInfoCat(cat, items, done) {
+  const u = state.info.filter((i) => norm(i.kategori || '') === norm(cat));
+  const others = items.filter((x) => x !== cat);
+  if (!u.length) {
+    if (!await confirmDelete(`Hapus kategori “${cat}”? Kategori ini belum dipakai oleh berita mana pun.`, `Konfirmasi penghapusan kategori “${cat}”.`)) return;
+    try { await saveInfoCats(others, `Menghapus kategori informasi “${cat}” (tidak dipakai)`); toast('Kategori dihapus', 'success'); done(); } catch (err) { toast('Gagal: ' + err.message, 'error'); }
+    return;
+  }
+  if (!others.length) return toast('Tidak bisa menghapus satu-satunya kategori. Tambahkan kategori lain terlebih dahulu.', 'error');
+  const pub = u.filter((x) => x.published).length, pin = u.filter((x) => x.pinned).length;
+  const target0 = others.find((x) => norm(x) === 'lainnya') || others[0];
+  const m = modal({
+    title: 'Hapus kategori — PERINGATAN PENTING', size: 'md',
+    body: `<div class="icm-warn">
+      <div class="icm-warn-head">${ic('bell')}<div><b>Kategori “${esc(cat)}” masih dipakai oleh ${u.length} berita.</b><span>${pub} terbit${u.length - pub ? ` · ${u.length - pub} draf` : ''}${pin ? ` · ${pin} disematkan` : ''}</span></div></div>
+      <ul class="icm-warn-list">
+        <li>Kategori akan <b>dihapus permanen</b> dari daftar pilihan semua admin.</li>
+        <li>Semua <b>${u.length} berita</b> di bawah ini <b>wajib dipindahkan</b> ke kategori lain — label pada kartu berita di halaman publik akan langsung berubah.</li>
+        <li>Pesan WhatsApp yang <b>sudah terkirim</b> tidak berubah (tetap memakai kategori lama).</li>
+        <li>Tindakan ini tercatat di Audit Log dan <b>tidak bisa dibatalkan</b> otomatis.</li>
+      </ul>
+      <div class="icm-affected"><b>Berita yang terdampak:</b><ol>${u.slice(0, 8).map((i) => `<li>${esc(i.judul)} <small class="muted">${i.published ? 'terbit' : 'draf'} · ${esc(fmtDate(i.createdAt))}</small></li>`).join('')}</ol>${u.length > 8 ? `<small class="muted">…dan ${u.length - 8} berita lainnya</small>` : ''}</div>
+      <label class="field"><span>Pindahkan ${u.length} berita ke kategori</span><select id="icm-target">${others.map((x) => `<option ${x === target0 ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="field"><span>Ketik <b>${esc(cat)}</b> untuk konfirmasi</span><input id="icm-type" autocomplete="off" placeholder="${esc(cat)}"></label>
+      <label class="check"><input type="checkbox" id="icm-ok"> Saya mengerti bahwa ${u.length} berita akan dipindahkan dan kategori “${esc(cat)}” dihapus permanen.</label>
+    </div>`,
+    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-danger" id="icm-go" disabled>${ic('trash')} Pindahkan & hapus kategori</button>`,
+  });
+  const go = $('#icm-go', m.el); const chk = () => { go.disabled = !($('#icm-ok', m.el).checked && $('#icm-type', m.el).value.trim() === cat); };
+  $('#icm-ok', m.el).onchange = chk; $('#icm-type', m.el).oninput = chk;
+  go.onclick = async () => {
+    const target = $('#icm-target', m.el).value;
+    if (!await requirePassword(`Konfirmasi: hapus kategori “${cat}” dan pindahkan ${u.length} berita ke “${target}”.`)) return;
+    go.disabled = true;
+    try {
+      await batchWrite(u.map((i) => ['update', C(`informasi/${i.id}`), { kategori: target }]));
+      await saveInfoCats(others, `Menghapus kategori informasi “${cat}” — ${u.length} berita dipindahkan ke “${target}”`);
+      m.close(); toast(`Kategori “${cat}” dihapus · ${u.length} berita dipindahkan ke “${target}”`, 'success'); done();
+    } catch (err) { go.disabled = false; toast('Gagal: ' + err.message, 'error'); }
+  };
+}
+const infoCatOptions = (cur) => { const items = masterItems('kategoriInfo'); const all = cur && !items.some((x) => norm(x) === norm(cur)) ? [cur, ...items] : items; return all.map((x) => `<option ${norm(x) === norm(cur || '') ? 'selected' : ''}>${esc(x)}</option>`).join('') + '<option value="__new">＋ Kategori baru…</option>'; };
 function infoForm(i) {
   let gambar = i?.gambar || '';
   const m = modal({
     title: i ? 'Ubah Informasi' : 'Tulis Informasi', size: 'lg',
     body: `<form id="if" class="form-grid">
       <label class="field span-2"><span>Judul *</span><input name="judul" required value="${esc(i?.judul || '')}" placeholder="mis. Gotong Royong Bersih Gampong"></label>
-      <label class="field"><span>Kategori</span><input name="kategori" value="${esc(i?.kategori || 'Pengumuman')}" placeholder="Ketik kategori…"></label>
+      <label class="field"><span>Kategori</span><select name="kategori">${infoCatOptions(i?.kategori || masterItems('kategoriInfo')[0] || 'Pengumuman')}</select></label>
       <label class="field"><span>Tanggal Acara (opsional)</span><input type="date" name="tanggalAcara" value="${esc(i?.tanggalAcara || '')}"></label>
       <label class="field"><span>Waktu</span><input name="waktu" value="${esc(i?.waktu || '')}" placeholder="mis. 08.00 WIB – selesai"></label>
       <label class="field"><span>Lokasi</span><input name="lokasi" value="${esc(i?.lokasi || '')}" placeholder="mis. Meunasah / Balai Desa"></label>
       <label class="field span-2"><span>Isi * <small class="muted">— atur font, ukuran, warna, tebal & miring; format otomatis dikonversi saat dikirim ke WhatsApp</small></span><textarea name="isi" rows="9" required data-rich>${esc(i?.isi || '')}</textarea></label>
       <label class="field span-2"><span>Foto & video dari URL <small class="muted">— satu per baris, boleh ditambah “| keterangan”. YouTube, Google Drive, atau link gambar</small></span><textarea name="media" rows="3" placeholder="https://youtu.be/xxxxxxxxxxx | Video kegiatan&#10;https://drive.google.com/file/d/…/view | Dokumentasi&#10;https://contoh.com/foto.jpg">${esc(mediaLinesText(i?.media))}</textarea></label>
-      <div class="span-2 media-grid sm" id="if-media-prev"></div>
+      <div class="span-2 media-edit" id="if-media-prev"></div>
       <div class="field span-2"><span>Gambar sampul (opsional)</span><div class="img-pick"><div id="if-prev">${gambar ? `<img src="${esc(gambar)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih gambar<input type="file" accept="image/*" id="if-img" hidden></label><button type="button" class="btn btn-ghost btn-sm" id="if-noimg" ${gambar ? '' : 'hidden'}>Hapus gambar</button></div><small class="muted">Gambar dikompres otomatis dan disimpan di basis data website.</small></div>
       <label class="check"><input type="checkbox" name="published" ${i ? (i.published ? 'checked' : '') : 'checked'}> Terbitkan di halaman publik</label>
       <label class="check"><input type="checkbox" name="pinned" ${i?.pinned ? 'checked' : ''}> Sematkan di atas</label>
@@ -2006,8 +2099,26 @@ function infoForm(i) {
   });
   const form = $('#if', m.el);
   bindRich(form);
-  attachAutocomplete(form.elements.kategori, { source: () => masterItems('kategoriInfo'), smallList: 12 });
-  const mediaPrev = () => { $('#if-media-prev', m.el).innerHTML = parseMediaLines(form.elements.media.value).map(mediaEmbed).join(''); };
+  // kategori: pilih dari daftar, atau "＋ Kategori baru…"
+  let lastCat = form.elements.kategori.value;
+  form.elements.kategori.onchange = async (e) => {
+    if (e.target.value !== '__new') { lastCat = e.target.value; return; }
+    const v = (await promptDialog('Kategori baru', 'Nama kategori', '', { placeholder: 'mis. Posyandu', okText: 'Tambah' }))?.trim();
+    if (v) { try { if (!masterItems('kategoriInfo').some((x) => norm(x) === norm(v))) await saveInfoCats([...masterItems('kategoriInfo'), v], `Menambah kategori informasi “${v}”`); lastCat = masterItems('kategoriInfo').find((x) => norm(x) === norm(v)) || v; } catch (err) { toast('Gagal: ' + err.message, 'error'); } }
+    e.target.innerHTML = infoCatOptions(lastCat); e.target.value = lastCat;
+  };
+  // Foto & video dari URL: setiap tautan tampil sebagai kartu dengan tombol Hapus
+  const mediaPrev = () => {
+    const list = parseMediaLines(form.elements.media.value);
+    $('#if-media-prev', m.el).innerHTML = list.length ? `<div class="me-head"><b>${list.length} foto/video terpasang</b><button type="button" class="btn btn-ghost btn-sm danger-text" data-me-all>${ic('trash')} Hapus semua</button></div><div class="me-grid">${list.map((x, n) => `<div class="me-item"><div class="me-prev">${mediaEmbed(x)}</div><div class="me-bar"><small title="${esc(x.url)}">${esc(x.judul || x.url)}</small><button type="button" class="btn btn-sm btn-danger" data-me-del="${n}" title="Hapus foto/video ini">${ic('trash')} Hapus</button></div></div>`).join('')}</div>` : '';
+  };
+  $('#if-media-prev', m.el).addEventListener('click', (e) => {
+    const del = e.target.closest('[data-me-del]'); const all = e.target.closest('[data-me-all]'); if (!del && !all) return;
+    const list = parseMediaLines(form.elements.media.value);
+    form.elements.media.value = all ? '' : mediaLinesText(list.filter((_, n) => n !== +del.dataset.meDel));
+    form.elements.media.dispatchEvent(new Event('input', { bubbles: true })); mediaPrev();
+    toast(all ? 'Semua foto/video dilepas — klik Simpan untuk menerapkan' : 'Foto/video dilepas — klik Simpan untuk menerapkan', 'info');
+  });
   form.elements.media.addEventListener('input', debounce(mediaPrev, 400)); mediaPrev();
   const collect = () => ({ judul: form.elements.judul.value.trim(), kategori: form.elements.kategori.value.trim(), tanggalAcara: form.elements.tanggalAcara.value, waktu: form.elements.waktu.value.trim(), lokasi: form.elements.lokasi.value.trim(), isi: form.elements.isi.value.trim(), media: parseMediaLines(form.elements.media.value), gambar, published: form.elements.published.checked, pinned: form.elements.pinned.checked });
   const prev = () => { $('#if-wa', m.el).innerHTML = waFormat(infoMessage({ ...collect(), penulis: i?.penulis || penulisNow(), id: i?.id || 'ID' })); };
@@ -2022,6 +2133,7 @@ function infoForm(i) {
     const d = collect();
     if (!d.judul || !plainText(d.isi).trim()) return toast('Judul dan isi wajib diisi', 'error');
     try {
+      if (d.kategori === '__new') d.kategori = lastCat;
       if (d.kategori && !masterItems('kategoriInfo').some((x) => norm(x) === norm(d.kategori))) await F.setDoc(C('master/kategoriInfo'), { items: F.arrayUnion(d.kategori), label: MASTER_EXTRA_LABELS.kategoriInfo }, { merge: true });
       let id = i?.id;
       if (i) { await F.updateDoc(C(`informasi/${id}`), { ...d, diubahOleh: penulisNow(), updatedAt: F.serverTimestamp() }); logAudit('informasi', 'ubah', `Mengubah informasi “${d.judul}”`, { targetId: id, changes: diff(i, d, (k) => ({ judul: 'Judul', isi: 'Isi', kategori: 'Kategori', published: 'Terbit', pinned: 'Sematkan', tanggalAcara: 'Tanggal acara', waktu: 'Waktu', lokasi: 'Lokasi' }[k] || k)) }); }
