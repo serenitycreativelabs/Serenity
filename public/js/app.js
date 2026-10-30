@@ -1169,6 +1169,7 @@ function viewWarga(main, r) {
   </div>
   <div class="toolbar toolbar-actions">
     ${can('wargaEdit') ? `<a class="btn btn-primary" href="#/admin/warga/baru">${ic('plus')} Tambah Warga</a>` : ''}
+    ${can('wargaEdit') ? `<button class="btn btn-ghost" id="w-kk" title="Tambah satu keluarga sekaligus dari foto Kartu Keluarga (OCR di perangkat)">${ic('image')} Scan KK</button>` : ''}
     ${can('import') ? `<a class="btn btn-ghost" href="#/admin/import">${ic('upload')} Import</a>` : ''}
     ${can('export') ? `<button class="btn btn-ghost" id="w-export">${ic('download')} Ekspor</button>` : ''}
     ${can('broadcast') ? `<button class="btn btn-wa" id="w-wa">${ic('wa')} Kirim WA</button>` : ''}
@@ -1202,6 +1203,7 @@ function viewWarga(main, r) {
   $('#w-per').onchange = (e) => { f.per = Number(e.target.value); upd(); };
   $('#w-reset').onclick = () => { Object.assign(f, { q: '', dusun: '', field: '', value: '', jk: '', special: '', page: 1 }); render(); };
   $('#w-special')?.addEventListener('click', () => { f.special = ''; f.page = 1; render(); });
+  $('#w-kk')?.addEventListener('click', () => openKkScan());
   $('#w-export')?.addEventListener('click', () => exportWargaDialog(currentList(), filterTitle(), { filter: filterLine(), cols: filterCols(), pairs: filterSummary() }));
   $('#w-wa')?.addEventListener('click', () => { const ids = state.selected.size ? [...state.selected] : currentList().map((w) => w.id); sessionStorage.setItem('bc:ids', JSON.stringify(ids)); location.hash = '#/admin/broadcast?target=ids'; });
   drawTable();
@@ -1324,6 +1326,21 @@ function fieldInput(f, rec) {
     default: return `<input ${base} value="${v}">`;
   }
 }
+// isi formulir warga dari hasil OCR (kolom pilihan disesuaikan Data Master, wilayah huruf kapital awal)
+function applyOcrVals(form, vals, keep = 6000) {
+  const tc = (x) => x.toLowerCase().replace(/(^|[\s(/-])\S/g, (c) => c.toUpperCase());
+  for (const [k, v] of Object.entries(vals)) {
+    const el = form.elements[k]; if (!el || (isKadus() && k === 'dusun')) continue;
+    const f = fieldByKey(k);
+    el.value = f?.type === 'select' ? canonical(k, v, masterItems(f.master)) : f?.type === 'wilayah' ? tc(v) : v;
+    if (f?.type === 'wilayah') el.dataset.id = '';
+    el.closest('details')?.setAttribute('open', '');
+    el.closest('.field')?.classList.add('ocr-filled');
+    el.dispatchEvent(new Event('change', { bubbles: true })); // (tanpa event "input" agar daftar pilihan tidak terbuka semua)
+  }
+  form.dataset.dirty = '1';
+  setTimeout(() => $$('.ocr-filled', form).forEach((x) => x.classList.remove('ocr-filled')), keep);
+}
 function viewWargaForm(main, id) {
   state.view = 'form';
   if (!can('wargaEdit')) { main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Akses ditolak</b><p>Anda tidak memiliki izin menambah/mengubah data warga.</p></div></div>`; return; }
@@ -1336,6 +1353,7 @@ function viewWargaForm(main, id) {
   })();
   const fields = allFields();
   main.innerHTML = `<form id="wf" class="form-page" novalidate data-guard>
+    <div class="ocr-cta"><button type="button" class="btn btn-primary btn-sm" id="wf-ocr">${ic('image')} Isi otomatis dari foto KTP</button><small class="muted">Foto KTP dibaca di perangkat ini (tidak dikirim ke mana pun), lalu kolom terisi — tinggal diperiksa.</small></div>
     <p class="muted small">Kolom bertanda * wajib diisi. Pilihan dropdown muncul saat Anda mengetik; nilai baru otomatis ditambahkan ke Data Master.</p>
     ${GROUPS.map((g) => {
       const fs = fields.filter((f) => f.group === g.id);
@@ -1370,6 +1388,35 @@ function viewWargaForm(main, id) {
     if (p.rt && !$('#f_rt', form).value) $('#f_rt', form).value = p.rt;
     if (p.rw && !$('#f_rw', form).value) $('#f_rw', form).value = p.rw;
   });
+  // OCR KTP → isi formulir
+  $('#wf-ocr', form).onclick = async () => {
+    const OCR = await import('./ocr.js');
+    const current = Object.fromEntries(['nik', 'nama', 'tempatLahir', 'tglLahir', 'jk', 'golDarah', 'alamat', 'rt', 'rw', 'kelurahan', 'kecamatan', 'kabupaten', 'provinsi', 'agama', 'statusKawin', 'pekerjaan'].map((k) => [k, form.elements[k]?.value || '']));
+    OCR.ocrKtpDialog({ master: masterItems, current,
+      existing: (nik) => state.warga.find((x) => x.nik === nik && x.id !== rec?.id) || null,
+      onExisting: (w, patch) => { // NIK sudah terdaftar → buka data tersimpan (opsional dengan kolom yang diperbarui)
+        try { sessionStorage.setItem('dd:ocrPatch', JSON.stringify({ id: w.id, patch, at: Date.now() })); } catch { /* */ }
+        form.removeAttribute('data-guard'); delete form.dataset.dirty; location.hash = `#/admin/warga/edit/${w.id}`;
+      },
+      onApply: (vals) => applyOcrVals(form, vals) });
+  };
+  // NIK diketik manual & sudah terdaftar → peringatan yang sama
+  const nikIn = $('#f_nik', form);
+  nikIn?.addEventListener('change', () => {
+    $('.nik-dup', form)?.remove(); const v = nikIn.value.trim(); if (!/^\d{16}$/.test(v)) return;
+    const w = state.warga.find((x) => x.nik === v && x.id !== rec?.id); if (!w) return;
+    nikIn.closest('.field').insertAdjacentHTML('beforeend', `<div class="nik-dup">${ic('bell')}<span><b>Data sudah tersedia, Silahkan cek kembali untuk penyesuaian.</b> NIK ini milik <b>${esc(w.nama || '-')}</b>${w.dusun ? ` (Dusun ${esc(w.dusun)})` : ''}.</span><a class="btn btn-sm btn-ghost" href="#/admin/warga/edit/${w.id}">${ic('edit')} Buka & perbarui</a></div>`);
+  });
+  // datang dari scan KTP dengan NIK yang sudah terdaftar → kolom yang dipilih langsung diisi untuk diperbarui
+  if (rec) {
+    let pend = null; try { pend = JSON.parse(sessionStorage.getItem('dd:ocrPatch') || 'null'); } catch { /* */ }
+    if (pend && pend.id === rec.id && Date.now() - pend.at < 120000) {
+      sessionStorage.removeItem('dd:ocrPatch');
+      const n = Object.keys(pend.patch || {}).length;
+      form.insertAdjacentHTML('afterbegin', `<div class="callout ocr-upd">${ic('bell')}<div><b>Data sudah tersedia, Silahkan cek kembali untuk penyesuaian.</b><p>${n ? `${n} kolom diperbarui dari hasil scan KTP (disorot). Periksa lalu klik <b>Simpan</b> untuk menyimpan perubahan.` : 'Ini data tersimpan untuk NIK tersebut. Ubah bila perlu, lalu klik Simpan.'}</p></div></div>`);
+      if (n) applyOcrVals(form, pend.patch, 12000);
+    }
+  }
   $('#wf-del', form)?.addEventListener('click', async () => { await deleteWarga([rec.id]); if (!state.warga.find((w) => w.id === rec.id)) location.hash = '#/admin/warga'; });
 
   let again = false;
@@ -1416,6 +1463,32 @@ function viewWargaForm(main, id) {
       else location.hash = '#/admin/warga';
     } catch (err) { toast('Gagal menyimpan: ' + err.message, 'error'); }
   };
+}
+// ---- Scan Kartu Keluarga (OCR di perangkat) → tambah anggota keluarga sekaligus
+async function openKkScan() {
+  const OCR = await import('./ocr.js');
+  const w = state.config.wilayah || {};
+  const dusunHtml = isKadus() ? `<input data-kk-dusun value="${esc(myDusun())}" readonly>` : `<select data-kk-dusun><option value="">— pilih dusun —</option>${state.dusun.map((d) => `<option ${state.filters?.dusun === d.nama ? 'selected' : ''}>${esc(d.nama)}</option>`).join('')}</select>`;
+  OCR.ocrKkDialog({ master: masterItems, dusunHtml, existingNik: (nik) => state.warga.find((x) => x.nik === nik), onSave: async ({ header, rows, updates = [] }) => {
+    if (rows.length && !header.dusun && !isKadus()) throw new Error('Pilih dusun terlebih dahulu');
+    // data yang sudah tersedia & dipilih "Perbarui data" → hanya kolom yang dicentang yang diubah
+    if (updates.length) {
+      const fix = (k, v) => (['jk', 'agama', 'pendidikan', 'pekerjaan', 'statusKawin', 'shdk'].includes(k) ? canonical(k, v, masterItems(fieldByKey(k)?.master || k)) : v);
+      const ups = updates.map((u) => { const ch = Object.fromEntries(Object.entries(u.changes).map(([k, v]) => [k, fix(k, v)])); if (isKadus()) delete ch.dusun; if (ch.tglLahir) { const a = ageFromDate(ch.tglLahir); if (a !== '') ch.umur = a; } return { ...u, changes: ch }; });
+      await addNewMasterValues(ups.map((u) => u.changes));
+      await batchWrite(ups.map((u) => ['update', C(`warga/${u.id}`), { ...clean(u.changes), updatedAt: F.serverTimestamp() }]));
+      ups.forEach((u) => { const old = state.warga.find((x) => x.id === u.id) || {}; logAudit('warga', 'ubah', `Memperbarui data warga ${u.nama} dari scan Kartu Keluarga`, { target: `${u.nama} (${old.nik || '-'})`, targetId: u.id, changes: diff(old, { ...old, ...u.changes }, (k) => fieldByKey(k)?.label || k), count: Object.keys(u.changes).length }); });
+    }
+    if (!rows.length) { toast(`${updates.length} data warga diperbarui`, 'success'); return; }
+    const base = { noKk: header.noKk, alamat: header.alamat, rt: header.rt, rw: header.rw, dusun: isKadus() ? myDusun() : header.dusun, provinsi: w.provinsi || '', provinsiId: w.provinsiId || '', kabupaten: w.kabupaten || '', kabupatenId: w.kabupatenId || '', kecamatan: w.kecamatan || '', kecamatanId: w.kecamatanId || '', kelurahan: w.kelurahan || state.config.namaDesa || '', kelurahanId: w.kelurahanId || '' };
+    const records = rows.map((r) => { const d = { ...base, ...r }; for (const k of ['jk', 'agama', 'pendidikan', 'pekerjaan', 'statusKawin', 'shdk']) if (d[k]) d[k] = canonical(k, d[k], masterItems(fieldByKey(k)?.master || k)); if (d.tglLahir) { const a = ageFromDate(d.tglLahir); if (a !== '') d.umur = a; } return d; });
+    const dup = records.find((r) => r.nik && state.warga.some((x) => x.nik === r.nik)); if (dup) throw new Error(`NIK ${dup.nik} (${dup.nama}) sudah terdaftar`);
+    await addNewMasterValues(records);
+    if (!isKadus()) await ensureDusun([base.dusun]);
+    await batchWrite(records.map((r) => ['set', F.doc(F.collection(F.db, 'warga')), { ...clean(r), createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp(), createdBy: state.user.email, sumber: 'ocr-kk' }]));
+    logAudit('warga', 'tambah_ocr_kk', `Menambah ${records.length} warga dari scan Kartu Keluarga ${header.noKk || ''}`.trim(), { count: records.length, target: header.noKk || '', detail: records.map((r) => r.nama).join(', ').slice(0, 300) });
+    toast(`${records.length} anggota keluarga ditambahkan${updates.length ? ` · ${updates.length} data diperbarui` : ''}`, 'success');
+  } });
 }
 async function addNewMasterValues(records) {
   const add = {};

@@ -2546,3 +2546,130 @@ body.has-bg .news-mini { background: color-mix(in srgb, var(--surface) 58%, tran
 .icm-row { padding: 4px 6px 4px 12px; }
 .icm-row .icon-btn { width: 30px; height: 30px; }
 .icm-list { gap: 4px; }
+
+/* =============================================================
+   v2.9.14 — OCR di perangkat (Scan KTP, Scan KK, Teks dari foto)
+   ============================================================= */
+.modal-xl { max-width: 1180px; }
+.ocr-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--line)); background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface)); }
+.ocr-cta small { flex: 1; min-width: 200px; }
+.ocr-wrap { display: grid; gap: 10px; }
+.ocr-drop-old { display: grid; place-items: center; gap: 6px; padding: 26px 16px; border: 2px dashed var(--line); border-radius: 14px; text-align: center; cursor: pointer; color: var(--ink-2); background: var(--bg); transition: border-color .2s; }
+.ocr-drop:hover, .ocr-drop:focus-visible { border-color: var(--primary); outline: none; }
+.ocr-drop .ic { width: 34px; height: 34px; color: var(--primary); }
+.ocr-drop small { color: var(--muted); }
+.ocr-stage { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.ocr-prev { max-width: min(100%, 360px); height: auto; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.ocr-tools { display: flex; flex-direction: column; gap: 6px; }
+.ocr-prog small { color: var(--muted); font-size: .76rem; }
+.ocr-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-bottom: 4px; }
+.ocr-bar i { display: block; height: 100%; width: 0; background: var(--primary); transition: width .25s; }
+.ocr-priv { margin: 0; font-size: .76rem; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.ocr-priv .ic { width: 14px; height: 14px; flex: none; color: var(--primary); }
+.ocr-tips { margin: 0; padding-left: 1.2em; font-size: .76rem; color: var(--muted); display: grid; gap: 2px; }
+.ocr-sum { display: flex; gap: 8px; align-items: flex-start; padding: 9px 12px; border-radius: 10px; font-size: .84rem; }
+.ocr-sum.ok { background: color-mix(in srgb, var(--ok, #16a34a) 12%, var(--surface)); }
+.ocr-sum.warn { background: color-mix(in srgb, var(--warn, #d97706) 14%, var(--surface)); }
+.ocr-sum .ic { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.ocr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 14px; }
+.ocr-row { display: grid; grid-template-columns: 20px 120px minmax(0, 1fr); align-items: center; gap: 4px 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); font-size: .84rem; }
+.ocr-row.empty .ocr-l { color: var(--muted); }
+.ocr-row .ocr-v { padding: .35em .55em; font-size: .84rem; }
+.ocr-cur { grid-column: 3; color: var(--muted); font-size: .7rem; }
+.ocr-raw summary { cursor: pointer; font-size: .78rem; color: var(--muted); }
+.ocr-raw pre { max-height: 200px; overflow: auto; font-size: .72rem; background: var(--bg); padding: 8px; border-radius: 8px; white-space: pre-wrap; }
+.ocr-head { grid-template-columns: 1.3fr 2fr .6fr .6fr 1.2fr; }
+@media (max-width: 760px) { .ocr-head { grid-template-columns: 1fr 1fr; } }
+.ocr-table { max-height: 46vh; overflow: auto; }
+.ocr-table table { font-size: .78rem; min-width: 1100px; }
+.ocr-table td { padding: 3px 4px; }
+.ocr-table td input:not([type=checkbox]) { width: 100%; min-width: 80px; padding: .3em .45em; font-size: .78rem; }
+.ocr-table tr.dup td { background: color-mix(in srgb, var(--warn, #d97706) 10%, transparent); }
+.field.ocr-filled input { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 55%, transparent); transition: box-shadow .4s; }
+.rte-ocr span { font-size: .74rem; }
+@media (max-width: 600px) { .rte-ocr span { display: none; } }
+.ocr-table td:nth-child(3) input { min-width: 190px; } .ocr-table td:nth-child(4) input { min-width: 150px; }
+.ocr-table td:nth-child(9) input, .ocr-table td:nth-child(10) input { min-width: 150px; } .ocr-table td:nth-child(12) input { min-width: 130px; }
+.ocr-detail .ocr-diffs input { width: 15px; height: 15px; } .ocr-detail td { position: sticky; left: 0; }
+
+/* v2.9.14 — OCR: pilihan Kamera / Unggah + tampilan kamera langsung dengan bingkai panduan */
+.ocr-choose { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 520px) { .ocr-choose { grid-template-columns: 1fr; } }
+.ocr-opt { display: grid; justify-items: center; gap: 4px; padding: 20px 14px; border: 2px dashed var(--line); border-radius: 14px; background: var(--bg); color: var(--ink); font: inherit; text-align: center; cursor: pointer; transition: border-color .2s, background .2s; }
+.ocr-opt:hover, .ocr-opt:focus-visible { border-color: var(--primary); background: color-mix(in srgb, var(--primary-soft) 45%, var(--bg)); outline: none; }
+.ocr-opt .ic { width: 32px; height: 32px; color: var(--primary); }
+.ocr-opt small { color: var(--muted); font-size: .74rem; }
+.ocr-for { margin: -2px 0 0; text-align: center; }
+.ocr-cam { display: grid; gap: 10px; }
+.ocr-view { position: relative; border-radius: 14px; overflow: hidden; background: #000; max-height: 62vh; display: grid; place-items: center; }
+.ocr-view video { display: block; width: 100%; height: auto; max-height: 62vh; object-fit: contain; }
+.ocr-view video.mirror { transform: scaleX(-1); }
+.ocr-guide { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.ocr-guide i { width: 80%; height: 60%; border-radius: 12px; border: 2px solid rgba(255,255,255,.95); box-shadow: 0 0 0 100vmax rgba(0,0,0,.45);
+  background: linear-gradient(#fff,#fff) top left / 26px 4px no-repeat, linear-gradient(#fff,#fff) top left / 4px 26px no-repeat, linear-gradient(#fff,#fff) top right / 26px 4px no-repeat, linear-gradient(#fff,#fff) top right / 4px 26px no-repeat, linear-gradient(#fff,#fff) bottom left / 26px 4px no-repeat, linear-gradient(#fff,#fff) bottom left / 4px 26px no-repeat, linear-gradient(#fff,#fff) bottom right / 26px 4px no-repeat, linear-gradient(#fff,#fff) bottom right / 4px 26px no-repeat; }
+.ocr-guide span { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 99px; background: rgba(0,0,0,.6); color: #fff; font-size: .76rem; white-space: nowrap; }
+.ocr-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.ocr-flash.go { animation: ocrFlash .35s ease-out; }
+@keyframes ocrFlash { from { opacity: .85; } to { opacity: 0; } }
+.ocr-cam-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.ocr-cam-bar > :first-child { justify-self: start; }
+.ocr-cam-side { justify-self: end; display: flex; gap: 6px; }
+.ocr-cam-side .on { color: #f59e0b; }
+.ocr-shutter { width: 64px; height: 64px; border-radius: 50%; border: 4px solid var(--surface); background: var(--primary); box-shadow: 0 0 0 3px var(--primary), var(--shadow-lg); cursor: pointer; transition: transform .12s; }
+.ocr-shutter:active { transform: scale(.9); }
+.ocr-shutter:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.ocr-priv { display: block; } .ocr-priv .ic { vertical-align: -2px; margin-right: 4px; }
+@media (max-width: 600px) { .ocr-stage { flex-direction: column; } .ocr-prev { max-width: 100%; } .ocr-tools { flex-direction: row; flex-wrap: wrap; } }
+.field.ocr-check input { border-color: var(--warn, #d97706); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn, #d97706) 25%, transparent); }
+.field.ocr-check small { color: var(--warn, #d97706); font-weight: 600; }
+/* v2.9.14 — peringatan data sudah tersedia (NIK terdaftar) & pembaruan data */
+.ocr-dup, .nik-dup { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--warn, #d97706) 13%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn, #d97706) 45%, transparent); font-size: .84rem; }
+.ocr-dup .ic, .nik-dup .ic { flex: none; width: 18px; height: 18px; color: var(--warn, #d97706); margin-top: 1px; }
+.ocr-dup p { margin: 3px 0 0; }
+.nik-dup { margin-top: 6px; flex-wrap: wrap; align-items: center; } .nik-dup span { flex: 1; min-width: 180px; } .nik-dup .btn { flex: none; }
+.ocr-cmp table { font-size: .82rem; } .ocr-cmp td { padding: 4px 6px; vertical-align: middle; }
+.ocr-cmp tr.diff td { background: color-mix(in srgb, var(--warn, #d97706) 8%, transparent); }
+.ocr-cmp tr.eq td:nth-child(3) input { color: var(--muted); }
+.ocr-cmp .ocr-v { width: 100%; padding: .3em .5em; font-size: .82rem; }
+.ocr-same { color: var(--muted); font-size: .74rem; }
+.ocr-dupdot { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--warn, #d97706); color: #fff; font-weight: 700; font-size: .72rem; }
+.ocr-st { display: flex; flex-direction: column; gap: 4px; min-width: 150px; } .ocr-st select { font-size: .74rem; padding: .25em .4em; }
+.ocr-detail td { background: color-mix(in srgb, var(--warn, #d97706) 6%, var(--surface)); font-size: .78rem; padding: 8px 10px !important; }
+.ocr-diffs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; }
+.ocr-diffs s { color: var(--muted); }
+.callout.ocr-upd { border-color: color-mix(in srgb, var(--warn, #d97706) 45%, var(--line)); background: color-mix(in srgb, var(--warn, #d97706) 10%, var(--surface)); margin-bottom: 10px; }
+.callout.ocr-upd .ic { color: var(--warn, #d97706); }
+/* v2.9.14 — OCR di HP: tabel perbandingan & tabel KK menjadi kartu */
+@media (max-width: 680px) {
+  .modal-xl { max-width: 100%; }
+  .ocr-wrap, .ocr-result { min-width: 0; max-width: 100%; }
+  .ocr-head { grid-template-columns: 1fr 1fr !important; } .ocr-head .field:first-child, .ocr-head .field:nth-child(2) { grid-column: 1 / -1; }
+  .ocr-dup { font-size: .8rem; }
+  /* perbandingan KTP */
+  .ocr-cmp { overflow: visible; border: 0; }
+  .ocr-cmp table, .ocr-cmp tbody { display: block; } .ocr-cmp thead { display: none; }
+  .ocr-cmp tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 10px; }
+  .ocr-cmp td { display: block; padding: 0 !important; border: 0 !important; background: none !important; }
+  .ocr-cmp td.c-l { font-weight: 600; font-size: .8rem; }
+  .ocr-cmp td.c-act { grid-row: 1; grid-column: 2; text-align: right; }
+  .ocr-cmp td[data-l] { grid-column: 1 / -1; font-size: .8rem; }
+  .ocr-cmp td[data-l]::before { content: attr(data-l) ': '; color: var(--muted); font-size: .7rem; }
+  .ocr-cmp td[data-l="Hasil scan"]::before { display: block; margin-bottom: 2px; }
+  .ocr-cmp tr.diff { border-color: color-mix(in srgb, var(--warn, #d97706) 55%, var(--line)); background: color-mix(in srgb, var(--warn, #d97706) 7%, var(--surface)); }
+  .ocr-cmp tr.eq { padding: 6px 10px; } .ocr-cmp tr.eq td[data-l="Hasil scan"] { display: none; }
+  /* tabel KK → kartu per anggota */
+  .ocr-table { max-height: none; overflow: visible; border: 0; }
+  .ocr-table table { min-width: 0 !important; display: block; } .ocr-table thead { display: none; } .ocr-table tbody { display: block; }
+  .ocr-table tr[data-i] { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; padding: 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .ocr-table tr.dup { border-color: color-mix(in srgb, var(--warn, #d97706) 55%, var(--line)); }
+  .ocr-table tr[data-i] td { display: block; padding: 0 !important; border: 0 !important; background: none !important; min-width: 0; }
+  .ocr-table td.c-chk { grid-column: 1; grid-row: 1; display: flex !important; align-items: center; }
+  .ocr-table td.c-st { grid-column: 2; grid-row: 1; justify-self: end; } .ocr-table td.c-st .ocr-st { min-width: 0; align-items: flex-end; }
+  .ocr-table td.c-nama, .ocr-table td.c-nik { grid-column: 1 / -1; }
+  .ocr-table td[data-l]::before { content: attr(data-l); display: block; font-size: .66rem; color: var(--muted); margin-bottom: 1px; }
+  .ocr-table td input:not([type=checkbox]) { min-width: 0 !important; width: 100%; font-size: .82rem; padding: .4em .55em; }
+  .ocr-table tr.ocr-detail { display: block; margin: -4px 0 10px; } .ocr-table tr.ocr-detail[hidden] { display: none; }
+  .ocr-table tr.ocr-detail td { display: block; position: static; border-radius: 10px; }
+  .ocr-diffs { flex-direction: column; gap: 4px; }
+  .modal-foot { flex-wrap: wrap; } .modal-foot .btn { flex: 1 1 auto; }
+}

@@ -145,7 +145,9 @@ export function attachRich(ta) {
     <span class="rte-sep"></span>
     <button type="button" data-cmd="insertUnorderedList" title="Daftar berpoin">•≡</button>
     <button type="button" data-cmd="insertOrderedList" title="Daftar bernomor">1.</button>
-    <button type="button" data-cmd="removeFormat" title="Hapus format">⨯</button>`;
+    <button type="button" data-cmd="removeFormat" title="Hapus format">⨯</button>
+    <span class="rte-sep"></span>
+    <button type="button" data-cmd="ocr" class="rte-ocr" title="Teks dari foto dokumen (OCR di perangkat)">📷 <span>Teks dari foto</span></button>`;
   const ed = document.createElement('div'); ed.className = 'rte-area'; ed.contentEditable = 'true';
   ed.setAttribute('role', 'textbox'); ed.setAttribute('aria-multiline', 'true');
   ed.style.minHeight = `${Math.max(3, Number(ta.getAttribute('rows')) || 4) * 1.6}em`;
@@ -169,6 +171,7 @@ export function attachRich(ta) {
     if (b.dataset.color) { exec('foreColor', b.dataset.color); bar.querySelector('.rte-sw').style.background = b.dataset.color; bar.querySelector('.rte-color').classList.remove('open'); return; }
     const cmd = b.dataset.cmd;
     if (cmd === 'colorbtn') { bar.querySelector('.rte-color').classList.toggle('open'); return; }
+    if (cmd === 'ocr') { keep(); import('./ocr.js').then((m) => m.ocrTextDialog({ onInsert: (t) => { const html = t.split(/\n\s*\n/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join(''); restore(); document.execCommand('insertHTML', false, html); keep(); sync(); } })); return; }
     if (cmd) exec(cmd, null, false);
   });
   bar.querySelector('[data-cmd=color]').addEventListener('input', (e) => { exec('foreColor', e.target.value); bar.querySelector('.rte-sw').style.background = e.target.value; });

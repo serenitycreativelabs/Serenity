@@ -14,6 +14,7 @@ import { badgeRow } from './badges.js';
 // ---------------------------------------------------------------- 1) pencarian menu & panel
 // Bagian di dalam halaman yang sering dicari → dibuka & digulir langsung ke bagiannya
 const SECTIONS = [
+  ['warga', 'Scan KK (OCR)', 'ocr scan kartu keluarga foto kamera kk', 'click:#w-kk'],
   ['pengaturan', 'Teks Kartu Beranda', 'deskripsi beranda sambutan hero portal data publik tulisan kartu atas selamat datang'],
   ['pengaturan', 'Profil Gampong', 'nama desa alamat kantor kecamatan logo email whatsapp kantor'],
   ['pengaturan', 'Jadwal Sholat', 'sholat azan imsak koordinat latitude ihtiyat'],
