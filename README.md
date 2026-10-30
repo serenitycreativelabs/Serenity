@@ -13,7 +13,7 @@
 - `v2.9.8` - *Glitch halaman utama **Fixed**.*
 - `v2.9.7` - *Bugfix halaman editor berita.*
 - `v2.9.6` - *Perbaikan background yang tidak tampil.*
-- `v2.9.3` - `v2.9.5` - *Pra-tinjau tautan saat dibagikan: judul resmi + lambang Kota Banda Aceh.*
+- `v2.9.3` to `v2.9.5` - *Pra-tinjau tautan saat dibagikan: judul resmi + lambang Kota Banda Aceh.*
 - `v2.9.2` - *Layar memuat ikon terbaru, kotak gangguan mengikuti tema website.*
 - `v2.9.1` - *Perbaikan notifikasi palsu “Hak akses diperbarui”.*
 
