@@ -5,17 +5,17 @@
 **© Serenity Creativa Labs 2026**
 
 ## v2.9.13 (R29) “Minor Hotfix and Bugfix” (STABLE)
-- v2.9.13 - Kelola kategori berita, hapus foto/video per item, tombol Sunting berita.
-- v2.9.12 - Minor Bugfix..
-- v2.9.11 - INFO Text dan statistik pengunjung sudah pindah ke dalam kotak footer.
-- v2.9.10 - Perbaikan footer, penambahan font/huruf, fitur "cari menu" menggunakan keybind (Ctrl+K), mode View As.
-- v2.9.9 - Beranda & dasbor lebih compact.
-- v2.9.8 - Glitch halaman utama **Fixed**.
-- v2.9.7 - Bugfix halaman editor berita.
-- v2.9.6 - Perbaikan background yang tidak tampil.
-- v2.9.3 - v2.9.5 - Pra-tinjau tautan saat dibagikan: judul resmi + lambang Kota Banda Aceh.
-- v2.9.2 - Layar memuat ikon terbaru, kotak gangguan mengikuti tema website.
-- v2.9.1 - Perbaikan notifikasi palsu “Hak akses diperbarui”.
+- v2.9.13 - *Kelola kategori berita, hapus foto/video per item, tombol Sunting berita.*
+- v2.9.12 - *Minor Bugfix.*
+- v2.9.11 - *INFO Text dan statistik pengunjung sudah pindah ke dalam kotak footer.*
+- v2.9.10 - *Perbaikan footer, penambahan font/huruf, fitur "cari menu" menggunakan keybind (Ctrl+K), mode View As.*
+- v2.9.9 - *Beranda & dasbor lebih compact.*
+- v2.9.8 - *Glitch halaman utama **Fixed**.*
+- v2.9.7 - *Bugfix halaman editor berita.*
+- v2.9.6 - *Perbaikan background yang tidak tampil.*
+- v2.9.3 - *v2.9.5 - Pra-tinjau tautan saat dibagikan: judul resmi + lambang Kota Banda Aceh.*
+- v2.9.2 - *Layar memuat ikon terbaru, kotak gangguan mengikuti tema website.*
+- v2.9.1 - *Perbaikan notifikasi palsu “Hak akses diperbarui”.*
 
 ## Baru di v2.9.0 “Kirana” (Stable) - Major / Feature Milestone
 - 📰 **Blurry Glass Theme** lebih rapi di desktop, tablet, ponsel & PWA.
@@ -70,28 +70,28 @@
 - Hak akses baru: `lembaga`, `dokumen`.
 
 ## Minor Release Version (Latest Work).
------- **General bug fixes, Admin panel bug fixes, query tuning (logika perhitungan), Minor hotfix and bug fixes, maintenance hotfix, general patches & enhancement.
+--- **General bug fixes, Admin panel bug fixes, query tuning (logika perhitungan dan analisa), Minor hotfix and bug fixes, maintenance hotfix, general patches & enhancement.**
 - `v2.0.0`   : Big Update & Major Architecture Overhaul (Breaking Changes), migrasi data ke versi `v2.2.0` - `Aero`  
-- `v1.9.0` - `Solstice` : Deprecation warning and migration preparation
-- `v1.8.0` - `Meridian` : Development API integrations, cloud architecture, safety & webhooks
-- `v1.7.0` - `Pulsar`   : General bug fixes
-- `v1.6.0` - `Cosmos`   : General bug fixes
-- `v1.5.1` - `Vector`   : Performance optimizations, caching layer, and PWA support
-- `v1.5.0` - `Zenith`   : Community modules and social interactions
-- `v1.4.0` - `Echo`     : Admin panel bug fixes and query tuning
-- `v1.3.1` - `Axis`     : Analytics dashboard and admin control panel
-- `v1.3.0` - `Flux`     : Notification engine and redesigned login panel
-- `v1.2.0` - `Iris`     : Minor hotfix and bug fixes
-- `v1.1.1` - `Node`     : Maintenance hotfix and general patches
-- `v1.1.0` - `Spectra`  : Dark mode theme and internationalization (i18n)
-- `v1.0.1` - `Halo`     : General bug fixes, Advanced search, filters, and feature enhancements
+- `v1.9.0` - `Solstice` : *Deprecation warning and migration preparation.*
+- `v1.8.0` - `Meridian` : *Development API integrations, cloud architecture, safety & webhooks.*
+- `v1.7.0` - `Pulsar`   : *General bug fixes.*
+- `v1.6.0` - `Cosmos`   : *General bug fixes.*
+- `v1.5.1` - `Vector`   : *Performance optimizations, caching layer, and PWA support.*
+- `v1.5.0` - `Zenith`   : *Community modules and social interactions.*
+- `v1.4.0` - `Echo`     : *Admin panel bug fixes and query tuning.*
+- `v1.3.1` - `Axis`     : *Analytics dashboard and admin control panel.*
+- `v1.3.0` - `Flux`     : *Notification engine and redesigned login panel.*
+- `v1.2.0` - `Iris`     : *Minor hotfix and bug fixes.*
+- `v1.1.1` - `Node`     : *Maintenance hotfix and general patches.*
+- `v1.1.0` - `Spectra`  : *Dark mode theme and internationalization.*
+- `v1.0.1` - `Halo`     : *General bug fixes, Advanced search, filters, and feature enhancements.*
 
-## Versi v1.0.0 **Nova**
-- Development, Building & Minor Release
+## Versi v1.0.0 **Nova** (Debut)
+- *Development, Building & Minor Release*
 
 ## Lisensi & Kedaulatan Data
-Proyek ini dilindungi oleh **Citizen Data Protection & Platform Governance License (CDPGL)**. 
+*Proyek ini dilindungi oleh **Citizen Data Protection & Platform Governance License (CDPGL)**. 
 Segala bentuk penyalahgunaan data warga negara dan eksploitasi kode sumber dilarang keras. 
-Lihat file [LICENSE](LICENSE) untuk ketentuan hukum lengkap.
+Lihat file [LICENSE](LICENSE) untuk ketentuan hukum lengkap.*
 
 **Serenity Project Data Enhancement** - Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved.
