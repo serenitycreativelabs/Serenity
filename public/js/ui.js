@@ -184,7 +184,7 @@ export function promptDialog(title, label, value = '', { placeholder = '', okTex
 
 // ---------- Autocomplete (saran saat mengetik) ----------
 // source: array string | {label, id?, sub?} | fungsi async yang mengembalikan array itu
-export function attachAutocomplete(input, { source, max = 30, smallList = 8, onSelect, emptyHint = '' } = {}) {
+export function attachAutocomplete(input, { source, max = 30, smallList = 8, onSelect, emptyHint = '', action = null } = {}) {
   if (input._ac) return input._ac;
   const wrap = document.createElement('div');
   wrap.className = 'ac-wrap';
@@ -229,7 +229,7 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
   };
 
   async function update(fromFocus = false) {
-    const my = ++seq;
+    const my = ++seq; input._acAct = null;
     const raw = input.value.trim();
     const q = norm(raw);
     let all;
@@ -252,12 +252,16 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
       }
       res = [...starts, ...words, ...contains];
       if (!res.length) html = `<div class="ac-empty">Tidak ada yang cocok — “${esc(raw)}” tetap bisa dipakai sebagai nilai baru.</div>`;
+      const act = action && raw ? action(raw, res.length) : null; // aksi tambahan di akhir daftar (mis. "Tambah sebagai warga luar")
+      if (act) html += `<div class="ac-item ac-act" data-act="1" role="option">${esc(act.label)}</div>`; input._acAct = act;
     }
     items = res.slice(0, max);
     active = items.length && q ? 0 : -1;
     if (items.length) {
+      const actHtml = input._acAct ? `<div class="ac-item ac-act" data-act="1" role="option">${esc(input._acAct.label)}</div>` : '';
       html = items.map((it, i) => `<div class="ac-item${i === active ? ' active' : ''}" data-i="${i}" role="option"><span>${hl(it.label, raw)}</span>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</div>`).join('');
       if (res.length > items.length) html += `<div class="ac-more">+${res.length - items.length} lainnya — ketik lebih spesifik</div>`;
+      html += actHtml;
     }
     list.innerHTML = html;
     if (html && input.isConnected) { if (clipped()) float(true); list.classList.add('open'); isOpen = true; place(); } else close();
@@ -284,6 +288,7 @@ export function attachAutocomplete(input, { source, max = 30, smallList = 8, onS
   list.addEventListener('mousedown', (e) => {
     const el = e.target.closest('.ac-item');
     e.preventDefault();
+    if (el?.dataset.act) { const a = input._acAct; close(); a?.run?.(input.value.trim()); return; }
     if (el) choose(+el.dataset.i);
   });
   input._ac = { refresh: () => update(false), close };

@@ -1,5 +1,26 @@
 # Catatan Perubahan
 
+## v2.9.17 “Kirana” — 2026.10.31 (Build 2026.10.31 · R33 · Stable)
+### Lembaga Gampong — Kontak Luar (warga luar gampong)
+- **Daftar Kontak Luar bersama** (Lembaga Gampong › Kontak Luar): pengurus, anggota, atau murid/santri yang **bukan penduduk gampong** (bidan/kader puskesmas, pelatih, ustaz dari gampong lain, dll.) — nama, L/P, No. HP, **asal/instansi** (wajib), keterangan. Sekali dicatat, bisa dipakai di semua lembaga.
+- **Terpisah total dari Data Warga:** disimpan di koleksi tersendiri; tidak masuk Data Warga, statistik penduduk, Dasbor, Laporan, Broadcast, maupun ekspor warga.
+- Isian nama: saran menampilkan warga lokal dan warga luar (“Warga luar • asal”); bila nama tidak ditemukan → **“＋ Tambah … sebagai warga luar gampong”** atau tombol **“＋ Jadikan warga luar”**. Peringatan bila nama ternyata terdaftar di Data Warga atau sudah ada di Kontak Luar (“Pakai ini”).
+- **Label “Warga luar · asal” hanya terlihat admin**; halaman publik tetap menampilkan nama & jabatan saja.
+- Jumlah dipisah (“n warga lokal · m warga luar”); ekspor Excel/PDF lembaga mendapat kolom **Status** (Warga lokal / Warga luar / Belum terhubung).
+- Halaman Kontak Luar: cari, ekspor Excel, ubah (nama ikut berubah di semua lembaga), hapus dengan peringatan tempat pemakaian (nama tetap ada di lembaga, menjadi “belum terhubung”); daftar “Dipakai di” per orang.
+- Nama lama yang persis sama dengan satu kontak luar ditautkan otomatis. Pengelola lembaga dapat memakai & menambah kontak luar; menghapus hanya admin Kelembagaan / Super Admin.
+- Keamanan: aturan database baru untuk koleksi `kontakLuar`; ikut dalam Cadangan & Pemulihan.
+
+## v2.9.16 “Kirana” — 2026.10.31 (Build 2026.10.31 · R32 · Stable)
+### Lembaga Gampong — perbaikan isian nama & integrasi Data Warga
+- **Perbaikan:** memilih nama dari daftar saran (Struktur Kepengurusan, Anggota, Murid/Santri, juga kolom Jabatan/Bagian/Dusun/Jenis dokumen) tidak lagi hanya menyimpan huruf yang sempat diketik (mis. “B” untuk “Budi”). Nama lengkap langsung tampil sekali klik/Enter dan tersimpan utuh — berlaku untuk semua lembaga (Posyandu, PKK, TPA, dll.).
+- **Terhubung ke Data Warga:** nama yang dipilih dari saran ditautkan ke data warga (tanda ✓ “Data warga · Dusun”), dan kolom terkait terisi otomatis:
+  - Pengurus: No. HP.
+  - Anggota: L/P, dusun, No. HP.
+  - Murid/Santri: L/P, tanggal lahir, orang tua/wali (kepala keluarga pada KK yang sama) & HP wali.
+- **Selalu mengikuti Data Warga:** bila nama warga diubah di Data Warga, nama di lembaga ikut menyesuaikan saat dibuka; nama lama yang persis sama dengan satu warga ditautkan otomatis; warga yang dihapus → tautan dilepas, nama tetap.
+- Nama yang diketik manual (bukan warga) tetap bisa disimpan, ditandai “Belum terhubung data warga”; tautan bisa dilepas (×). Peringatan bila orang yang sama dipilih dua kali dalam satu daftar.
+
 ## v2.9.15 “Kirana” — 2026.10.31 (Build 2026.10.31 · R31 · Stable)
 ### OCR KTP & KK diperkuat untuk foto asli
 - **Pengolahan gambar baru:** dokumen dideteksi & dipotong otomatis dari latar (meja/tangan), kemiringan diluruskan sampai 0,05°, gambar diperbesar dari foto asli ke resolusi baca (KTP 2300 px, KK 3600 px), lalu **binarisasi adaptif** (tahan bayangan, pantulan cahaya & motif latar KTP) dan penghapusan garis tabel KK yang lebih toleran.

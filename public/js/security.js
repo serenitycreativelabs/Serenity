@@ -415,11 +415,11 @@ function chatTranscript(t, from, to) {
 // ---------------------------------------------------------------- Cadangan & Pemulihan
 // v2.4: cadangan benar-benar LENGKAP — dari data dasbor sampai audit log.
 // (Bug v2.3: koleksi config dibaca dengan "list" yang ditolak Rules sehingga cadangan selalu gagal.)
-const BACKUP_COLS = ['warga', 'dusun', 'master', 'informasi', 'instagram', 'halaman', 'kegiatan', 'lembaga', 'lembagaPrivate', 'dokumen', 'users', 'private', 'sistem', 'usage', 'hapus'];
+const BACKUP_COLS = ['warga', 'dusun', 'master', 'informasi', 'instagram', 'halaman', 'kegiatan', 'lembaga', 'lembagaPrivate', 'kontakLuar', 'dokumen', 'users', 'private', 'sistem', 'usage', 'hapus'];
 const BACKUP_DOCS = { config: ['app', 'stats', 'auth'], meta: ['pub', 'adm'], analytics: ['summary'] };
 // Koleksi yang hanya diarsipkan (tidak dapat dipulihkan karena dikunci Rules: hanya-tambah / penghitung)
 const ARCHIVE_ONLY = ['audit', 'usage', 'analytics', 'hapus', 'meta'];
-const COL_LABEL = { warga: 'Data warga', dusun: 'Dusun & kepala dusun', master: 'Data master dropdown', informasi: 'Papan informasi', instagram: 'Postingan Instagram', halaman: 'Halaman Profil Gampong', kegiatan: 'Kegiatan rutin', lembaga: 'Lembaga gampong (profil, pengurus, berita, galeri)', lembagaPrivate: 'Anggota & murid/santri lembaga', dokumen: 'Dokumen publik', users: 'Akun & hak akses', private: 'Token integrasi (Instagram)', sistem: 'Pengaturan sistem', usage: 'Riwayat pemakaian Firestore', hapus: 'Catatan sinkron hapus', config: 'Pengaturan desa, statistik & tema', meta: 'Versi sinkron', analytics: 'Analitik kunjungan', audit: 'Audit log' };
+const COL_LABEL = { warga: 'Data warga', dusun: 'Dusun & kepala dusun', master: 'Data master dropdown', informasi: 'Papan informasi', instagram: 'Postingan Instagram', halaman: 'Halaman Profil Gampong', kegiatan: 'Kegiatan rutin', lembaga: 'Lembaga gampong (profil, pengurus, berita, galeri)', lembagaPrivate: 'Anggota & murid/santri lembaga', kontakLuar: 'Kontak luar (warga luar gampong di lembaga)', dokumen: 'Dokumen publik', users: 'Akun & hak akses', private: 'Token integrasi (Instagram)', sistem: 'Pengaturan sistem', usage: 'Riwayat pemakaian Firestore', hapus: 'Catatan sinkron hapus', config: 'Pengaturan desa, statistik & tema', meta: 'Versi sinkron', analytics: 'Analitik kunjungan', audit: 'Audit log' };
 const sistemRef = () => C('sistem/backup');
 async function readAll(col, onProg) {
   if (col === 'audit') {

@@ -48,6 +48,7 @@ export function navIndex({ NAV, navAllowed, KATEGORI, lembagaKat }) {
     if (can('lembaga')) {
       KATEGORI.forEach((c) => add(c.short, `#/admin/lembaga/k/${c.key}`, 'Kategori lembaga', `${c.label} ${c.desc}`, '', c.icon || 'shield'));
       add('Berita & Kegiatan Lembaga', '#/admin/lembaga/berita', 'Lembaga Gampong', 'berita kegiatan lembaga', '', 'news');
+      add('Kontak Luar (warga luar gampong)', '#/admin/lembaga/luar', 'Lembaga Gampong', 'kontak luar warga luar gampong pengurus anggota dari luar bidan kader instansi', '', 'loc');
     }
     for (const l of state.lembaga) {
       if (!canLembaga(l.id, l.kategori)) continue;

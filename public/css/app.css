@@ -2673,3 +2673,19 @@ body.has-bg .news-mini { background: color-mix(in srgb, var(--surface) 58%, tran
   .ocr-diffs { flex-direction: column; gap: 4px; }
   .modal-foot { flex-wrap: wrap; } .modal-foot .btn { flex: 1 1 auto; }
 }
+
+/* v2.9.16 — tautan baris lembaga ke Data Warga */
+.rows-table .wl-tag{display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:.72rem;line-height:1.2;color:var(--muted);white-space:nowrap}
+.rows-table .wl-tag.ok{color:var(--primary,#0f766e);font-weight:600}
+.rows-table .wl-tag .ic{width:12px;height:12px}
+.rows-table .wl-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1}
+.rows-table .wl-x:hover{color:var(--danger,#c0392b)}
+.rows-table .wl-tag.luar{color:#b45309;font-weight:600}
+.rows-head .wl-luar-c{color:#b45309}
+.rows-table .wl-mk{border:1px dashed currentColor;background:none;color:#b45309;cursor:pointer;font-size:.7rem;border-radius:999px;padding:1px 7px;margin-left:6px;line-height:1.4}
+.rows-table .wl-mk:hover{background:rgba(180,83,9,.08)}
+.callout.warn{border-color:rgba(180,83,9,.35);background:rgba(245,158,11,.10)}
+.callout.warn .ic{color:#b45309}
+.kl-table .chip.sm{font-size:.72rem;padding:2px 8px;margin:1px 2px 1px 0;display:inline-block}
+@media (max-width:680px){.kl-table thead{display:none}.kl-table tr{display:block;border-bottom:1px solid var(--line,#e5e7eb);padding:8px 0}.kl-table td{display:flex;gap:10px;padding:3px 4px;border:0}.kl-table td[data-l]::before{content:attr(data-l);flex:0 0 86px;color:var(--muted);font-size:.78rem}.kl-table td.actions-col{justify-content:flex-end}}
+.ac-item.ac-act{color:#b45309;font-weight:600;border-top:1px dashed var(--line,#e5e7eb)}

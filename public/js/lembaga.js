@@ -185,6 +185,7 @@ export function viewLembagaAdmin(main, r) {
   const p2 = r.parts[2];
   if (p2 === 'e') return lembagaEditor(main, r.parts[3], r.query.get('tab'));
   if (p2 === 'berita') { editorState = null; return viewBeritaAdmin(main, r.query.get('k') || ''); }
+  if (p2 === 'luar') { editorState = null; return viewKontakLuar(main); }
   editorState = null;
   const kat = p2 === 'k' ? katOf(r.parts[3]) : null;
   if (!state.lembagaReady) { main.innerHTML = loadingBox(); return; }
@@ -195,6 +196,7 @@ export function viewLembagaAdmin(main, r) {
     const mine = state.lembaga.filter((l) => canLembaga(l.id, l.kategori));
     main.innerHTML = `<div class="callout">${ic('shield')}<div><b>Lembaga yang Anda kelola</b><p>Anda diangkat Super Admin sebagai pengelola lembaga berikut. Anda dapat mengubah profil, pengurus, anggota, berita, galeri, dan dokumen lembaga ini.</p></div></div>
       <div class="lg-grid">${mine.map((l) => lembagaCard(l, true)).join('') || emptyBox('Belum ada lembaga yang ditugaskan kepada Anda.')}</div>
+      ${mine.length ? `<div class="toolbar"><a class="btn btn-ghost btn-sm" href="#/admin/lembaga/luar">${ic('loc')} Kontak Luar (warga luar gampong)</a></div>` : ''}
       ${mine.length ? '<div class="panel" id="kat-berita"></div>' : ''}`;
     if (mine.length) beritaPanel($('#kat-berita'), '', { compact: true });
     return;
@@ -204,7 +206,7 @@ export function viewLembagaAdmin(main, r) {
   main.innerHTML = `
   ${!state.lembaga.length ? `<div class="callout">${ic('shield')}<div><b>Mulai dengan struktur bawaan</b><p>Pasang ${SEED.length} lembaga sesuai struktur gampong di Aceh: Pemerintah Gampong, TPG, BKM, TPA/TPQ, Imeum, Tuha Lapan, Remaja Masjid, PKK, Posyandu, Karang Taruna, LPMG, Linmas, BUMG, Koperasi, dan PAUD.</p></div><button class="btn btn-primary" id="lg-seed">${ic('plus')} Pasang struktur bawaan</button></div>` : ''}
   ${miss.length ? `<div class="callout">${ic('plus')}<div><b>Lembaga bawaan baru tersedia</b><p>${miss.map((s) => `<b>${esc(s.singkatan)}</b> (${esc(s.nama)}) — ${esc(katOf(s.kategori).short)}`).join(', ')}.</p></div><button class="btn btn-primary btn-sm" id="lg-miss">${ic('plus')} Tambahkan</button><button class="btn btn-ghost btn-sm" id="lg-miss-skip">Abaikan</button></div>` : ''}
-  <div class="toolbar toolbar-actions"><button class="btn btn-primary" id="lg-new">${ic('plus')} Tambah Lembaga</button><a class="btn btn-ghost" href="#/lembaga" target="_blank">${ic('ext')} Lihat halaman publik</a>${kat ? '<a class="btn btn-ghost" href="#/admin/lembaga">Semua kategori</a>' : ''}</div>
+  <div class="toolbar toolbar-actions"><button class="btn btn-primary" id="lg-new">${ic('plus')} Tambah Lembaga</button><a class="btn btn-ghost" href="#/lembaga" target="_blank">${ic('ext')} Lihat halaman publik</a><a class="btn btn-ghost" href="#/admin/lembaga/luar">${ic('loc')} Kontak Luar</a>${kat ? '<a class="btn btn-ghost" href="#/admin/lembaga">Semua kategori</a>' : ''}</div>
   ${cats.map((k) => `<div class="lg-cat"><div class="section-head"><h2>${ic(k.icon)} ${esc(k.label)}</h2>${kat ? '' : `<a class="link" href="#/admin/lembaga/k/${k.key}">Buka →</a>`}</div><div class="lg-grid">${lembagaOf(k.key).map((l) => lembagaCard(l, true)).join('') || `<p class="muted small">${esc(k.desc)} Belum ada lembaga.</p>`}</div></div>`).join('')}
   ${kat ? `<div class="panel" id="kat-berita"></div>` : ''}`;
   if (kat) beritaPanel($('#kat-berita'), kat.key, { compact: true });
@@ -304,25 +306,106 @@ export function beritaDialog(ls, lid, idx, onSaved) {
   };
 }
 
+// ---- integrasi data warga: baris pengurus/anggota/murid terhubung ke data warga (wargaId)
+const wargaById = (id) => (id ? state.warga.find((w) => w.id === id) : null);
+const jkLP = (jk) => (/^p/i.test(jk || '') ? 'P' : /^l/i.test(jk || '') ? 'L' : '');
+const wargaItems = (subFn) => () => state.warga.filter((w) => w.nama).map((w) => ({ label: w.nama, sub: subFn(w), id: w.id }));
+// pengisi kolom per jenis daftar — fresh = baru dipilih orang lain (kolom ditimpa), selain itu hanya kolom kosong
+const FILL = {
+  pengurus: (r, w, fresh) => { if (w.noHp && (fresh || !r.hp)) r.hp = w.noHp; },
+  anggota: (r, w, fresh) => { const jk = jkLP(w.jk); if (jk && (fresh || !r.jk)) r.jk = jk; if (w.dusun && (fresh || !r.dusun)) r.dusun = w.dusun; if (w.noHp && (fresh || !r.hp)) r.hp = w.noHp; },
+  peserta: (r, w, fresh) => {
+    const jk = jkLP(w.jk); if (jk && (fresh || !r.jk)) r.jk = jk; if (w.tglLahir && (fresh || !r.tglLahir)) r.tglLahir = w.tglLahir;
+    const kk = w.noKk ? state.warga.filter((x) => x.noKk === w.noKk && x.id !== w.id) : [];
+    const wali = kk.find((x) => /kepala/i.test(x.shdk || '')) || kk.find((x) => /suami|istri/i.test(x.shdk || '')) || null;
+    if (wali && (fresh || !r.wali)) { r.wali = wali.nama; if (wali.noHp && (fresh || !r.hp)) r.hp = wali.noHp; } else if (!wali && w.noHp && (fresh || !r.hp)) r.hp = w.noHp;
+  },
+};
+export function linkWarga(row, w, kind) { const fresh = row.wargaId !== w.id; delete row.luarId; row.wargaId = w.id; row.nama = w.nama; FILL[kind]?.(row, w, fresh); }
+
+// ---- Kontak Luar: warga luar gampong (pengurus/anggota/murid dari luar) — koleksi terpisah `kontakLuar`,
+// TIDAK masuk Data Warga, statistik penduduk, laporan, broadcast, maupun ekspor warga. Label "warga luar" hanya untuk admin.
+let kontak = null;
+export async function loadKontak(force = false) {
+  if (kontak && !force) return kontak;
+  try { const s = await F.getDocs(F.query(F.collection(F.db, 'kontakLuar'), F.limit(1000))); kontak = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id')); } catch { kontak = kontak || []; }
+  return kontak;
+}
+const kontakById = (id) => (id && kontak ? kontak.find((k) => k.id === id) : null);
+const kontakItems = () => (kontak || []).filter((k) => k.nama).map((k) => ({ label: k.nama, sub: ['Warga luar', k.asal, k.hp].filter(Boolean).join(' • '), id: `luar:${k.id}` }));
+const FILL_LUAR = (r, k, fresh, kind) => { if (k.jk && kind !== 'pengurus' && (fresh || !r.jk)) r.jk = k.jk; if (k.hp && (fresh || !r.hp)) r.hp = k.hp; if (kind === 'anggota' && fresh) r.dusun = ''; };
+export function linkLuar(row, k, kind) { const fresh = row.luarId !== k.id; delete row.wargaId; row.luarId = k.id; row.nama = k.nama; FILL_LUAR(row, k, fresh, kind); }
+const statusOf = (r) => (wargaById(r.wargaId) ? 'Warga lokal' : kontakById(r.luarId) ? 'Warga luar' : r.nama ? 'Belum terhubung' : '');
+// selaraskan baris dengan data warga terbaru: nama mengikuti data warga, baris tanpa tautan ditautkan bila namanya persis sama (1 orang)
+export function syncWarga(rows, kind) {
+  const hasW = state.warga.length > 0, hasK = kontak !== null;
+  const uniq = (list) => { const m = new Map(); for (const x of list) { const k = norm(x.nama || ''); if (k) m.set(k, m.has(k) ? null : x); } return m; };
+  const byName = uniq(state.warga), byLuar = uniq(kontak || []);
+  let n = 0;
+  for (const r of rows) {
+    const before = JSON.stringify(r);
+    if (r.luarId) { // warga luar: nama mengikuti Kontak Luar, tidak pernah ditautkan ke Data Warga
+      if (!hasK) continue;
+      const k = kontakById(r.luarId);
+      if (k) { r.nama = k.nama; FILL_LUAR(r, k, false, kind); } else delete r.luarId; // kontak dihapus → tautan dilepas, nama tetap
+      if (JSON.stringify(r) !== before) n++;
+      continue;
+    }
+    let w = wargaById(r.wargaId);
+    if (r.wargaId && hasW && !w) delete r.wargaId; // warga sudah dihapus → tautan dilepas, nama tetap
+    if (!w && !r.wargaId && r.nama && before === JSON.stringify(r)) {
+      const wm = hasW ? byName.get(norm(r.nama)) : null, km = hasK ? byLuar.get(norm(r.nama)) : null;
+      if (wm && !km) w = wm; else if (km && !wm && !byName.has(norm(r.nama))) { linkLuar(r, km, kind); n++; continue; }
+      if (w) r.wargaId = w.id;
+    }
+    if (w) { r.nama = w.nama; FILL[kind]?.(r, w, false); }
+    if (JSON.stringify(r) !== before) n++;
+  }
+  return n;
+}
+
 // ---- editor baris (pengurus, anggota, murid/santri, dokumen)
-function rowsEditor(box, { fields, rows, label, onChange, suggest = {} }) {
+function rowsEditor(box, { fields, rows, label, onChange, suggest = {}, link = null }) {
   const draw = () => {
-    box.innerHTML = `<div class="rows-head"><span class="muted small">${rows.length} ${esc(label)}</span><div class="search mini">${ic('search')}<input data-noguard placeholder="Cari…" class="rows-q"></div></div>
+    box.innerHTML = `<div class="rows-head"><span class="muted small">${rows.length} ${esc(label)}${link ? (() => { const c = { l: 0, x: 0, u: 0 }; rows.forEach((r) => { const st = statusOf(r); if (st === 'Warga lokal') c.l++; else if (st === 'Warga luar') c.x++; else if (st) c.u++; }); return ` · ${c.l} warga lokal · <span class="wl-luar-c">${c.x} warga luar</span>${c.u ? ` · ${c.u} belum terhubung` : ''}`; })() : ''}</span><div class="search mini">${ic('search')}<input data-noguard placeholder="Cari…" class="rows-q"></div></div>
       <div class="table-wrap"><table class="table rows-table"><thead><tr><th>#</th>${fields.map((f) => `<th>${esc(f.label)}</th>`).join('')}<th></th></tr></thead>
-      <tbody>${rows.map((r, i) => `<tr data-i="${i}"><td class="muted small">${i + 1}</td>${fields.map((f) => `<td>${cellInput(f, r[f.k], i)}</td>`).join('')}<td class="actions-col"><button type="button" class="icon-btn" data-up="${i}" ${i ? '' : 'disabled'} title="Naik">↑</button><button type="button" class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></td></tr>`).join('') || `<tr><td colspan="${fields.length + 2}">${emptyBox(`Belum ada ${label}.`)}</td></tr>`}</tbody></table></div>
+      <tbody>${rows.map((r, i) => `<tr data-i="${i}"><td class="muted small">${i + 1}</td>${fields.map((f) => `<td>${cellInput(f, r[f.k], i)}${link && f.k === 'nama' ? linkTag(r) : ''}</td>`).join('')}<td class="actions-col"><button type="button" class="icon-btn" data-up="${i}" ${i ? '' : 'disabled'} title="Naik">↑</button><button type="button" class="icon-btn danger" data-rm="${i}" title="Hapus">${ic('trash')}</button></td></tr>`).join('') || `<tr><td colspan="${fields.length + 2}">${emptyBox(`Belum ada ${label}.`)}</td></tr>`}</tbody></table></div>
       <button type="button" class="btn btn-ghost btn-sm" data-add>${ic('plus')} Tambah ${esc(label)}</button>`;
     $$('[data-k]', box).forEach((inp) => {
-      const f = fields.find((x) => x.k === inp.dataset.k);
-      if (suggest[f.k]) attachAutocomplete(inp, { source: typeof suggest[f.k] === 'function' ? suggest[f.k] : suggest[f.k], smallList: 14, onSelect: (it) => f.onPick?.(it, rows[+inp.dataset.i], draw) });
-      inp.addEventListener('input', () => { const r = rows[+inp.dataset.i]; r[f.k] = f.type === 'phone' ? inp.value : inp.value; onChange?.(); });
+      const f = fields.find((x) => x.k === inp.dataset.k); const i = +inp.dataset.i;
+      // nilai selalu diambil dari kolom (ketik maupun pilih saran) → tidak ada lagi nama yang tersimpan hanya huruf awalnya
+      const put = () => { const r = rows[i]; if (!r) return; const v = inp.value; if (r[f.k] === v) return; r[f.k] = v; if (link && f.k === 'nama') { if (r.wargaId && norm(wargaById(r.wargaId)?.nama || '') !== norm(v)) delete r.wargaId; if (r.luarId && norm(kontakById(r.luarId)?.nama || '') !== norm(v)) delete r.luarId; const t = inp.closest('td')?.querySelector('.wl-tag'); if (t && !r.wargaId && !r.luarId) { t.outerHTML = linkTag(r); bindTag(); } } onChange?.(); };
+      inp.addEventListener('input', put); inp.addEventListener('change', put);
+      const action = link && f.k === 'nama' ? (raw) => (state.warga.some((w) => norm(w.nama || '') === norm(raw)) || (kontak || []).some((k) => norm(k.nama) === norm(raw)) ? null : { label: `＋ Tambah “${raw}” sebagai warga luar gampong`, run: (v) => { const r = rows[i]; if (!r) return; r.nama = v; kontakDialog({ nama: v, jk: r.jk || '', hp: r.hp || '' }, (k) => { linkLuar(r, k, link); onChange?.(); draw(); }); } }) : null;
+      if (suggest[f.k]) attachAutocomplete(inp, { source: suggest[f.k], smallList: 14, action, onSelect: (it) => {
+        const r = rows[i]; if (!r) return; r[f.k] = it.label;
+        const isLuar = link && f.k === 'nama' && String(it.id || '').startsWith('luar:');
+        const w = link && f.k === 'nama' && !isLuar ? wargaById(it.id) : null; const k = isLuar ? kontakById(String(it.id).slice(5)) : null;
+        if (w) { if (rows.some((o) => o !== r && o.wargaId === w.id)) toast(`${w.nama} sudah tercatat di daftar ini — periksa agar tidak dobel`, 'info'); linkWarga(r, w, link); }
+        if (k) { if (rows.some((o) => o !== r && o.luarId === k.id)) toast(`${k.nama} sudah tercatat di daftar ini — periksa agar tidak dobel`, 'info'); linkLuar(r, k, link); }
+        f.onPick?.(it, r);
+        onChange?.(); draw();
+        box.querySelector(`tr[data-i="${i}"] [data-k="${f.k}"]`)?.focus({ preventScroll: true });
+      } });
     });
+    bindTag();
     $$('[data-foto]', box).forEach((inp) => inp.onchange = async () => { try { rows[+inp.dataset.foto].foto = await compressImage(inp.files[0], 220, 0.78); onChange?.(); draw(); } catch (e) { toast(e.message, 'error'); } });
     $$('[data-fotourl]', box).forEach((b) => b.onclick = async () => { const u = await promptDialog('Foto dari URL', 'Tempel URL foto (https://…)', '', { placeholder: 'https://…/foto.jpg', okText: 'Pakai' }); if (u && safeUrl(u)) { rows[+b.dataset.fotourl].foto = safeUrl(u); onChange?.(); draw(); } else if (u) toast('URL harus diawali https://', 'error'); });
     $$('[data-rm]', box).forEach((b) => b.onclick = async () => { const r = rows[+b.dataset.rm]; if (!await confirmDelete(`Hapus ${label} “${r.nama || r.judul || '#' + (+b.dataset.rm + 1)}”?`)) return; rows.splice(+b.dataset.rm, 1); onChange?.(true); draw(); });
     $$('[data-up]', box).forEach((b) => b.onclick = () => { const i = +b.dataset.up; [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; onChange?.(); draw(); });
-    $('[data-add]', box).onclick = () => { rows.push({}); onChange?.(); draw(); box.querySelector(`tr[data-i="${rows.length - 1}"] input`)?.focus(); };
-    $('.rows-q', box).oninput = (e) => { const q = norm(e.target.value); $$('tbody tr[data-i]', box).forEach((tr) => { const r = rows[+tr.dataset.i]; tr.hidden = q && !norm(Object.values(r).filter((v) => typeof v === 'string' && !v.startsWith('data:')).join(' ')).includes(q); }); };
+    $('[data-add]', box).onclick = () => { rows.push({}); onChange?.(); draw(); box.querySelector(`tr[data-i="${rows.length - 1}"] input[data-k]`)?.focus(); };
+    $('.rows-q', box).oninput = (e) => { const q = norm(e.target.value); $$('tbody tr[data-i]', box).forEach((tr) => { const r = rows[+tr.dataset.i]; tr.hidden = q && !norm(Object.entries(r).filter(([k, v]) => k !== 'wargaId' && typeof v === 'string' && !v.startsWith('data:')).map(([, v]) => v).join(' ')).includes(q); }); };
   };
+  const linkTag = (r) => {
+    const i = rows.indexOf(r); const w = wargaById(r.wargaId); const k = kontakById(r.luarId);
+    if (w) return `<span class="wl-tag ok" title="Nama & data mengikuti Data Warga">${ic('check')} Data warga${w.dusun ? ` · ${esc(w.dusun)}` : ''}<button type="button" class="wl-x" data-unlink="${i}" title="Lepas tautan">×</button></span>`;
+    if (k) return `<span class="wl-tag luar" title="Warga luar gampong — tidak masuk Data Warga & statistik penduduk (label hanya terlihat admin)">${ic('loc')} Warga luar${k.asal ? ` · ${esc(k.asal)}` : ''}<button type="button" class="wl-x" data-unlink="${i}" title="Lepas tautan">×</button></span>`;
+    return r.nama ? `<span class="wl-tag">Belum terhubung<button type="button" class="wl-mk" data-mkluar="${i}" title="Simpan ke Kontak Luar (warga luar gampong)">＋ Jadikan warga luar</button></span>` : '<span class="wl-tag" hidden></span>';
+  };
+  function bindTag() {
+    $$('[data-unlink]', box).forEach((b) => b.onclick = () => { const r = rows[+b.dataset.unlink]; delete r.wargaId; delete r.luarId; onChange?.(); draw(); });
+    $$('[data-mkluar]', box).forEach((b) => b.onclick = () => { const r = rows[+b.dataset.mkluar]; kontakDialog({ nama: r.nama, jk: r.jk || '', hp: r.hp || '' }, (k) => { linkLuar(r, k, link); onChange?.(); draw(); }); });
+  }
   const cellInput = (f, v, i) => {
     const val = esc(v ?? '');
     if (f.type === 'select') return `<select data-k="${f.k}" data-i="${i}">${f.options.map(([o, l]) => `<option value="${esc(o)}" ${String(v ?? '') === o ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
@@ -339,6 +422,7 @@ function lembagaEditor(main, id, tabQ) {
   if (!l0) { main.innerHTML = state.lembagaReady ? emptyBox('Lembaga tidak ditemukan.') : loadingBox(); return; }
   if (!canLembaga(id, l0.kategori)) { state.view = 'denied'; main.innerHTML = `<div class="callout">${ic('lock')}<div><b>Akses ditolak</b><p>Anda tidak ditugaskan mengelola lembaga ini.</p></div></div>`; return; }
   const full = can('lembaga');
+  if (kontak === null && ['pengurus', 'anggota', 'peserta'].includes(tabQ || editorState?.tab || '')) { main.innerHTML = loadingBox(); loadKontak().then(() => lembagaEditor(main, id, tabQ)); return; }
   if (!editorState || editorState.id !== id) editorState = { id, l: structuredClone(l0), priv: null, tab: tabQ || 'profil', dirty: false };
   const S = editorState; const l = S.l;
   state.view = 'form';
@@ -351,9 +435,10 @@ function lembagaEditor(main, id, tabQ) {
     <div class="tabs">${tabs.map(([t, n, i]) => `<button class="tab ${S.tab === t ? 'active' : ''}" data-tab="${t}">${ic(i)} ${esc(n)}</button>`).join('')}</div>
     <div class="panel" id="lg-pane" ${S.tab === 'pengelola' ? '' : 'data-guard'}></div>
     <div class="sticky-actions" ${S.tab === 'pengelola' ? 'hidden' : ''}><span class="muted small">${l0.updatedAt ? `Terakhir disimpan ${esc(fmtDate(l0.updatedAt, true))}${l0.updatedBy ? ' oleh ' + esc(l0.updatedBy) : ''}` : ''}</span><span class="spacer"></span>${full ? `<button class="btn btn-danger btn-ghost" id="lg-del">${ic('trash')} Hapus lembaga</button>` : ''}<button class="btn btn-primary" id="lg-save" data-save>${ic('check')} Simpan</button></div>`;
-  $$('[data-tab]', main).forEach((b) => b.onclick = () => { collect(); S.tab = b.dataset.tab; lembagaEditor(main, id); });
+  $$('[data-tab]', main).forEach((b) => b.onclick = async () => { collect(); S.tab = b.dataset.tab; if (kontak === null && ['pengurus', 'anggota', 'peserta'].includes(S.tab)) await loadKontak(); lembagaEditor(main, id); });
   const pane = $('#lg-pane');
   const touch = () => { S.dirty = true; guard.dirty = true; };
+  const syncNotice = (n) => { if (!n) return; touch(); toast(`${n} baris disesuaikan dengan Data Warga terbaru — periksa lalu Simpan`, 'info'); };
   const ensurePriv = async () => {
     if (S.priv) return S.priv;
     try { const s = await F.getDoc(C(`lembagaPrivate/${id}`)); S.priv = { anggota: [], peserta: [], ...(s.data() || {}) }; } catch { S.priv = { anggota: [], peserta: [] }; }
@@ -389,18 +474,19 @@ function lembagaEditor(main, id, tabQ) {
     };
   } else if (S.tab === 'pengurus') {
     l.pengurus = l.pengurus || [];
-    pane.innerHTML = `<div class="row-gap"><h3 style="margin:0">${ic('users')} Struktur Kepengurusan</h3><span class="spacer"></span>${/pemerintah gampong/i.test(l.nama) ? `<button class="btn btn-ghost btn-sm" id="lg-kadus">${ic('map')} Ambil Kepala Dusun dari data Dusun</button>` : ''}<button class="btn btn-ghost btn-sm" id="lg-x-peng">${ic('download')} Excel</button><button class="btn btn-ghost btn-sm" id="lg-p-peng">${ic('file')} PDF</button></div><p class="muted small">Ketik nama untuk saran dari data warga. Foto bisa diunggah atau memakai URL.</p><div id="rows"></div>`;
-    const ed = rowsEditor($('#rows'), { label: 'pengurus', rows: l.pengurus, onChange: touch,
-      fields: [{ k: 'foto', label: 'Foto', type: 'foto' }, { k: 'nama', label: 'Nama', ph: 'Nama lengkap', onPick: (it, row, redraw) => { const w = state.warga.find((x) => x.id === it.id); if (w?.noHp && !row.hp) { row.hp = w.noHp; redraw(); } } }, { k: 'jabatan', label: 'Jabatan' }, { k: 'bagian', label: 'Bagian' }, { k: 'hp', label: 'No. HP', type: 'phone' }],
-      suggest: { nama: () => state.warga.map((w) => ({ label: w.nama, sub: [w.dusun && `Dusun ${w.dusun}`, w.noHp].filter(Boolean).join(' • '), id: w.id })), jabatan: l.jabatanList || JAB_UMUM, bagian: l.bagianList?.length ? l.bagianList : ['Pengurus Inti', 'Seksi', 'Anggota'] } });
+    pane.innerHTML = `<div class="row-gap"><h3 style="margin:0">${ic('users')} Struktur Kepengurusan</h3><span class="spacer"></span>${/pemerintah gampong/i.test(l.nama) ? `<button class="btn btn-ghost btn-sm" id="lg-kadus">${ic('map')} Ambil Kepala Dusun dari data Dusun</button>` : ''}<button class="btn btn-ghost btn-sm" id="lg-x-peng">${ic('download')} Excel</button><button class="btn btn-ghost btn-sm" id="lg-p-peng">${ic('file')} PDF</button></div><p class="muted small">Ketik nama lalu <b>pilih dari saran</b> agar terhubung ke Data Warga (nama & No. HP mengikuti data warga). Orang dari luar gampong: pilih dari <a href="#/admin/lembaga/luar">Kontak Luar</a> atau klik “＋ Jadikan warga luar” — tidak masuk Data Warga. Foto bisa diunggah atau memakai URL.</p><div id="rows"></div>`;
+    syncNotice(syncWarga(l.pengurus, 'pengurus'));
+    const ed = rowsEditor($('#rows'), { label: 'pengurus', rows: l.pengurus, onChange: touch, link: 'pengurus',
+      fields: [{ k: 'foto', label: 'Foto', type: 'foto' }, { k: 'nama', label: 'Nama', ph: 'Nama lengkap' }, { k: 'jabatan', label: 'Jabatan' }, { k: 'bagian', label: 'Bagian' }, { k: 'hp', label: 'No. HP', type: 'phone' }],
+      suggest: { nama: () => [...wargaItems((w) => [w.dusun && `Dusun ${w.dusun}`, w.noHp].filter(Boolean).join(' • '))(), ...kontakItems()], jabatan: l.jabatanList || JAB_UMUM, bagian: l.bagianList?.length ? l.bagianList : ['Pengurus Inti', 'Seksi', 'Anggota'] } });
     $('#lg-kadus')?.addEventListener('click', () => {
       let n = 0;
       for (const d of state.dusun) { if (!d.kepalaNama || l.pengurus.some((p) => norm(p.nama) === norm(d.kepalaNama))) continue; l.pengurus.push({ nama: d.kepalaNama, jabatan: `Kepala Dusun ${d.nama}`, bagian: 'Kepala Dusun (Ulee Jurong)', hp: d.kepalaHp || '' }); n++; }
-      touch(); ed.redraw(); toast(n ? `${n} kepala dusun ditambahkan` : 'Semua kepala dusun sudah ada / belum diisi di menu Dusun', n ? 'success' : 'info');
+      syncWarga(l.pengurus, 'pengurus'); touch(); ed.redraw(); toast(n ? `${n} kepala dusun ditambahkan` : 'Semua kepala dusun sudah ada / belum diisi di menu Dusun', n ? 'success' : 'info');
     });
-    const head = ['No', 'Nama', 'Jabatan', 'Bagian', 'No. HP']; const body = () => l.pengurus.map((p, i) => [i + 1, p.nama || '', p.jabatan || '', p.bagian || '', p.hp || '']);
+    const head = ['No', 'Nama', 'Jabatan', 'Bagian', 'No. HP', 'Status']; const body = () => l.pengurus.map((p, i) => [i + 1, p.nama || '', p.jabatan || '', p.bagian || '', p.hp || '', statusOf(p)]);
     $('#lg-x-peng').onclick = () => { logAudit('export', 'lembaga_pengurus_xls', `Mengekspor pengurus ${l.nama} (Excel)`); exportExcel(`Pengurus_${l.singkatan || l.nama}`, [{ name: 'Pengurus', title: `Struktur Kepengurusan ${l.nama}${l.periode ? ` — Periode ${l.periode}` : ''}`, head, body: body() }]); };
-    $('#lg-p-peng').onclick = () => { logAudit('export', 'lembaga_pengurus_pdf', `Mengekspor pengurus ${l.nama} (PDF)`); exportPdf({ filename: `Pengurus_${l.singkatan || l.nama}`, title: `Struktur Kepengurusan ${l.nama}`, subtitle: l.periode ? `Periode ${l.periode}` : '', orientation: 'portrait', sections: groupPengurus(l).map(([g, ps]) => ({ heading: g, head, body: ps.map((p, i) => [i + 1, p.nama || '', p.jabatan || '', p.bagian || '', p.hp || '']) })) }); };
+    $('#lg-p-peng').onclick = () => { logAudit('export', 'lembaga_pengurus_pdf', `Mengekspor pengurus ${l.nama} (PDF)`); exportPdf({ filename: `Pengurus_${l.singkatan || l.nama}`, title: `Struktur Kepengurusan ${l.nama}`, subtitle: l.periode ? `Periode ${l.periode}` : '', orientation: 'portrait', sections: groupPengurus(l).map(([g, ps]) => ({ heading: g, head, body: ps.map((p, i) => [i + 1, p.nama || '', p.jabatan || '', p.bagian || '', p.hp || '', statusOf(p)]) })) }); };
   } else if (S.tab === 'anggota' || S.tab === 'peserta') {
     pane.innerHTML = loadingBox();
     ensurePriv().then((priv) => {
@@ -411,10 +497,11 @@ function lembagaEditor(main, id, tabQ) {
         : [{ k: 'nama', label: 'Nama' }, { k: 'jk', label: 'L/P', type: 'select', options: [['', '-'], ['L', 'Laki-laki'], ['P', 'Perempuan']] }, { k: 'peran', label: 'Peran / seksi' }, { k: 'dusun', label: 'Dusun' }, { k: 'hp', label: 'No. HP', type: 'phone' }, { k: 'keterangan', label: 'Keterangan' }];
       pane.innerHTML = `<div class="row-gap"><h3 style="margin:0">${ic(isP ? 'book' : 'users')} Daftar ${esc(lbl[0].toUpperCase() + lbl.slice(1))}</h3><span class="spacer"></span><button class="btn btn-ghost btn-sm" id="lg-x">${ic('download')} Excel</button><button class="btn btn-ghost btn-sm" id="lg-pdf">${ic('file')} PDF</button></div>
         <p class="callout small-callout">${ic('lock')} Data ${esc(lbl)} bersifat pribadi: hanya dapat dilihat admin. Halaman publik hanya menampilkan jumlah (${isP ? `${pesertaJk(l, 'L')}/${pesertaJk(l, 'P')}` : 'total'}).</p><div id="rows"></div>`;
-      rowsEditor($('#rows'), { label: lbl, rows: arr, onChange: touch, fields,
-        suggest: { nama: () => state.warga.map((w) => ({ label: w.nama, sub: [w.dusun && `Dusun ${w.dusun}`, w.umur !== '' && w.umur != null ? `${w.umur} th` : ''].filter(Boolean).join(' • '), id: w.id })), dusun: () => state.dusun.map((d) => d.nama), peran: l.jabatanList || JAB_UMUM } });
-      const head = ['No', ...fields.map((f) => f.label)];
-      const body = () => arr.map((r, i) => [i + 1, ...fields.map((f) => (f.type === 'select' ? (f.options.find((o) => o[0] === (r[f.k] || ''))?.[1] || '') : r[f.k] || ''))]);
+      syncNotice(syncWarga(arr, S.tab));
+      rowsEditor($('#rows'), { label: lbl, rows: arr, onChange: touch, fields, link: S.tab,
+        suggest: { nama: () => [...wargaItems((w) => [w.dusun && `Dusun ${w.dusun}`, w.umur !== '' && w.umur != null ? `${w.umur} th` : '', w.jk].filter(Boolean).join(' • '))(), ...kontakItems()], dusun: () => state.dusun.map((d) => d.nama), peran: l.jabatanList || JAB_UMUM } });
+      const head = ['No', ...fields.map((f) => f.label), 'Status'];
+      const body = () => arr.map((r, i) => [i + 1, ...fields.map((f) => (f.type === 'select' ? (f.options.find((o) => o[0] === (r[f.k] || ''))?.[1] || '') : r[f.k] || '')), statusOf(r)]);
       const ttl = `Daftar ${lbl[0].toUpperCase() + lbl.slice(1)} ${l.singkatan || l.nama}`;
       $('#lg-x').onclick = () => { logAudit('export', `lembaga_${S.tab}_xls`, `Mengekspor ${ttl} (Excel)`, { count: arr.length }); exportExcel(ttl, [{ name: lbl, title: ttl, head, body: body() }]); };
       $('#lg-pdf').onclick = () => { logAudit('export', `lembaga_${S.tab}_pdf`, `Mengekspor ${ttl} (PDF)`, { count: arr.length }); exportPdf({ filename: ttl, title: ttl, subtitle: `${arr.length} ${lbl}`, sections: [{ head, body: body() }] }); };
@@ -620,3 +707,68 @@ function dokumenForm(d) {
   };
 }
 export { mediaKind };
+
+// ---- Kontak Luar: dialog tambah/ubah & halaman kelola
+function kontakDialog(init = {}, onSaved) {
+  const editing = !!init.id;
+  const m = modal({ title: editing ? 'Ubah Kontak Luar' : 'Tambah Warga Luar Gampong', size: 'md', body: `<form id="klf" class="form-grid">
+    <p class="callout small-callout span-2">${ic('lock')} Disimpan di <b>Kontak Luar</b> — terpisah dari Data Warga, tidak dihitung dalam statistik penduduk, laporan, broadcast, maupun ekspor warga. Bisa dipakai ulang di semua lembaga.</p>
+    <label class="field span-2"><span>Nama lengkap *</span><input name="nama" value="${esc(init.nama || '')}" required></label>
+    <label class="field"><span>Jenis kelamin</span><select name="jk"><option value="">-</option><option value="L" ${init.jk === 'L' ? 'selected' : ''}>Laki-laki</option><option value="P" ${init.jk === 'P' ? 'selected' : ''}>Perempuan</option></select></label>
+    <label class="field"><span>No. HP / WhatsApp</span><input name="hp" type="tel" value="${esc(init.hp || '')}"></label>
+    <label class="field span-2"><span>Asal / instansi *</span><input name="asal" value="${esc(init.asal || '')}" placeholder="mis. Gp. Lambung, Kec. Meuraxa · Puskesmas Meuraxa"></label>
+    <label class="field span-2"><span>Keterangan</span><input name="ket" value="${esc(init.ket || '')}" placeholder="mis. Bidan desa pendamping"></label>
+    <div class="span-2" id="kl-warn"></div></form>`,
+    footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn btn-primary" id="kl-ok">${ic('check')} ${editing ? 'Simpan perubahan' : 'Simpan & pakai'}</button>` });
+  const f = $('#klf', m.el);
+  const warn = () => {
+    const n = norm(f.elements.nama.value); const out = [];
+    const ws = n ? state.warga.filter((w) => norm(w.nama || '') === n) : []; const ks = n ? (kontak || []).filter((k) => norm(k.nama) === n && k.id !== init.id) : [];
+    if (ws.length) out.push(`<div class="callout warn small-callout">${ic('bell')} <div>Nama ini <b>terdaftar di Data Warga</b> (${ws.map((w) => esc(w.dusun ? `Dusun ${w.dusun}` : 'tanpa dusun')).join(', ')}). Bila orangnya sama, batalkan lalu pilih dari saran agar tercatat sebagai <b>warga lokal</b>.</div></div>`);
+    if (ks.length) out.push(`<div class="callout warn small-callout">${ic('bell')} <div>Sudah ada di Kontak Luar: ${ks.map((k) => `<b>${esc(k.nama)}</b>${k.asal ? ` (${esc(k.asal)})` : ''} <button type="button" class="btn btn-ghost btn-sm" data-use="${k.id}">Pakai ini</button>`).join(' ')}</div></div>`);
+    $('#kl-warn', m.el).innerHTML = out.join('');
+    $$('[data-use]', m.el).forEach((b) => b.onclick = () => { const k = kontakById(b.dataset.use); m.close(); onSaved?.(k); });
+  };
+  f.elements.nama.addEventListener('input', debounce(warn, 200)); warn();
+  $('#kl-ok', m.el).onclick = async () => {
+    const d = { nama: f.elements.nama.value.trim().replace(/\s+/g, ' '), jk: f.elements.jk.value, hp: normalizePhone(f.elements.hp.value), asal: f.elements.asal.value.trim(), ket: f.elements.ket.value.trim() };
+    if (!d.nama) return toast('Nama wajib diisi', 'error');
+    if (!d.asal) return toast('Asal / instansi wajib diisi agar jelas dari mana', 'error');
+    const btn = $('#kl-ok', m.el); btn.disabled = true;
+    try {
+      const data = clean({ ...d, updatedAt: F.serverTimestamp(), updatedBy: state.user.email });
+      let k;
+      if (editing) { await F.setDoc(C(`kontakLuar/${init.id}`), { ...data, createdAt: init.createdAt || F.serverTimestamp() }); k = Object.assign(kontakById(init.id) || {}, { id: init.id, ...d }); }
+      else { const ref = await F.addDoc(F.collection(F.db, 'kontakLuar'), { ...data, createdAt: F.serverTimestamp() }); k = { id: ref.id, ...d }; (kontak ||= []).push(k); kontak.sort((a, b) => String(a.nama).localeCompare(String(b.nama), 'id')); }
+      logAudit('lembaga', editing ? 'ubah_kontak_luar' : 'tambah_kontak_luar', `${editing ? 'Mengubah' : 'Menambah'} kontak luar “${d.nama}” (${d.asal})`, { targetId: k.id });
+      m.close(); toast(editing ? 'Kontak luar diperbarui' : `${d.nama} disimpan sebagai warga luar`, 'success'); onSaved?.(k);
+    } catch (e) { btn.disabled = false; toast('Gagal menyimpan: ' + e.message, 'error'); }
+  };
+}
+async function viewKontakLuar(main) {
+  state.view = 'lembaga'; $('#page-title').textContent = 'Kontak Luar';
+  main.innerHTML = loadingBox();
+  await loadKontak(true);
+  // pemakaian: pengurus (publik) + anggota/murid (pribadi, bila berizin)
+  const used = new Map(); const add = (id, txt) => { if (!id) return; if (!used.has(id)) used.set(id, []); used.get(id).push(txt); };
+  const mine = can('lembaga') ? state.lembaga : state.lembaga.filter((l) => canLembaga(l.id, l.kategori));
+  for (const l of mine) for (const p of l.pengurus || []) add(p.luarId, `${l.singkatan || l.nama} · ${p.jabatan || 'Pengurus'}`);
+  await Promise.all(mine.map(async (l) => { try { const d = (await F.getDoc(C(`lembagaPrivate/${l.id}`))).data() || {}; (d.anggota || []).forEach((a) => add(a.luarId, `${l.singkatan || l.nama} · ${a.peran || 'Anggota'}`)); (d.peserta || []).forEach((a) => add(a.luarId, `${l.singkatan || l.nama} · ${pesertaLabel(l) || 'Peserta'}`)); } catch { /* tanpa izin */ } }));
+  const draw = (q = '') => {
+    const list = kontak.filter((k) => !q || norm([k.nama, k.asal, k.ket, k.hp].join(' ')).includes(norm(q)));
+    $('#kl-body').innerHTML = list.map((k) => `<tr><td data-l="Nama"><b>${esc(k.nama)}</b>${k.ket ? `<br><small class="muted">${esc(k.ket)}</small>` : ''}</td><td data-l="L/P">${k.jk === 'P' ? 'P' : k.jk === 'L' ? 'L' : '-'}</td><td data-l="No. HP">${esc(k.hp || '-')}</td><td data-l="Asal">${esc(k.asal || '-')}</td><td data-l="Dipakai di">${(used.get(k.id) || []).map((t) => `<span class="chip sm">${esc(t)}</span>`).join(' ') || '<span class="muted small">Belum dipakai</span>'}</td><td class="actions-col"><button class="icon-btn" data-ed="${k.id}" title="Ubah">${ic('edit')}</button>${can('lembaga') ? `<button class="icon-btn danger" data-rm="${k.id}" title="Hapus">${ic('trash')}</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="6">${emptyBox(q ? 'Tidak ada yang cocok.' : 'Belum ada kontak luar. Tambahkan orang dari luar gampong yang menjadi pengurus/anggota lembaga.')}</td></tr>`;
+    $$('[data-ed]', main).forEach((b) => b.onclick = () => kontakDialog(kontakById(b.dataset.ed), () => draw($('#kl-q').value)));
+    $$('[data-rm]', main).forEach((b) => b.onclick = async () => {
+      const k = kontakById(b.dataset.rm); const u = used.get(k.id) || [];
+      if (!await confirmDelete(`Hapus kontak luar “${k.nama}”?${u.length ? ` Masih tercatat di ${u.length} tempat (${u.join(', ')}). Namanya tetap ada di lembaga tersebut, tetapi menjadi “belum terhubung”.` : ''}`)) return;
+      try { await F.deleteDoc(C(`kontakLuar/${k.id}`)); kontak = kontak.filter((x) => x.id !== k.id); logAudit('lembaga', 'hapus_kontak_luar', `Menghapus kontak luar “${k.nama}”`, { targetId: k.id }); toast('Kontak luar dihapus', 'success'); draw($('#kl-q').value); } catch (e) { toast('Gagal menghapus: ' + e.message, 'error'); }
+    });
+  };
+  main.innerHTML = `<div class="callout">${ic('loc')}<div><b>Kontak Luar — warga luar gampong</b><p>Pengurus, anggota, atau murid/santri lembaga yang <b>bukan penduduk gampong</b> (mis. bidan/kader dari puskesmas, pelatih, ustaz dari gampong lain). Data ini <b>terpisah dari Data Warga</b>: tidak dihitung dalam statistik penduduk, laporan, broadcast, maupun ekspor warga, dan label “warga luar” hanya terlihat oleh admin.</p></div></div>
+    <div class="toolbar toolbar-actions"><button class="btn btn-primary" id="kl-new">${ic('plus')} Tambah kontak luar</button><button class="btn btn-ghost" id="kl-x">${ic('download')} Excel</button><div class="search mini">${ic('search')}<input id="kl-q" data-noguard placeholder="Cari nama / asal…"></div><span class="spacer"></span><a class="btn btn-ghost" href="#/admin/lembaga">← Lembaga</a></div>
+    <div class="panel"><p class="muted small">${kontak.length} kontak luar</p><div class="table-wrap"><table class="table kl-table"><thead><tr><th>Nama</th><th>L/P</th><th>No. HP</th><th>Asal / instansi</th><th>Dipakai di</th><th></th></tr></thead><tbody id="kl-body"></tbody></table></div></div>`;
+  $('#kl-new').onclick = () => kontakDialog({}, () => draw($('#kl-q').value));
+  $('#kl-q').oninput = (e) => draw(e.target.value);
+  $('#kl-x').onclick = () => { logAudit('export', 'kontak_luar_xls', 'Mengekspor Kontak Luar (Excel)', { count: kontak.length }); exportExcel('Kontak_Luar', [{ name: 'Kontak Luar', title: 'Kontak Luar — warga luar gampong', head: ['No', 'Nama', 'L/P', 'No. HP', 'Asal / instansi', 'Keterangan', 'Dipakai di'], body: kontak.map((k, i) => [i + 1, k.nama, k.jk || '', k.hp || '', k.asal || '', k.ket || '', (used.get(k.id) || []).join('; ')]) }]); };
+  draw();
+}

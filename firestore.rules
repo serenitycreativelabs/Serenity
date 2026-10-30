@@ -220,6 +220,14 @@ service cloud.firestore {
         && (!('anggota' in data()) || (data().anggota is list && data().anggota.size() <= 2000))
         && (!('peserta' in data()) || (data().peserta is list && data().peserta.size() <= 2000));
     }
+    // Kontak Luar: warga luar gampong yang menjadi pengurus/anggota lembaga — terpisah dari Data Warga (bukan data penduduk)
+    function lembagaStaff() { return can('lembaga') || (isStaff() && me().role == 'admin' && me().get('lembagaIds', []).size() > 0); }
+    match /kontakLuar/{id} {
+      allow read: if lembagaStaff();
+      allow create, update: if lembagaStaff() && data().size() <= 10 && str(data().nama, 150) && data().nama.size() > 0
+        && optStr('asal', 200) && optStr('hp', 30) && optStr('ket', 300) && (!('jk' in data()) || data().jk in ['', 'L', 'P']);
+      allow delete: if can('lembaga');
+    }
     // ---------- Dokumen publik gampong (RPJMG, APBG, Reusam, dll.)
     match /dokumen/{id} {
       allow get: if isStaff() || resource.data.published != false;
