@@ -14,7 +14,8 @@ import { badgeRow } from './badges.js';
 // ---------------------------------------------------------------- 1) pencarian menu & panel
 // Bagian di dalam halaman yang sering dicari → dibuka & digulir langsung ke bagiannya
 const SECTIONS = [
-  ['pengaturan', 'Profil Gampong', 'nama desa alamat kantor kecamatan logo deskripsi email whatsapp kantor'],
+  ['pengaturan', 'Teks Kartu Beranda', 'deskripsi beranda sambutan hero portal data publik tulisan kartu atas selamat datang'],
+  ['pengaturan', 'Profil Gampong', 'nama desa alamat kantor kecamatan logo email whatsapp kantor'],
   ['pengaturan', 'Jadwal Sholat', 'sholat azan imsak koordinat latitude ihtiyat'],
   ['pengaturan', 'Infografis Publik', 'infografis kategori publik privasi'],
   ['pengaturan', 'Running Text', 'teks berjalan pengumuman ticker footer'],

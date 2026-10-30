@@ -50,10 +50,12 @@ export function startNewsScroller() {
 }
 function runScroller(vp) {
   const track = vp.querySelector('.ln-track, .kg-track'); if (!track) return;
-  const base = track.innerHTML;
-  if (track.scrollHeight <= vp.clientHeight + 4) { vp.classList.add('static'); return; } // muat semua → tidak perlu bergulir
-  track.insertAdjacentHTML('beforeend', base);
-  track.querySelectorAll(':scope > *').forEach((el, i, all) => { if (i >= all.length / 2) { el.setAttribute('aria-hidden', 'true'); el.querySelectorAll('a,[tabindex]').forEach((a) => a.setAttribute('tabindex', '-1')); } });
+  const base = track.innerHTML; const baseN = track.children.length;
+  if (!baseN || vp.clientHeight < 24) { vp.classList.add('static'); return; } // panel tersembunyi/kosong
+  // v2.9.12: isi sedikit (mis. 1–2 kegiatan) tetap bergulir — ulangi isi sampai melebihi tinggi blok agar putarannya mulus
+  let rep = 0; while (track.scrollHeight < vp.clientHeight + 8 && rep++ < 24) track.insertAdjacentHTML('beforeend', base);
+  track.insertAdjacentHTML('beforeend', track.innerHTML);
+  track.querySelectorAll(':scope > *').forEach((el, i) => { if (i >= baseN) { el.setAttribute('aria-hidden', 'true'); el.querySelectorAll('a,[tabindex]').forEach((a) => a.setAttribute('tabindex', '-1')); } });
   const loopH = track.scrollHeight / 2;
   const speed = Number(vp.dataset.speed) || 24; const dir = vp.dataset.dir === 'bawah' ? 1 : -1;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -103,7 +105,7 @@ export function viewWidget(main) {
       <div class="row-gap"><button class="btn btn-primary" id="wb-save" data-save>${ic('check')} Simpan</button><button class="btn btn-ghost" id="wb-reset">Kembalikan bawaan</button><a class="btn btn-ghost" href="#/" target="_blank">${ic('ext')} Lihat beranda</a></div>
     </div>
     <div class="panel"><h3>${ic('repeat')} Gerak Panel Kegiatan Rutin</h3>
-      <p class="muted small">Dua blok di beranda — <b>Kegiatan Rutin (hari ini)</b> dan <b>Kegiatan Lainnya</b> — masing-masing kartu sendiri yang bergulir otomatis seperti panel berita lembaga. Bila semua kegiatan muat di blok, daftar tetap diam.</p>
+      <p class="muted small">Dua blok di beranda — <b>Kegiatan Rutin (hari ini)</b> dan <b>Kegiatan Lainnya</b> — masing-masing kartu sendiri yang bergulir otomatis seperti panel berita lembaga. Walau kegiatannya sedikit (mis. hanya 1), daftar tetap bergulir berulang dengan mulus; arahkan kursor/sentuh untuk menjeda.</p>
       <div class="form-grid">
         <label class="check span-2"><input type="checkbox" id="wk-on" ${c.kegiatan.gerak ? 'checked' : ''}> Gulir otomatis</label>
         <label class="field span-2"><span>Kecepatan gulir — <b id="wk-speed-v">${c.kegiatan.kecepatan}</b> piksel/detik</span><input type="range" id="wk-speed" min="4" max="120" step="1" value="${c.kegiatan.kecepatan}"><small class="muted">18 = nyaman dibaca (bawaan)</small></label>

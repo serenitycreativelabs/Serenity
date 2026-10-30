@@ -538,7 +538,7 @@ function renderPublic(r, soft) {
   document.body.classList.toggle('has-ticker', !!ticker);
   const lay = state.config.layout || {};
   const editing = state.layoutEdit === 'public';
-  const sideKeys = { sholat: () => sholatPanel(), kegiatan: () => kegiatanPanel('hari'), lnews: () => lembagaNewsPanel(), kglain: () => kegiatanPanel('lain') };
+  const sideKeys = { sholat: () => sholatPanel(), docs: () => docsPanel(), agenda: () => agendaPanel(), kegiatan: () => kegiatanPanel('hari'), lnews: () => lembagaNewsPanel(), kglain: () => kegiatanPanel('lain') };
   const { leftKeys, rightKeys } = sideLayout(lay, editing || widgetCfg().berita.aktif);
   const side = (keys) => keys.map((k) => { const h = sideKeys[k](); return h ? `<div class="side-block" data-key="${k}">${h}</div>` : ''; }).join('');
   const showVisits = p0 === '' && widgetCfg().analitik.aktif;
@@ -578,8 +578,8 @@ function renderPublic(r, soft) {
     <a href="#/data" class="${p0 === 'data' || p0 === 'infografis' ? 'on' : ''}">${ic('chart')}<span>Data</span></a>
     <button type="button" id="mnav-menu" class="${p0 === 'profil' || p0 === 'highlight' ? 'on' : ''}" aria-label="Menu lainnya">${ic('menu')}<span>Menu</span></button>
   </nav>
-  ${pubFooter(ticker, rt, showVisits)}
-  ${isSuper() && p0 === '' ? layoutBar('public') : ''}`;
+  ${pubFooter(ticker, rt, showVisits, isSuper() && p0 === '' && !editing ? layoutBar('public') : '')}
+  ${isSuper() && p0 === '' && editing ? layoutBar('public') : ''}`;
   applyTheme(state.config.tema);
   applyBackground(state.config.latar, { isHome: p0 === '' });
   bindPublic();
@@ -591,7 +591,7 @@ function renderPublic(r, soft) {
 }
 
 // Susunan panel samping. Panel baru "Berita Lembaga" (v2.4) otomatis ditempatkan tepat di bawah Kegiatan Rutin.
-const SIDE_ALL = ['sholat', 'kegiatan', 'lnews', 'kglain'];
+const SIDE_ALL = ['sholat', 'docs', 'agenda', 'kegiatan', 'lnews', 'kglain'];
 let pubStarted = false;
 function sideLayout(lay, withNews) {
   const all = SIDE_ALL.filter((k) => k !== 'lnews' || withNews);
@@ -606,20 +606,27 @@ function sideLayout(lay, withNews) {
     const t = left.includes('kegiatan') ? left : right; const ref = t.includes('lnews') ? 'lnews' : 'kegiatan'; const i = t.indexOf(ref);
     t.splice(i >= 0 ? i + 1 : t.length, 0, 'kglain');
   }
+  // v2.9.12: Dokumen Terbaru → Agenda Terdekat tepat di bawah Jadwal Sholat (sisi yang sama dengan Jadwal Sholat)
+  if (!right.includes('sholat') && !left.includes('sholat')) left.unshift('sholat');
+  for (const [k, after] of [['docs', 'sholat'], ['agenda', 'docs']]) {
+    if (right.includes(k) || left.includes(k)) continue;
+    const t = right.includes('sholat') ? right : left; const i = t.indexOf(after);
+    if (i >= 0) t.splice(i + 1, 0, k); else if (t === left) t.splice(left.includes('sholat') ? left.indexOf('sholat') + 1 : 0, 0, k);
+  }
   const leftKeys = ordered(all.filter((k) => !right.includes(k)), left);
   return { leftKeys, rightKeys: right };
 }
 
 // Footer satu baris (v2.9.11): kiri = titik pengunjung online + running text, kanan = info footer.
 // Di HP/tablet bagian kanan disembunyikan (kredit tampil di bawah konten), baris kiri tetap di atas navigasi bawah.
-function pubFooter(ticker, rt = {}, showVisits = false) {
+function pubFooter(ticker, rt = {}, showVisits = false, layBtn = '') {
   const items = ticker ? String(rt.teks).split('\n').map((t) => t.trim()).filter(Boolean) : [];
   const speed = { lambat: 35, normal: 60, cepat: 100 }[rt.kecepatan] || 60;
   const bg = rt.bg ? `--tk:${esc(rt.bg)}` : ''; // warna latar pilihan → dipakai semi-transparan oleh CSS
-  return `<footer class="pub-foot ft2 ${items.length ? 'has-tk' : 'no-tk'} ${showVisits ? 'has-vis' : ''}">
+  return `<footer class="pub-foot ft2 ${items.length ? 'has-tk' : 'no-tk'} ${showVisits ? 'has-vis' : ''} ${layBtn ? 'has-lay' : ''}">
     <div class="foot-line">
     <div class="foot-start">
-    ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}
+    ${showVisits ? '<div id="vis-widget" class="vis-widget" aria-live="polite"></div>' : ''}${layBtn}
     ${items.length ? `<div class="ticker" role="marquee" aria-label="Pengumuman berjalan" style="${bg}"><span class="ticker-label">${ic('mega')} ${esc(rt.label || 'Info')}</span><div class="ticker-track"><div class="ticker-move" data-speed="${speed}" style="${tickerStyle(rt)}">${items.map((t) => `<span>${esc(t)}</span><i>•</i>`).join('')}</div></div></div>` : ''}
     </div>
     <div class="foot-end">
@@ -635,7 +642,7 @@ function pubFooter(ticker, rt = {}, showVisits = false) {
 // ---- Tata letak (khusus Super Admin)
 function layoutBar(scope) {
   if (state.layoutEdit === scope) return `<div class="layout-bar editing"><span>${ic('grid')} <b>Mode atur tata letak</b> — seret tombol <b>⠿ Geser</b> pada panel untuk memindahkan posisinya.</span><button class="btn btn-sm btn-ghost" data-lay="reset">Kembalikan bawaan</button><button class="btn btn-sm btn-ghost" data-lay="cancel">Batal</button><button class="btn btn-sm btn-primary" data-lay="save">${ic('check')} Simpan tata letak</button></div>`;
-  return `<button class="layout-fab" data-lay="start" title="Atur posisi panel (Super Admin)">${ic('grid')} <span>Atur tata letak</span></button>`;
+  return `<button class="layout-fab" data-lay="start" title="Atur tata letak panel (Super Admin)" aria-label="Atur tata letak panel">${ic('grid')}</button>`;
 }
 let layoutPending = null, layoutStop = null;
 function enableLayoutEdit(scope) {
@@ -673,27 +680,42 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+const HERO_DESC_DEFAULT = 'Data kependudukan terbuka, informasi kegiatan, dan layanan gampong dalam satu tempat — mudah diakses warga kapan saja.';
+// v2.9.12: Agenda Terdekat & Dokumen Terbaru sebagai panel samping ringkas (di bawah Jadwal Sholat)
+const homeAgenda = () => { const now = todayISO(); return pubInfo().filter((i) => i.tanggalAcara && i.tanggalAcara >= now).sort((a, b) => a.tanggalAcara.localeCompare(b.tanggalAcara)).slice(0, 4); };
+const homeDocs = () => [...state.dokumen].filter((d) => d.published !== false).sort((a, b) => String(b.tahun || '').localeCompare(String(a.tahun || ''))).slice(0, 4);
+const spHead = (icon, title, sub, href, more) => `<div class="sp-head">${ic(icon)}<div><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>${href ? `<a class="sp-more" href="${href}" title="${esc(more)}" aria-label="${esc(more)}">${ic('chev')}</a>` : ''}</div>`;
+function docsPanel() {
+  const docs = homeDocs(); if (!docs.length) return '';
+  return `<div class="side-panel sp-mini sp-docs">${spHead('file', 'Dokumen Terbaru', `${docs.length} dokumen publik`, '#/dokumen', 'Semua dokumen')}
+    <div class="spm-list">${docs.map((d) => `<a href="#/dokumen" class="spm-row" title="${esc(d.judul)}">${ic('file')}<span><b>${esc(d.judul)}</b><small>${esc([d.jenis, d.tahun].filter(Boolean).join(' · '))}</small></span></a>`).join('')}</div></div>`;
+}
+function agendaPanel() {
+  const ag = homeAgenda();
+  return `<div class="side-panel sp-mini sp-agenda">${spHead('cal', 'Agenda Terdekat', ag.length ? `${ag.length} acara mendatang` : '', ag.length ? '#/informasi' : '', 'Semua informasi')}
+    ${ag.length ? `<div class="spm-list">${ag.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="spm-row spm-ag" href="#/informasi/${esc(a.id)}" title="${esc(a.judul)}"><span class="spm-date"><b>${d.getDate()}</b><small>${esc(d.toLocaleString('id-ID', { month: 'short' }))}</small></span><span><b>${esc(a.judul)}</b><small>${esc([a.waktu, a.lokasi].filter(Boolean).join(' • ') || fmtDate(a.tanggalAcara))}</small></span></a>`; }).join('')}</div>` : '<p class="muted small spm-empty">Belum ada agenda terdekat.</p>'}</div>`;
+}
+const newsMini = (i) => { const th = infoThumb(i); return `<a class="news-mini" href="#/informasi/${esc(i.id)}">${th ? `<span class="nm-img"><img loading="lazy" src="${esc(th)}" alt="" onerror="this.parentNode.classList.add('nm-noimg');this.remove()"></span>` : `<span class="nm-img nm-noimg">${ic('mega')}</span>`}<span class="nm-txt"><small><b>${esc(i.kategori || 'Informasi')}</b> · ${esc(fmtDate(i.createdAt))}</small><strong>${esc(i.judul)}</strong></span></a>`; };
+
 // Ganti seluruh nilai field di config/app (bukan digabung), buat dokumen bila belum ada
 const HOME_KEYS = ['hero', 'berita', 'layanan', 'galeri', 'insight', 'viz', 'data'];
 function pubHome() {
   const s = state.stats || {};
   const now = todayISO();
   const info = pubInfo();
-  const agenda = info.filter((i) => i.tanggalAcara && i.tanggalAcara >= now).sort((a, b) => a.tanggalAcara.localeCompare(b.tanggalAcara)).slice(0, 5);
-  const latest = info.slice(0, 6);
+  const latest = info.slice(0, 8); // 1 utama + 4 ringkas di sampingnya + 3 kartu di bawah
   const w = state.config.wilayah || {};
   const ins = insightsFromStats(s).slice(0, 4);
   const jk = [{ v: 'Laki-laki', n: s.laki || 0 }, { v: 'Perempuan', n: s.perempuan || 0 }];
   const pyr = s.piramida || [];
   const peak = Math.max(1, ...pyr.map((x) => Math.max(x.l, x.p)));
   const tiles = [['Penduduk', s.penduduk, 'jiwa', 'users'], ['Kepala Keluarga', s.kk, s.rataKeluarga ? `${String(s.rataKeluarga).replace('.', ',')} jiwa/KK` : 'KK', 'home'], ['Laki-laki', s.laki, s.penduduk ? `${pct(s.laki, s.penduduk).toString().replace('.', ',')}%` : '', 'users'], ['Perempuan', s.perempuan, s.penduduk ? `${pct(s.perempuan, s.penduduk).toString().replace('.', ',')}%` : '', 'users'], ['Usia Produktif', s.produktif, '15–64 tahun', 'chart'], ['Dusun', s.dusun, 'wilayah', 'map']];
-  const docs = [...state.dokumen].filter((d) => d.published !== false).sort((a, b) => String(b.tahun || '').localeCompare(String(a.tahun || ''))).slice(0, 4);
   const blocks = {
     hero: `<section class="hero">
       <div class="hero-text">
         <span class="eyebrow">${ic('loc')} ${esc([w.kecamatan && 'Kec. ' + w.kecamatan, w.kabupaten, w.provinsi].filter(Boolean).join(' · ') || 'Portal Data Publik')}</span>
         <h1>Portal Data & Informasi<br>${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
-        <div class="hero-desc rich">${state.config.deskripsi ? richRender(state.config.deskripsi) : 'Data kependudukan terbuka, informasi kegiatan, dan layanan gampong dalam satu tempat — mudah diakses warga kapan saja.'}</div>
+        <div class="hero-desc rich">${state.config.deskripsi ? richRender(state.config.deskripsi) : esc(HERO_DESC_DEFAULT)}</div>
         <div class="hero-actions">
           <a class="btn btn-primary" href="#/informasi" title="Informasi Terbaru">${ic('mega')} Informasi<span class="xw"> Terbaru</span></a>
           <a class="btn btn-ghost" href="#/data" title="Jelajahi Data">${ic('chart')} <span class="xw">Jelajahi </span>Data</a>
@@ -702,15 +724,11 @@ function pubHome() {
       </div>
       <div class="hero-tiles">${tiles.map(([l, v, sub, i]) => `<a class="tile" href="#/data"><span class="tile-ic">${ic(i)}</span><b>${v != null ? fmtNum(v) : '–'}</b><span>${esc(l)}</span><small>${esc(sub)}</small></a>`).join('')}</div>
     </section>`,
-    berita: `<div class="two-col news-first">
-      <section class="section"><div class="section-head"><h2>${ic('mega')} Informasi & Berita Terbaru</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
-        ${latest.length ? `<div class="cards news-cards">${latest.map((i, n) => infoCard(i, n === 0)).join('')}</div>` : emptyBox('Belum ada informasi yang diterbitkan.')}
-      </section>
-      <section class="section"><div class="section-head"><h2>${ic('cal')} Agenda Terdekat</h2></div>
-        ${agenda.length ? `<div class="agenda">${agenda.map((a) => { const d = toDate(a.tanggalAcara); return `<a class="agenda-item" href="#/informasi/${a.id}"><div class="agenda-date"><b>${d.getDate()}</b><span>${d.toLocaleString('id-ID', { month: 'short' })}</span></div><div><h4>${esc(a.judul)}</h4><p class="muted small">${esc([a.waktu, a.lokasi].filter(Boolean).join(' • '))}</p></div></a>`; }).join('')}</div>` : emptyBox('Belum ada agenda terdekat.')}
-        ${docs.length ? `<div class="section-head" style="margin-top:20px"><h2>${ic('file')} Dokumen Terbaru</h2><a href="#/dokumen" class="link">Semua →</a></div><div class="mini-docs">${docs.map((d) => `<a href="#/dokumen" class="mini-doc">${ic('file')}<span><b>${esc(d.judul)}</b><small>${esc([d.jenis, d.tahun].filter(Boolean).join(' · '))}</small></span></a>`).join('')}</div>` : ''}
-      </section>
-    </div>`,
+    berita: `<section class="section news-wide"><div class="section-head"><h2>${ic('mega')} Informasi & Berita Terbaru</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
+      ${latest.length ? `<div class="news-top ${latest.length > 1 ? '' : 'solo'}"><div class="cards news-cards news-lead">${infoCard(latest[0], true)}</div>
+        ${latest.length > 1 ? `<div class="news-side" aria-label="Informasi lainnya">${latest.slice(1, 5).map(newsMini).join('')}</div>` : ''}</div>
+        ${latest.length > 5 ? `<div class="cards news-cards news-rest">${latest.slice(5).map((x) => infoCard(x)).join('')}</div><div class="news-side news-more-m">${latest.slice(5).map(newsMini).join('')}</div>` : ''}` : emptyBox('Belum ada informasi yang diterbitkan.')}
+    </section>`,
     layanan: `<section class="section"><div class="section-head"><h2>${ic('shield')} Layanan & Kelembagaan</h2><a href="#/lembaga" class="link">Semua lembaga →</a></div>
       <div class="svc-grid">
         ${PAGES.filter((p) => ['layanan', 'struktur', 'visimisi', 'apbdes', 'potensi', 'kontak'].includes(p.key)).map((p) => `<a class="svc" href="#/profil/${p.key}">${ic(p.icon)}<span>${esc(pageLabel(p))}</span></a>`).join('')}
@@ -900,9 +918,11 @@ const NAV = [
   ['dashboard', 'Dasbor', 'grid', null, 'Utama'],
   ['warga', 'Data Warga', 'users', 'warga', 'Kependudukan'], ['import', 'Import Excel', 'upload', 'import', 'Kependudukan'],
   ['dusun', 'Dusun & Kadus', 'map', 'dusun', 'Kependudukan'], ['master', 'Data Master', 'db', 'master', 'Kependudukan'], ['laporan', 'Laporan & Ekspor', 'chart', 'export', 'Kependudukan'],
-  ['lembaga', 'Lembaga Gampong', 'shield', 'lembagaAny', 'Kelembagaan'], ['dokumen', 'Dokumen Publik', 'file', 'dokumen', 'Kelembagaan'],
-  ['informasi', 'Papan Informasi', 'mega', 'informasi', 'Publikasi'], ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast', 'Publikasi'], ['instagram', 'Instagram', 'ig', 'instagram', 'Publikasi'],
-  ['profil', 'Profil Gampong', 'book', 'profil', 'Publikasi'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan', 'Publikasi'],
+  ['lembaga', 'Lembaga Gampong', 'shield', 'lembagaAny', 'Kelembagaan'],
+  // v2.9.12: urutan Publikasi — Profil Gampong → Papan Informasi → Dokumen Publik → Kegiatan Rutin → Kirim WhatsApp → Instagram
+  ['profil', 'Profil Gampong', 'book', 'profil', 'Publikasi'], ['informasi', 'Papan Informasi', 'mega', 'informasi', 'Publikasi'],
+  ['dokumen', 'Dokumen Publik', 'file', 'dokumen', 'Publikasi'], ['kegiatan', 'Kegiatan Rutin', 'repeat', 'kegiatan', 'Publikasi'],
+  ['broadcast', 'Kirim WhatsApp', 'wa', 'broadcast', 'Publikasi'], ['instagram', 'Instagram', 'ig', 'instagram', 'Publikasi'],
   ['pengaturan', 'Pengaturan', 'cog', null, 'Sistem'], ['tampilan', 'Tampilan & Tema', 'eye', 'super', 'Sistem'], ['latar', 'Latar Belakang', 'image', 'latar', 'Sistem'],
   ['widget', 'Widget Beranda', 'news', 'super', 'Sistem'], ['monitor', 'Monitor & Analitik', 'activity', 'super', 'Sistem'],
   ['admin', 'Manajemen Akun', 'lock', 'akun', 'Admin'],
@@ -2178,6 +2198,13 @@ function viewPengaturan(main) {
   const ig = c.infografis || {};
   const igCats = ig.cats || DEFAULT_INFOGRAFIS;
   main.innerHTML = `
+  ${can('pengaturan') ? `<div class="panel hd-panel" id="hd-panel"><h3>${ic('edit')} Teks Kartu Beranda</h3>
+    <p class="muted small">Tulisan di bawah judul <b>“Portal Data &amp; Informasi ${esc(`${desaJenis()} ${desaName()}`.trim())}”</b> pada kartu paling atas beranda. Bisa ditebalkan, dimiringkan, diberi warna/huruf, atau tautan.</p>
+    <div class="hd-prev" aria-label="Pratinjau kartu beranda"><span class="eyebrow">${ic('loc')} Pratinjau</span><b class="hd-title">Portal Data &amp; Informasi<br>${esc(`${desaJenis()} ${desaName()}`.trim())}</b><div class="hero-desc rich" id="hd-prev-desc"></div></div>
+    <label class="field"><span>Isi tulisan</span><textarea id="hd-text" rows="3" data-rich>${esc(c.deskripsi || '')}</textarea></label>
+    <p class="muted tiny">Saran: 1–2 kalimat singkat. Di HP ditampilkan maksimal 2 baris (sisanya dipotong “…”). Kosongkan untuk memakai tulisan bawaan.</p>
+    <div class="row-gap"><button class="btn btn-primary" id="hd-save">${ic('check')} Simpan Teks Beranda</button><button class="btn btn-ghost" id="hd-reset" type="button">Pakai tulisan bawaan</button></div>
+  </div>` : ''}
   ${can('pengaturan') ? `<div class="panel"><h3>${ic('home')} Profil ${esc(jenisLabel())}</h3>
     <form id="pf" class="form-grid">
       <label class="field"><span>Sebutan</span><select name="jenisDesa">${['Desa', 'Gampong', 'Kelurahan', 'Nagari', 'Kampung', 'Pekon', 'Lembang', 'Negeri'].map((j) => `<option ${jenisLabel() === j ? 'selected' : ''}>${j}</option>`).join('')}</select></label>
@@ -2191,7 +2218,6 @@ function viewPengaturan(main) {
       <label class="field"><span>Email Desa</span><input name="emailDesa" type="email" value="${esc(c.emailDesa || '')}"></label>
       <label class="field"><span>Slogan / Tagline</span><input name="tagline" value="${esc(c.tagline || '')}"></label>
       <label class="field span-2"><span>Alamat Kantor</span><input name="alamatKantor" value="${esc(c.alamatKantor || '')}"></label>
-      <label class="field span-2"><span>Deskripsi singkat (beranda)</span><textarea name="deskripsi" rows="3" data-rich>${esc(c.deskripsi || '')}</textarea></label>
       <label class="field span-2"><span>Penutup pesan WhatsApp</span><input name="waFooter" value="${esc(c.waFooter || '')}" placeholder="mis. Hormat kami, Pemerintah Gampong …"></label>
       <div class="field span-2"><span>Logo desa</span><div class="img-pick"><div id="logo-prev">${c.logo ? `<img src="${esc(c.logo)}" alt="">` : ''}</div><label class="btn btn-ghost btn-sm">${ic('upload')} Pilih logo<input type="file" accept="image/*" id="logo-in" hidden></label><button type="button" class="btn btn-ghost btn-sm" id="logo-rm">Hapus logo</button></div></div>
     </form>
@@ -2251,6 +2277,17 @@ function viewPengaturan(main) {
     <button class="btn btn-ghost btn-sm" id="chk-upd">${ic('refresh')} Periksa pembaruan</button></div>`;
 
   if (can('pengaturan')) {
+    // Teks kartu beranda (deskripsi di bawah judul "Portal Data & Informasi …")
+    const hp = $('#hd-panel'); bindRich(hp);
+    const hdVal = () => $('#hd-text').value.trim();
+    const hdPrev = () => { const v = hdVal(); $('#hd-prev-desc').innerHTML = v ? richRender(v) : esc(HERO_DESC_DEFAULT); };
+    hdPrev(); hp.addEventListener('input', hdPrev); hp.addEventListener('change', hdPrev);
+    $('#hd-reset').onclick = () => { const ed = hp.querySelector('[contenteditable]'); if (ed) ed.innerHTML = ''; $('#hd-text').value = ''; hdPrev(); toast('Tulisan bawaan dipakai — klik Simpan untuk menerapkan', 'info'); };
+    $('#hd-save').onclick = async () => {
+      const v = hdVal(); if (plainText(v).length > 600) return toast('Tulisan terlalu panjang (maks. 600 karakter)', 'error');
+      try { await F.setDoc(C('config/app'), { deskripsi: v }, { merge: true }); logAudit('pengaturan', 'teks_beranda', 'Mengubah teks kartu beranda', { changes: diff({ deskripsi: c.deskripsi || '' }, { deskripsi: v }) }); toast('Teks beranda disimpan', 'success'); }
+      catch (e) { toast('Gagal: ' + e.message, 'error'); }
+    };
     const pf = $('#pf'); bindRich(pf);
     const wil = [0, 1, 2, 3].map((i) => $('#pw_' + i));
     bindWilayahChain(wil);
@@ -2258,7 +2295,7 @@ function viewPengaturan(main) {
     $('#logo-in').onchange = async (e) => { try { logo = await compressImage(e.target.files[0], 256, 0.85); $('#logo-prev').innerHTML = `<img src="${logo}" alt="">`; } catch (err) { toast(err.message, 'error'); } };
     $('#logo-rm').onclick = () => { logo = ''; $('#logo-prev').innerHTML = ''; };
     $('#pf-save').onclick = async () => {
-      const d = Object.fromEntries(['jenisDesa', 'namaDesa', 'kepalaDesa', 'telepon', 'emailDesa', 'tagline', 'alamatKantor', 'deskripsi', 'waFooter'].map((k) => [k, pf.elements[k].value.trim()]));
+      const d = Object.fromEntries(['jenisDesa', 'namaDesa', 'kepalaDesa', 'telepon', 'emailDesa', 'tagline', 'alamatKantor', 'waFooter'].map((k) => [k, pf.elements[k].value.trim()]));
       if (!d.namaDesa) return toast('Nama desa wajib diisi', 'error');
       d.telepon = normalizePhone(d.telepon);
       d.wilayah = { provinsi: wil[0].value.trim(), provinsiId: wil[0].dataset.id || '', kabupaten: wil[1].value.trim(), kabupatenId: wil[1].dataset.id || '', kecamatan: wil[2].value.trim(), kecamatanId: wil[2].dataset.id || '', kelurahan: wil[3].value.trim(), kelurahanId: wil[3].dataset.id || '' };

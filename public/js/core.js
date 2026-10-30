@@ -102,16 +102,16 @@ export const PERMS = [
   ['export', 'Ekspor PDF / Excel & laporan', 'Data Warga'],
   ['dusun', 'Kelola dusun & kepala dusun', 'Data Warga'],
   ['master', 'Kelola Data Master dropdown', 'Data Warga'],
+  ['profil', 'Kelola halaman Profil Gampong', 'Publikasi'],
   ['informasi', 'Tulis & terbitkan papan informasi', 'Publikasi'],
+  ['dokumen', 'Kelola Dokumen Publik (RPJMG, APBG, Reusam, dll.)', 'Publikasi'],
+  ['kegiatan', 'Kelola kegiatan rutin', 'Publikasi'],
   ['broadcast', 'Kirim pesan WhatsApp ke warga', 'Publikasi'],
   ['instagram', 'Kelola highlight Instagram', 'Publikasi'],
-  ['profil', 'Kelola halaman Profil Gampong', 'Publikasi'],
-  ['kegiatan', 'Kelola kegiatan rutin', 'Publikasi'],
   ['pengaturan', 'Ubah pengaturan desa, jadwal sholat & running text', 'Sistem'],
   ['kelolaKadus', 'Buat & kelola akun login Kepala Dusun', 'Sistem'],
   ['latar', 'Ubah latar belakang website (foto / video dari URL)', 'Sistem'],
   ['lembaga', 'Kelola Lembaga Gampong (pengurus, anggota, murid/santri, berita, galeri)', 'Kelembagaan'],
-  ['dokumen', 'Kelola Dokumen Publik (RPJMG, APBG, Reusam, dll.)', 'Kelembagaan'],
 ];
 // Hak akses yang boleh diberikan kepada akun Kepala Dusun (hanya untuk dusunnya sendiri)
 export const KADUS_PERMS = [

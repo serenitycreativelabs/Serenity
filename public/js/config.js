@@ -12,9 +12,9 @@
 export const APP = {
   name: 'Serenity',
   fullName: 'Serenity — Sistem Informasi Gampong Digital',
-  version: '2.9.11',
+  version: '2.9.12',
   build: '2026.10.30',
-  revision: 'R27',               // nomor revisi rilis (naik otomatis lewat scripts/bump-version.mjs)
+  revision: 'R28',               // nomor revisi rilis (naik otomatis lewat scripts/bump-version.mjs)
   codename: 'Kirana',
   channel: 'Stable',
   owner: 'Deah Glumpang',

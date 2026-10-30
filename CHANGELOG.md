@@ -1,5 +1,22 @@
 # Catatan Perubahan
 
+## v2.9.12 “Kirana” — 2026.10.30 (Build 2026.10.30 · R28 · Stable)
+### Beranda (desktop)
+- **Dokumen Terbaru** & **Agenda Terdekat** pindah ke panel kiri, tepat di bawah **Jadwal Sholat** (kartu ringkas dengan tombol › lihat semua; Dokumen otomatis disembunyikan bila belum ada dokumen). Tata letak tersimpan lama tetap dihormati.
+- **Informasi & Berita Terbaru** kini selebar konten: berita utama + **4 berita ringkas** di sampingnya (tinggi sejajar) + 3 kartu berita berikutnya — 8 berita terbaru tampil.
+- **Header** publik menjadi kartu melayang (sudut membulat, bayangan, sejajar panel kiri & kanan); logo tetap 44 px.
+- **Layanan & Kelembagaan**: kartu lebih ringkas; tulisan panjang (mis. “Kemasyarakatan”) selalu di dalam kotak.
+- Tombol **Atur tata letak** (Super Admin): ikon saja, di footer kiri setelah titik pengunjung online.
+- Tombol **chat** lebih kecil (54 → 44 px) & lebih rendah (tepat di atas footer).
+### Beranda (HP, tablet & PWA)
+- Kartu **Portal Data Publik** lebih ringkas (±25% lebih pendek): judul, deskripsi 2 baris, tombol & kotak statistik lebih kecil.
+- **Berita**: kartu utama mendatar yang ringkas (foto kiri, teks kanan) + **daftar 7 berita lain** dalam baris ringkas — tidak lagi hanya 1 berita yang terlihat.
+### Panel kanan
+- **Kegiatan Lainnya** (dan semua panel bergulir) kini tetap **bergerak walau isinya sedikit** (mis. hanya 1 kegiatan) — isi diulang mulus seperti Kegiatan Rutin & Berita Lembaga. Tetap berhenti saat disorot/disentuh.
+### Dasbor admin
+- **Sistem › Pengaturan → panel baru “Teks Kartu Beranda”**: ubah tulisan di bawah judul “Portal Data & Informasi …” dengan editor teks + **pratinjau langsung**, tombol “Pakai tulisan bawaan”; tercatat di Audit Log; bisa dicari di kolom cari dasbor. (Kolom “Deskripsi singkat” di Profil Gampong dipindahkan ke panel ini; isinya tetap.)
+- Urutan menu **Publikasi**: Profil Gampong → Papan Informasi → **Dokumen Publik** (pindah dari Kelembagaan) → Kegiatan Rutin → Kirim WhatsApp → Instagram. Daftar centang Hak Akses mengikuti urutan yang sama (hak akses akun tidak berubah).
+
 ## v2.9.11 “Kirana” — 2026.10.30 (Build 2026.10.30 · R27 · Stable)
 ### Footer satu baris: running text & pengunjung online pindah ke dalam footer
 - **Desktop:** running text kini berada di **dalam footer sebelah kiri bawah** (bentuk kapsul, tetap semi-transparan & warna pilihan), info footer (WA, versi, copyright) tetap di kanan. Running text hanya memakai sisa ruang → tidak pernah bertabrakan; copyright selalu utuh. Baris running text terpisah di atas footer dihapus → ruang konten bertambah ±26 px.

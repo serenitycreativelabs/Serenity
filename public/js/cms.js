@@ -209,7 +209,7 @@ export function kegiatanPanel(part = '') {
   const row = (k, isToday) => `<li class="${isToday ? 'today' : ''}" data-link="#/kegiatan/${esc(k.id)}" tabindex="0" title="${esc(k.nama)} — lihat detail"><span class="kg-time">${esc(k.waktu || '—')}</span><span class="kg-txt"><b>${esc(k.nama)}${k.media?.length ? ` <span class="kg-media" title="Ada foto/video">${ic('image')}</span>` : ''}</b><small>${esc([isToday ? '' : (k.hari || []).join(', ') + (k.minggu && k.minggu !== 'Setiap minggu' ? ` (${k.minggu})` : ''), k.tempat].filter(Boolean).join(' • '))}</small></span></li>`;
   const g = widgetCfg().kegiatan;
   const sp = Math.max(4, Math.min(120, Number(g.kecepatan) || 18)), dir = g.arah === 'bawah' ? 'bawah' : 'atas';
-  const scroller = (rows, label) => (g.gerak !== false && rows.length > 1
+  const scroller = (rows, label) => (g.gerak !== false && rows.length >= 1
     ? `<div class="kg-viewport sp-fill" data-speed="${sp}" data-dir="${dir}" tabindex="0" aria-label="${esc(label)} bergulir otomatis. Arahkan kursor untuk menjeda."><div class="kg-track"><ul class="kg-list">${rows.join('')}</ul></div></div>`
     : `<div class="sp-fill sp-static"><ul class="kg-list">${rows.join('')}</ul></div>`);
   const head = (icon, title, sub, href, more) => `<div class="sp-head">${ic(icon)}<div><b>${title}</b><small>${sub}</small></div>${href ? `<a class="sp-more" href="${href}" title="${esc(more)}" aria-label="${esc(more)}">${ic('chev')}</a>` : ''}</div>`;
