@@ -20,7 +20,7 @@
 ## Baru di v2.9.0 “Kirana” (Stable) - Major / Feature Milestone
 - 📰 **Blurry Glass Theme** lebih rapi di desktop, tablet, ponsel & PWA.
 - 🖼️ Logo & ikon; layar pembuka PWA & pemuatan halaman mengikuti warna tema.
-- 🏷️ Judul tab resmi yang bergerak perlahan: “Portal Resmi Gampong Deah Glumpang Powered by © 2026 Serenity Creativa Labs.”
+- 🏷️ Judul tab resmi dinamis.
 - 💬 **Riwayat Chat Staf** di Audit Log: Seluruh percakapan utuh + fitur ekspor PDF/Excel hanya dapat dilakukan oleh Developer.
 
 ## Baru di v2.8.0 “Nadi” (Stable)
