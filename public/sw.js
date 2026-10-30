@@ -1,12 +1,12 @@
 /* Serenity Service Worker — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
-const VERSION = '2.9.17';
+const VERSION = '2.9.18';
 const SHELL = `serenity-shell-v${VERSION}`;
 const RUNTIME = `serenity-runtime-v${VERSION}`;
 const SHELL_FILES = [
   './', './index.html', './login.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/config.js', './js/firebase.js', './js/fields.js', './js/ui.js', './js/wilayah.js', './js/exporter.js',
   './js/core.js', './js/cms.js', './js/security.js', './js/praytimes.js', './js/firebase-config.js', './js/rich.js', './js/layout.js', './js/lembaga.js', './js/badges.js', './js/tampilan.js',
-  './js/usage.js', './js/sync.js', './js/analytics.js', './js/widgets.js', './js/monitor.js', './js/motion.js', './js/chat.js', './js/title.js', './js/reader.js', './js/navtools.js', './js/ocr.js',
+  './js/usage.js', './js/sync.js', './js/analytics.js', './js/widgets.js', './js/monitor.js', './js/motion.js', './js/chat.js', './js/title.js', './js/reader.js', './js/navtools.js', './js/ocr.js', './js/guide.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg',
 ];
 // Pustaka & data yang aman di-cache (Firebase SDK, SheetJS, jsPDF, font, data wilayah)

@@ -2689,3 +2689,17 @@ body.has-bg .news-mini { background: color-mix(in srgb, var(--surface) 58%, tran
 .kl-table .chip.sm{font-size:.72rem;padding:2px 8px;margin:1px 2px 1px 0;display:inline-block}
 @media (max-width:680px){.kl-table thead{display:none}.kl-table tr{display:block;border-bottom:1px solid var(--line,#e5e7eb);padding:8px 0}.kl-table td{display:flex;gap:10px;padding:3px 4px;border:0}.kl-table td[data-l]::before{content:attr(data-l);flex:0 0 86px;color:var(--muted);font-size:.78rem}.kl-table td.actions-col{justify-content:flex-end}}
 .ac-item.ac-act{color:#b45309;font-weight:600;border-top:1px dashed var(--line,#e5e7eb)}
+
+/* v2.9.18 — tombol kembali sejajar & tab lembaga melayang */
+.section > .page-back { display: flex; width: fit-content; align-items: center; gap: 4px; margin: 0 0 12px; }
+.section > .page-back + .eyebrow { display: flex; width: fit-content; }
+.lg-detail .tabbar { width: fit-content; max-width: 100%; padding: 6px; gap: 6px; margin: 0 0 14px; top: calc(var(--header-h) + 6px);
+  border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 70%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); box-shadow: var(--shadow); }
+.lg-detail .tabbar a { border-color: transparent; background: transparent; }
+.lg-detail .tabbar a:hover, .lg-detail .tabbar a.active { background: var(--surface); border-color: var(--line); color: var(--primary); }
+.lg-detail .panel { scroll-margin-top: calc(var(--header-h) + 70px); }
+/* v2.9.18 — panduan pengisian di bawah kolom */
+.field > .f-guide { display: block; margin-top: 5px; font-size: .76rem; line-height: 1.45; color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; }
+.field:focus-within > .f-guide { color: var(--ink-2, var(--ink)); }
+.field > .f-guide::before { content: "ⓘ "; color: var(--primary); font-weight: 700; }

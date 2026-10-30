@@ -57,7 +57,7 @@ export function renderLembagaPublic(parts) {
   const list = state.lembaga.filter((l) => l.published !== false);
   if (parts[1] === 'k') {
     const k = katOf(parts[2]); const ls = lembagaOf(k.key).filter((l) => l.published !== false);
-    return `<section class="section"><a class="link" href="#/lembaga">← Semua lembaga</a><span class="eyebrow">${ic(k.icon)} Kelembagaan</span><h1>${esc(k.label)}</h1><p class="muted">${esc(k.desc)}</p>
+    return `<section class="section"><a class="link page-back" href="#/lembaga">← Semua lembaga</a><span class="eyebrow">${ic(k.icon)} Kelembagaan</span><h1>${esc(k.label)}</h1><p class="muted">${esc(k.desc)}</p>
       ${katChips(k.key)}${ls.length ? `<div class="lg-grid">${ls.map((l) => lembagaCard(l)).join('')}</div>` : emptyBox('Belum ada lembaga di kategori ini.')}</section>`;
   }
   if (parts[1] && parts[2] === 'berita' && parts[3]) return beritaDetail(parts[1], parts[3]);
@@ -80,7 +80,7 @@ function lembagaDetail(id) {
   const tabs = [['profil', 'Profil'], ['struktur', 'Struktur'], ...(l.berita?.length ? [['berita', 'Berita']] : []), ...(l.media?.length ? [['galeri', 'Galeri & Video']] : []), ...(l.dokumen?.length ? [['dokumen', 'Dokumen']] : [])];
   const berita = [...(l.berita || [])].sort((a, b) => String(b.tanggal || '').localeCompare(String(a.tanggal || '')));
   return `<section class="section lg-detail">
-    <a class="link" href="#/lembaga/k/${k.key}">← ${esc(k.label)}</a>
+    <a class="link page-back" href="#/lembaga/k/${k.key}">← ${esc(k.label)}</a>
     <div class="lg-hero">${logoOf(l, 'xl')}<div><span class="eyebrow">${esc(k.short)}</span><h1>${esc(l.nama)}</h1>${l.singkatan ? `<p class="muted">${esc(l.singkatan)}</p>` : ''}
       <div class="lg-stats">${l.pengurus?.length ? `<span><b>${l.pengurus.length}</b> pengurus</span>` : ''}${l.anggotaCount ? `<span><b>${fmtNum(l.anggotaCount)}</b> anggota</span>` : ''}${pc.total ? `<span><b>${fmtNum(pc.total)}</b> ${pesertaLabel(l).toLowerCase()} (${fmtNum(pc.l || 0)} ${pesertaJk(l, 'L').toLowerCase()}, ${fmtNum(pc.p || 0)} ${pesertaJk(l, 'P').toLowerCase()})</span>` : ''}</div>
       <div class="row-gap">${waNumber(l.kontak) ? `<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="${esc(waLink(l.kontak))}">${ic('wa')} Hubungi</a>` : ''}${l.alamat ? `<span class="muted small">${ic('loc')} ${esc(l.alamat)}</span>` : ''}</div></div></div>
@@ -136,7 +136,7 @@ export function renderDokumenPublic() {
   const docs = state.dokumen.filter((d) => d.published !== false);
   const jenisList = [...new Set(docs.map((d) => d.jenis).filter(Boolean))];
   const tahunList = [...new Set(docs.map((d) => d.tahun).filter(Boolean))].sort().reverse();
-  return `<section class="section"><span class="eyebrow">${ic('file')} Keterbukaan Informasi Publik</span><h1>Dokumen Publik Gampong</h1>
+  return `<section class="section"><a class="link page-back" href="#/lembaga" data-goback>← Kembali</a><span class="eyebrow">${ic('file')} Keterbukaan Informasi Publik</span><h1>Dokumen Publik Gampong</h1>
     <p class="muted">RPJMG, RAPBG, APBG, Reusam, aturan & peraturan gampong yang dapat dilihat dan diunduh warga.</p>
     <div class="toolbar"><div class="search">${ic('search')}<input id="dp-q" placeholder="Cari judul, nomor, atau isi dokumen…" value="${esc(docState.q)}"></div>
       <select id="dp-jenis"><option value="">Semua jenis</option>${jenisList.map((j) => `<option ${docState.jenis === j ? 'selected' : ''}>${esc(j)}</option>`).join('')}</select>
@@ -158,6 +158,7 @@ export function bindDokumenPublic() {
     box.innerHTML = list.length ? `<p class="muted small">${list.length} dokumen</p><div class="doc-grid">${list.map((d) => `<article class="doc-card"><div class="doc-ic">${ic('file')}<small>${esc((d.format || guessFormat(d.url)).toUpperCase())}</small></div><div class="doc-body"><div class="info-meta"><span class="badge">${esc(d.jenis || 'Dokumen')}</span>${d.tahun ? `<span class="badge badge-muted">${esc(d.tahun)}</span>` : ''}</div><h4>${esc(d.judul)}</h4>${d.nomor ? `<p class="muted small">Nomor: ${esc(d.nomor)}</p>` : ''}${d.deskripsi ? `<div class="small rich muted">${richRender(d.deskripsi)}</div>` : ''}${d.tanggal ? `<p class="muted small">${esc(fmtDate(d.tanggal))}</p>` : ''}
       <div class="row-gap">${safeUrl(d.url) ? `<a class="btn btn-sm btn-ghost" target="_blank" rel="noopener" href="${esc(safeUrl(d.url))}">${ic('eye')} Lihat</a><a class="btn btn-sm btn-primary" target="_blank" rel="noopener" href="${esc(downloadUrl(d.url))}">${ic('download')} Unduh</a>` : '<span class="muted small">Berkas belum tersedia</span>'}</div></div></article>`).join('')}</div>` : emptyBox('Tidak ada dokumen yang cocok.');
   };
+  $$('[data-goback]').forEach((x) => x.onclick = (e) => { if (history.length > 1) { e.preventDefault(); history.back(); } });
   $('#dp-q').oninput = debounce((e) => { docState.q = e.target.value; draw(); }, 200);
   $('#dp-jenis').onchange = (e) => { docState.jenis = e.target.value; $$('#dp-chips .chip').forEach((c) => c.classList.toggle('active', c.dataset.j === docState.jenis)); draw(); };
   $('#dp-tahun').onchange = (e) => { docState.tahun = e.target.value; draw(); };

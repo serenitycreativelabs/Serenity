@@ -1,5 +1,6 @@
 // Utilitas UI: escape, toast, modal, autocomplete, WhatsApp, gambar, dll.
 import { track } from './usage.js';
+import { guideFor } from './guide.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (s, r = document) => r.querySelector(s);
@@ -432,7 +433,26 @@ function hintLabel(el) {
   return t.replace(/[*:]/g, '').replace(/\s*[—(].*$/s, '').replace(/\s+/g, ' ').trim();
 }
 const SKIP = new Set(['hidden', 'checkbox', 'radio', 'range', 'color', 'file', 'submit', 'button', 'reset', 'image']);
+// v2.9.18: panduan pengisian rinci di bawah setiap kolom panel admin (lihat guide.js)
+function fieldGuides(root) {
+  const h = location.hash || ''; if (!h.startsWith('#/admin')) return;
+  const sec = h.split('/')[2]?.split('?')[0] || '';
+  root.querySelectorAll('.field').forEach((f) => {
+    if (f.dataset.guided) return; f.dataset.guided = '1';
+    if (f.querySelector('.f-guide, :scope > small, :scope > .hint')) return;
+    if (!f.querySelector('input:not([type=hidden]), select, textarea, button, .chips')) return;
+    const sp = f.querySelector(':scope > span'); if (!sp) return;
+    const lab = [...sp.childNodes].filter((n) => n.nodeType === 3 || n.nodeName === 'B').map((n) => n.textContent).join('');
+    const g = guideFor(lab, sec); if (!g) return;
+    const s = document.createElement('small'); s.className = 'f-guide'; s.textContent = g; f.appendChild(s);
+  });
+  root.querySelectorAll('td input[data-k], td select[data-k]').forEach((el) => {
+    if (el.dataset.guided) return; el.dataset.guided = '1';
+    const g = guideFor('td:' + hintLabel(el), sec); if (g) el.title = `${hintLabel(el)} — ${g}`;
+  });
+}
 export function autoHints(root = document) {
+  try { fieldGuides(root); } catch { /* panduan bersifat tambahan */ }
   root.querySelectorAll('input, textarea, select, .rte-area').forEach((el) => {
     if (el.classList?.contains('rte-area')) {
       if (!el.dataset.placeholder) { const lab = hintLabel(el.closest('.rte')?.querySelector('textarea') || el); el.dataset.placeholder = lab ? `Tulis ${lab.toLowerCase()} di sini…` : 'Tulis di sini…'; }
