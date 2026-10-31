@@ -1,4 +1,5 @@
 # WebKit by Serenity Creativa Labs
+𝙲𝚘𝚍𝚎: 𝙳𝚒𝚐𝚒𝚍𝚎𝚜 (𝙳𝚒𝚐𝚒𝚝𝚊𝚕 𝙸𝚗𝚝𝚎𝚐𝚛𝚊𝚝𝚎𝚍 𝙳𝚊𝚝𝚊 𝙴𝚌𝚘𝚜𝚢𝚜𝚝𝚎𝚖)
 
 ![versi](https://img.shields.io/badge/versi-2.6.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16)
 
