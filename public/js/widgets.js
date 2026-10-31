@@ -8,6 +8,7 @@
 import { ic, state, isSuper, logAudit, cfgUpdate } from './core.js';
 import { esc, $, fmtDate, toast } from './ui.js';
 import { plainText, mediaThumb } from './rich.js';
+import { whenVisible } from './layout.js';
 
 export const WIDGET_DEFAULT = { berita: { aktif: true, kecepatan: 24, maks: 20, tinggi: 380, arah: 'atas' }, kegiatan: { gerak: true, kecepatan: 18, tinggi: 260, arah: 'atas' }, analitik: { aktif: true } };
 export const widgetCfg = () => {
@@ -66,10 +67,11 @@ function runScroller(vp) {
   // gulir manual dengan roda mouse saat dijeda
   vp.addEventListener('wheel', (e) => { e.preventDefault(); y -= e.deltaY * 0.6; if (y > 0) y -= loopH; if (-y >= loopH) y += loopH; track.style.transform = `translate3d(0,${y}px,0)`; }, { passive: false });
   const st = { raf: 0 }; runs.set(vp, st);
+  let seen = true; whenVisible(vp, (v) => { seen = v; });
   const step = (t) => {
     if (!vp.isConnected) { runs.delete(vp); return; }
     const dt = Math.min(64, t - last); last = t;
-    if (!paused && !document.hidden && t > holdUntil) {
+    if (!paused && seen && !document.hidden && t > holdUntil) {
       y += dir * ((reduce ? speed * 0.5 : speed) * dt) / 1000;
       if (dir < 0 && -y >= loopH) y += loopH;
       if (dir > 0 && y >= 0) y -= loopH;

@@ -537,7 +537,7 @@ input[data-num] { text-align: right; font-variant-numeric: tabular-nums; letter-
 .tile-ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); margin-bottom: 6px; }
 .tile b { font-size: 1.45rem; font-weight: 800; font-family: var(--font-head); line-height: 1.1; }
 .tile span { font-size: .8rem; color: var(--ink-2); font-weight: 600; } .tile small { font-size: .72rem; color: var(--muted); }
-.tile:first-child { background: var(--brand); border-color: var(--brand); color: #fff; } .tile:first-child span, .tile:first-child small { color: rgba(255,255,255,.85); } .tile:first-child .tile-ic { background: rgba(255,255,255,.16); color: #fff; }
+.tile.hl { background: var(--brand); border-color: var(--brand); color: #fff; } .tile.hl span, .tile.hl small { color: rgba(255,255,255,.85); } .tile.hl .tile-ic { background: rgba(255,255,255,.16); color: #fff; }
 @media (max-width: 1100px) { .hero { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .hero { padding: 20px; } .hero-tiles { grid-template-columns: repeat(2, 1fr); } }
 
@@ -993,8 +993,8 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 :root[data-theme="dark"] .ubadge:not(.seal) { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .22); }
 .me .ubadges { margin-left: 0; display: flex; margin: 2px 0; }
 /* kartu utama (berwarna brand) tetap pekat pada efek kaca */
-:root[data-efek] .tile:first-child { background: color-mix(in srgb, var(--brand) 88%, transparent); border-color: color-mix(in srgb, var(--brand) 60%, #fff 0%); }
-:root[data-efek="solid"] .tile:first-child { background: var(--brand); }
+:root[data-efek] .tile.hl { background: color-mix(in srgb, var(--brand) 88%, transparent); border-color: color-mix(in srgb, var(--brand) 60%, #fff 0%); }
+:root[data-efek="solid"] .tile.hl { background: var(--brand); }
 .choice .fx-prev { display: block; width: 100%; min-width: 120px; height: 46px; }
 @media (max-width: 860px) { :root[data-efek] .pub-nav { background: var(--surface) !important; } }
 @media (max-width: 640px) {
@@ -1166,7 +1166,7 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 :root[data-efek="genz"] .hero h1 { font-size: clamp(1.9rem, 3.4vw, 2.9rem); line-height: 1.05; background: linear-gradient(110deg, var(--ink) 0%, var(--ink) 35%, var(--brand) 65%, var(--brand-accent) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 :root[data-efek="genz"] .tile { border-radius: calc(var(--radius) + 2px); border: 1.5px solid var(--gz-line); background: color-mix(in srgb, var(--surface) 82%, transparent); transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s, border-color .2s; }
 :root[data-efek="genz"] .tile:hover { transform: translateY(-4px) rotate(-1deg); box-shadow: var(--gz-pop); border-color: var(--brand); }
-:root[data-efek="genz"] .tile:first-child { background: var(--gz-grad) !important; border-color: transparent; box-shadow: var(--gz-glow); }
+:root[data-efek="genz"] .tile.hl { background: var(--gz-grad) !important; border-color: transparent; box-shadow: var(--gz-glow); }
 :root[data-efek="genz"] .tile-ic { border-radius: 10px; background: var(--gz-soft); }
 :root[data-efek="genz"] .tile b { font-size: 1.7rem; }
 
@@ -1318,7 +1318,7 @@ body.has-bg::after { display: none !important; }
 :root[data-ican="ramai"] .eyebrow > .ic[data-i="loc"] { animation: ic-hop 2.6s ease-in-out infinite; }
 :root[data-ican="ramai"] .ticker-label .ic { animation: ic-swing 2.4s ease-in-out infinite; transform-origin: 30% 50%; }
 :root[data-ican="ramai"] .section-head h2 > .ic { animation: ic-breathe 4s ease-in-out infinite; }
-:root[data-ican="ramai"] .tile:first-child .tile-ic .ic { animation: ic-breathe 2.8s ease-in-out infinite; }
+:root[data-ican="ramai"] .tile.hl .tile-ic .ic { animation: ic-breathe 2.8s ease-in-out infinite; }
 :root:is([data-ican="sedang"], [data-ican="ramai"]) .logo-mark { position: relative; overflow: hidden; }
 :root:is([data-ican="sedang"], [data-ican="ramai"]) .logo-mark::after { content: ''; position: absolute; inset: -50%; background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.55) 50%, transparent 60%); transform: translateX(-100%); animation: ic-shine 6s ease-in-out infinite; pointer-events: none; }
 @keyframes ic-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
@@ -1391,7 +1391,7 @@ body.has-bg::after { display: none !important; }
 :root[data-efek="macos"] :is(.hero, .page-body)::before { content: ''; position: absolute; left: 16px; top: 15px; width: 54px; height: 12px; background: var(--mac-lights); z-index: 1; }
 :root[data-efek="macos"] .hero { border-radius: calc(var(--radius) + 4px); background: var(--mac-win); }
 :root[data-efek="macos"] .tile { border-radius: 16px; }
-:root[data-efek="macos"] .tile:first-child { background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 82%, #fff), var(--brand)) !important; box-shadow: 0 8px 22px color-mix(in srgb, var(--brand) 35%, transparent); }
+:root[data-efek="macos"] .tile.hl { background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 82%, #fff), var(--brand)) !important; box-shadow: 0 8px 22px color-mix(in srgb, var(--brand) 35%, transparent); }
 @media (hover: hover) and (pointer: fine) { :root[data-efek="macos"] :is(.info-card, .portal-card, .svc, .lg-card, .doc-card, .agenda-item, .tile):hover { transform: translateY(-2px); box-shadow: var(--mac-shadow-lg); } }
 /* tombol ala Mac */
 :root[data-efek="macos"] .btn { border-radius: 8px; font-weight: 600; box-shadow: 0 .5px 1px rgba(0, 0, 0, .12), inset 0 .5px 0 rgba(255, 255, 255, .25); }
@@ -2703,3 +2703,69 @@ body.has-bg .news-mini { background: color-mix(in srgb, var(--surface) 58%, tran
 .field > .f-guide { display: block; margin-top: 5px; font-size: .76rem; line-height: 1.45; color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; }
 .field:focus-within > .f-guide { color: var(--ink-2, var(--ink)); }
 .field > .f-guide::before { content: "ⓘ "; color: var(--primary); font-weight: 700; }
+
+/* ================= v2.9.19 Mode ringan (HP / hemat data / RAM kecil) =================
+   Efek kaca buram diganti warna hampir pekat, animasi dekoratif dimatikan, bayangan diperingan.
+   Tampilan & tata letak tetap sama; hanya beban gambar yang dikurangi. */
+:root[data-lite="1"] *, :root[data-lite="1"] *::before, :root[data-lite="1"] *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+:root[data-lite="1"] { --glass: var(--surface); --glass-bg: var(--surface); --mac-glass: var(--surface); --shadow: 0 1px 3px rgba(0,0,0,.08); }
+:root[data-lite="1"] :is(.pub-header, .topbar, .pub-foot, .foot-line, .mnav, .pub-nav, .ft2 .foot-line, .side, .sidebar, .dropdown-menu, .modal, .panel, .lg-detail .tabbar, .news-side, .news-mini, .sp-card, .info-card, .svc, .lg-card, .doc-card, .agenda-item) { background-color: var(--surface) !important; }
+:root[data-lite="1"] #bg-layer img, :root[data-lite="1"] #bg-layer video { filter: none !important; transform: none !important; }
+:root[data-lite="1"] body::before, :root[data-lite="1"] body::after { animation: none !important; }
+:root[data-lite="1"] :is(.ic, .ic path, .logo-mark::after, .ic-in, .splash .ring) { animation: none !important; }
+:root[data-lite="1"] :is(.info-card, .lg-card, .doc-card, .svc, .agenda-item):hover { transform: none !important; }
+:root[data-lite="1"] .field > .f-guide { display: none; }
+:root[data-lite="1"] .field:focus-within > .f-guide { display: block; }
+.lite-btn.on { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+
+/* ================= v3.0.0 Meutuah — HP: footer (teks berjalan, statistik, tombol tata letak) disembunyikan ================= */
+@media (max-width: 860px) {
+  .pub-foot, #vis-widget, .vis-widget { display: none !important; }
+  body.has-ticker { --ticker-h: 0px; }
+}
+/* kartu statistik yang bisa diklik */
+.stat-link { color: inherit; text-decoration: none !important; position: relative; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.stat-link:hover { border-color: var(--primary); transform: translateY(-1px); }
+.stat-link .stat-go { position: absolute; right: 12px; top: 14px; width: 16px; height: 16px; color: var(--muted); }
+.rk-jk { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 10px; font-size: .9rem; }
+.rk-jk b { margin-left: 4px; }
+.rk-page h1 small { font-size: .55em; font-weight: 600; }
+.rk-table td { padding-top: 8px; padding-bottom: 8px; }
+
+/* menu tambahan: Pasang Aplikasi & Mode Ringan */
+.pub-nav .pn-extra { display: none; }
+@media (max-width: 860px) {
+  .pub-nav .pn-extra { display: grid; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+}
+.menu-x { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm, 10px); background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; text-align: left; }
+.menu-x > span { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.menu-x small { font-weight: 400; color: var(--muted); font-size: .74rem; }
+.menu-x .sw { position: relative; flex: none; width: 40px; height: 22px; border-radius: 999px; background: var(--line); transition: background .15s; }
+.menu-x .sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.menu-x.on .sw { background: var(--primary); } .menu-x.on .sw::after { transform: translateX(18px); }
+.menu-x .sw-state { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.side-foot .menu-x { border: 0; background: none; padding: 9px 12px; color: var(--ink-2, var(--ink)); font-weight: 500; }
+.side-foot .menu-x:hover { background: var(--surface-2); }
+.lite-intro { display: flex; gap: 12px; } .lite-intro > .ic { flex: none; width: 34px; height: 34px; padding: 7px; border-radius: 10px; color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.lite-intro p { margin: 0 0 8px; }
+.steps-ol { padding-left: 20px; margin: 8px 0; } .steps-ol li { margin: 4px 0; }
+
+/* v3.0.0 — tabel panel admin tampil sebagai kartu di HP */
+@media (max-width: 680px) {
+  #admin-main table.mcard, #admin-main table.mcard tbody { display: block; width: 100%; min-width: 0 !important; }
+  #admin-main table.mcard thead { display: none; }
+  #admin-main table.mcard tbody > tr { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 12px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  #admin-main table.mcard tbody > tr > td { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 1px 0 !important; border: 0 !important; text-align: left !important; white-space: normal; overflow-wrap: anywhere; background: none; }
+  #admin-main table.mcard td[data-l]:not([data-l=""])::before { content: attr(data-l); font-size: .66rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+  #admin-main table.mcard td.mc-main { grid-column: 1 / -1; font-weight: 600; padding-right: 34px !important; }
+  #admin-main table.mcard td.mc-main::before { display: none; }
+  #admin-main table.mcard td.mc-chk { position: absolute; top: 10px; right: 10px; }
+  #admin-main table.mcard td.mc-chk::before { display: none; }
+  #admin-main table.mcard td.mc-act, #admin-main table.mcard td.mc-full { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  #admin-main table.mcard td.mc-full { justify-content: center; }
+  #admin-main table.mcard td.mc-act::before { display: none; }
+  #admin-main .table-wrap:has(> table.mcard) { overflow: visible; border: 0; background: none; box-shadow: none; }
+  /* tombol aksi cepat dasbor: rata 2 kolom */
+  #admin-main .quick { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #admin-main .quick > * { width: 100%; justify-content: center; }
+}

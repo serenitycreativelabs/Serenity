@@ -91,10 +91,11 @@ export function renderInfografis() {
   const pyr = s.piramida || [];
   const peak = Math.max(1, ...pyr.map((x) => Math.max(x.l, x.p)));
   return `<section class="section">
+    <a class="link page-back" href="#/data" data-goback>← Kembali</a>
     <span class="eyebrow">Data agregat • diperbarui ${esc(fmtDate(s.updatedAt, true))}</span>
     <h1>Infografis Penduduk ${esc(desaJenis())} ${esc(desaName())}</h1>
     <p class="muted">Ringkasan statistik penduduk aktif. Data pribadi tidak ditampilkan; nilai dengan jumlah sangat kecil digabung demi privasi.</p>
-    <div class="stat-grid">${[['Penduduk', s.penduduk, 'jiwa'], ['Kepala Keluarga', s.kk, `${String(s.rataKeluarga || 0).replace('.', ',')} jiwa/KK`], ['Laki-laki', s.laki, `${pct(s.laki, s.penduduk)}%`], ['Perempuan', s.perempuan, `${pct(s.perempuan, s.penduduk)}%`], ['Usia Produktif', s.produktif, `${pct(s.produktif, s.penduduk)}%`], ['Dusun', s.dusun, 'wilayah']].map(([l, v, sub]) => `<div class="stat"><div><span class="stat-label">${l}</span><b class="stat-val">${fmtNum(v)}</b><small class="muted">${esc(sub)}</small></div></div>`).join('')}</div>
+    ${statTiles(s)}
     ${ins.length ? `<div class="panel"><h3>${ic('bulb')} Insight</h3><div class="insight-list">${ins.map((x) => `<div class="insight">${ic(x.icon)}<p>${esc(x.text)}</p></div>`).join('')}</div></div>` : ''}
     <div class="panel-grid two">
       ${pyr.length ? `<div class="panel"><h3>Piramida Penduduk</h3><div class="pyramid"><div class="pyr-head"><span>Laki-laki</span><span></span><span>Perempuan</span></div>${[...pyr].reverse().map((x) => `<div class="pyr-row"><span class="pyr-l"><i style="width:${(x.l / peak) * 100}%"></i><b>${x.l}</b></span><span class="pyr-g">${esc(x.g)}</span><span class="pyr-p"><i style="width:${(x.p / peak) * 100}%"></i><b>${x.p}</b></span></div>`).join('')}</div></div>` : ''}
@@ -126,21 +127,64 @@ export function dataPortalCards() {
       <small class="pc-foot">Dari ${fmtNum(s.penduduk)} penduduk aktif</small></a>`;
   }).join('')}<a class="portal-card cta" href="#/infografis"><span class="pc-ic">${ic('chart')}</span><b>Infografis lengkap</b><small class="muted">Piramida penduduk, insight & seluruh kategori</small></a></div>`;
 }
-export function renderDataPortal(key) {
+// ---------------------------------------------------------------- v3.0.0 kartu statistik yang bisa diklik + halaman rinciannya
+export const STAT_META = {
+  penduduk: ['Penduduk', 'jiwa', 'users'], kk: ['Kepala Keluarga', 'KK', 'home'], laki: ['Laki-laki', '', 'users'], perempuan: ['Perempuan', '', 'users'],
+  produktif: ['Usia Produktif', '15–64 th', 'chart'], lansia: ['Lansia', '60+ th', 'users'], balita: ['Balita', '0–5 th', 'users'], dusun: ['Dusun', 'wilayah', 'map'],
+};
+export const statHref = (k) => `#/data/ringkas/${k}`;
+function statTiles(s) {
+  const sub = (k) => (k === 'laki' || k === 'perempuan' ? `${String(pct(s[k], s.penduduk)).replace('.', ',')}%` : STAT_META[k][1]);
+  return `<div class="stat-grid">${Object.keys(STAT_META).map((k) => `<a class="stat stat-link" href="${statHref(k)}" title="Lihat rincian ${esc(STAT_META[k][0])}"><div><span class="stat-label">${STAT_META[k][0]}</span><b class="stat-val">${fmtNum(s[k])}</b><small class="muted">${esc(sub(k))}</small></div>${ic('chev', 'stat-go')}</a>`).join('')}</div>`;
+}
+function renderRingkas(k) {
+  const s = state.stats || {}; const meta = STAT_META[k];
+  if (!meta || !s.penduduk) return `<section class="section"><a class="link page-back" href="#/data" data-goback>← Kembali</a>${emptyBox('Data tidak ditemukan.')}</section>`;
+  const min = s.minPrivasi || 3; const V = (n) => (n == null ? `< ${min}` : fmtNum(n)); const N = (n) => n || 0;
+  const nm = `${desaJenis()} ${desaName()}`.trim();
+  const chips = `<div class="chips">${Object.keys(STAT_META).map((x) => `<a class="chip ${x === k ? 'active' : ''}" href="${statHref(x)}">${esc(STAT_META[x][0])}</a>`).join('')}</div>`;
+  const head = `<a class="link page-back" href="#/data" data-goback>← Kembali</a><span class="eyebrow">${ic(meta[2])} Statistik Publik • diperbarui ${esc(fmtDate(s.updatedAt, true))}</span><h1>${esc(meta[0])}: ${fmtNum(s[k])}${meta[1] && k !== 'dusun' ? ` <small class="muted">${esc(meta[1])}</small>` : ''}</h1>${chips}`;
+  const wait = '<div class="callout">' + ic('bell') + '<div><b>Rincian sedang disiapkan</b><p>Rincian akan tampil otomatis setelah data diperbarui petugas gampong.</p></div></div>';
+  const bars = (rows) => { const peak = Math.max(1, ...rows.map((r) => N(r.n))); return `<div class="table-wrap"><table class="table rk-table"><tbody>${rows.map((r, i) => `<tr><td>${esc(r.v)}</td><td style="text-align:right"><b>${V(r.n)}</b></td><td style="width:45%"><span class="bar-track"><span class="bar-fill" style="width:${(N(r.n) / peak) * 100}%;background:${PALETTE[i % PALETTE.length]}"></span></span></td></tr>`).join('')}</tbody></table></div>`; };
+  const note = `<p class="muted small">Sumber: data kependudukan ${esc(nm)} (penduduk aktif). Data pribadi tidak ditampilkan; jumlah di bawah ${min} ditulis “&lt; ${min}” untuk melindungi privasi.</p>`;
+  let body = '';
+  if (k === 'laki' || k === 'perempuan') {
+    const g = k === 'laki' ? 'l' : 'p';
+    const per = (s.perDusun || []).map((d) => ({ v: d.d, n: d[g] }));
+    const umur = (s.piramida || []).map((x) => ({ v: `${x.g} th`, n: x[g] }));
+    body = !s.perDusun ? wait : `<p class="muted">Sebaran ${esc(meta[0].toLowerCase())} di ${esc(nm)}: ${fmtNum(s[k])} jiwa (${String(pct(s[k], s.penduduk)).replace('.', ',')}% dari penduduk).</p>
+      <div class="viz-grid"><div class="panel viz"><h3>Per dusun</h3>${donut(per.map((r) => ({ v: r.v, n: N(r.n) })), { size: 190, center: fmtNum(s[k]), sub: 'jiwa' })}</div>
+      <div class="panel viz viz-wide"><h3>Jumlah per dusun</h3>${bars(per)}</div>
+      <div class="panel viz viz-wide"><h3>Per kelompok umur</h3>${bars(umur)}</div></div>`;
+  } else if (k === 'dusun') {
+    const rows = s.perDusun || [];
+    body = !rows.length ? wait : `<div class="panel"><h3>Penduduk per dusun</h3><div class="table-wrap"><table class="table"><thead><tr><th>Dusun</th><th style="text-align:right">Penduduk</th><th style="text-align:right">Laki-laki</th><th style="text-align:right">Perempuan</th><th style="text-align:right">KK</th></tr></thead>
+      <tbody>${rows.map((d) => `<tr><td data-l="Dusun"><b>${esc(d.d)}</b></td><td data-l="Penduduk" style="text-align:right">${V(d.n)}</td><td data-l="Laki-laki" style="text-align:right">${V(d.l)}</td><td data-l="Perempuan" style="text-align:right">${V(d.p)}</td><td data-l="KK" style="text-align:right">${V(d.kk)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  } else {
+    const r = s.rinci?.[k];
+    body = !r ? wait : `<div class="viz-grid"><div class="panel viz"><h3>Menurut jenis kelamin</h3>${donut([{ v: 'Laki-laki', n: N(r.l) }, { v: 'Perempuan', n: N(r.p) }], { size: 190, center: fmtNum(s[k]), sub: meta[1] || 'jiwa', legend: false })}
+        <div class="rk-jk"><span><i class="dot" style="background:${PALETTE[0]}"></i> Laki-laki <b>${V(r.l)}</b></span><span><i class="dot" style="background:${PALETTE[1]}"></i> Perempuan <b>${V(r.p)}</b></span></div></div>
+      <div class="panel viz viz-wide"><h3>Per dusun & jenis kelamin</h3><div class="table-wrap"><table class="table"><thead><tr><th>Dusun</th><th style="text-align:right">Laki-laki</th><th style="text-align:right">Perempuan</th><th style="text-align:right">Jumlah</th></tr></thead>
+        <tbody>${(r.d || []).map((d) => `<tr><td data-l="Dusun"><b>${esc(d.d)}</b></td><td data-l="Laki-laki" style="text-align:right">${V(d.l)}</td><td data-l="Perempuan" style="text-align:right">${V(d.p)}</td><td data-l="Jumlah" style="text-align:right">${d.l == null || d.p == null ? '–' : fmtNum(N(d.l) + N(d.p))}</td></tr>`).join('')}
+        <tr class="total-row"><td>Total</td><td style="text-align:right">${V(r.l)}</td><td style="text-align:right">${V(r.p)}</td><td style="text-align:right">${fmtNum(s[k])}</td></tr></tbody></table></div></div></div>`;
+  }
+  return `<section class="section rk-page">${head}${body}${note}</section>`;
+}
+export function renderDataPortal(key, sub = '') {
   const s = state.stats || {}; const cats = portalCats();
+  if (key === 'ringkas') return renderRingkas(sub);
   if (!s.penduduk) return '<section class="section"><div class="empty">Data publik belum tersedia.</div></section>';
   const head = `<span class="eyebrow">${ic('db')} Portal Data Publik • diperbarui ${esc(fmtDate(s.updatedAt, true))}</span>`;
   const chips = `<div class="chips">${cats.map(([k]) => `<a class="chip ${k === key ? 'active' : ''}" href="#/data/${k}">${esc(CAT_LABEL[k] || k)}</a>`).join('')}<a class="chip" href="#/infografis">Infografis lengkap</a></div>`;
   if (!key || !s.breakdown?.[key]) {
-    return `<section class="section">${head}<h1>Data Publik ${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
+    return `<section class="section"><a class="link page-back" href="#/" data-goback>← Kembali</a>${head}<h1>Data Publik ${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
       <p class="muted">Statistik agregat penduduk aktif yang dapat diakses semua warga. Data pribadi (nama, NIK, alamat) tidak pernah ditampilkan.</p>
-      <div class="stat-grid">${[['Penduduk', s.penduduk, 'jiwa'], ['Kepala Keluarga', s.kk, 'KK'], ['Laki-laki', s.laki, `${String(pct(s.laki, s.penduduk)).replace('.', ',')}%`], ['Perempuan', s.perempuan, `${String(pct(s.perempuan, s.penduduk)).replace('.', ',')}%`], ['Usia Produktif', s.produktif, '15–64 th'], ['Lansia', s.lansia, '60+ th'], ['Balita', s.balita, '0–5 th'], ['Dusun', s.dusun, 'wilayah']].map(([l, v, sub]) => `<div class="stat"><div><span class="stat-label">${l}</span><b class="stat-val">${fmtNum(v)}</b><small class="muted">${esc(sub)}</small></div></div>`).join('')}</div>
+      ${statTiles(s)}
       <h2 style="margin-top:8px">Pilih kategori data</h2>${dataPortalCards()}</section>`;
   }
   const rows = s.breakdown[key]; const total = rows.reduce((a, r) => a + r.n, 0);
   const peak = Math.max(1, ...rows.map((r) => r.n));
-  return `<section class="section">${head}
-    <a href="#/data" class="link">← Semua data</a>
+  return `<section class="section"><a class="link page-back" href="#/data" data-goback>← Semua data</a>${head}
     <h1>${esc(CAT_LABEL[key] || key)}</h1>${chips}
     <div class="viz-grid">
       <div class="panel viz"><h3>Komposisi</h3>${donut(rows, { size: 200, center: fmtNum(total), sub: 'jiwa' })}</div>

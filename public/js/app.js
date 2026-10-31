@@ -32,9 +32,9 @@ import { scanIcons } from './motion.js';
 import { badgeRow } from './badges.js';
 import { viewTampilan, viewLatar } from './tampilan.js';
 import { richRender, bindRich, htmlToWa, plainText, mediaEmbed, mediaThumb, parseMediaLines, mediaLinesText, FONTS, fontOptions, loadAllFonts } from './rich.js';
-import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle } from './layout.js';
+import { applyTheme, applyIcon, applyBackground, ordered, makeSortable, guard, setupExitGuards, startTicker, tickerStyle, isLite, litePref, setLitePref } from './layout.js';
 import { KATEGORI, renderLembagaPublic, bindLembagaPublic, renderDokumenPublic, bindDokumenPublic, viewLembagaAdmin, viewDokumenAdmin, lembagaOf } from './lembaga.js';
-import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm, renderKegiatanPublic } from './cms.js';
+import { PAGES, pageLabel, renderPubPage, renderInfografis, renderDataPortal, statHref, dataPortalCards, donut, bindDataPortal, sholatPanel, kegiatanPanel, startPublicTickers, viewProfilAdmin, viewKegiatanAdmin, sholatSettingsForm, renderKegiatanPublic } from './cms.js';
 import { viewAdmins, viewAudit, viewCadangan, openSuperLogin, checkBackupReminder } from './security.js';
 
 const root = document.getElementById('app');
@@ -134,8 +134,9 @@ function boot() {
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.deferredPrompt = e; $$('[data-install]').forEach((b) => b.hidden = false); });
   window.addEventListener('appinstalled', () => { state.deferredPrompt = null; $$('[data-install]').forEach((b) => b.hidden = true); toast('Aplikasi berhasil dipasang', 'success'); });
   document.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-install]');
+    const b = e.target.closest('[data-install], [data-install-menu]');
     if (b && state.deferredPrompt) { state.deferredPrompt.prompt(); state.deferredPrompt.userChoice.finally(() => { state.deferredPrompt = null; }); }
+    else if (b?.hasAttribute('data-install-menu')) installHelp();
   });
   // Klik 5x pada tulisan copyright → login Super Admin
   let clicks = [];
@@ -210,10 +211,8 @@ function registerSW() {
 }
 
 function applyBranding() {
-  // v2.9: judul tab resmi yang bergerak perlahan dari kanan ke kiri (desktop, ponsel, tablet, PWA)
-  const nm = state.config.namaDesa ? `${desaJenis()} ${desaName()}`.trim() : `Gampong ${APP.owner}`;
-  const official = `Portal Resmi ${nm} Powered by © 2026 Serenity Creativa Labs.`;
-  setMarqueeTitle(state.route?.parts[0] === 'admin' ? `Dasbor Admin — ${official}` : official);
+  // v3.0.0: judul tab statis — hanya nama gampong (mis. "Deah Glumpang")
+  setMarqueeTitle(state.config.namaDesa ? desaName() : APP.owner);
 }
 
 function subscribeInfo(all) {
@@ -419,7 +418,19 @@ function computePublicStats() {
     breakdown[k] = rows.slice(0, 25).map(([v, n]) => ({ v: String(v), n }));
   }
   const dusunRows = countBy(aktif, 'dusun').filter(([v]) => v !== '(Kosong)');
+  // v3.0.0: rincian per jenis kelamin & per dusun untuk kartu statistik publik (nilai < min disamarkan → null)
+  const hide = (n) => (n > 0 && min > 1 && n < min ? null : n);
+  const age = (w) => Number(w.umur); const okAge = (w) => w.umur !== '' && w.umur != null && !Number.isNaN(age(w));
+  const METRIC = { penduduk: () => true, kk: (w) => norm(w.shdk) === 'kepala keluarga', produktif: (w) => okAge(w) && age(w) >= 15 && age(w) <= 64, lansia: (w) => okAge(w) && age(w) >= 60, balita: (w) => okAge(w) && age(w) <= 5 };
+  const dNames = [...state.dusun.map((d) => d.nama), ...dusunRows.map(([v]) => v)].filter((v, i, a) => v && a.indexOf(v) === i);
+  const rinci = {};
+  for (const [k, fn] of Object.entries(METRIC)) {
+    const set = aktif.filter(fn);
+    rinci[k] = { l: hide(set.filter(L).length), p: hide(set.filter(P).length), d: dNames.map((d) => { const x = set.filter((w) => w.dusun === d); return { d, l: hide(x.filter(L).length), p: hide(x.filter(P).length) }; }) };
+  }
+  const perDusun = dNames.map((d) => { const x = aktif.filter((w) => w.dusun === d); return { d, n: x.length, l: hide(x.filter(L).length), p: hide(x.filter(P).length), kk: hide(x.filter(METRIC.kk).length) }; });
   return {
+    rinci, perDusun, minPrivasi: min,
     penduduk: t, kk, laki, perempuan, dusun: state.dusun.length,
     rataKeluarga: kk ? Math.round((t / kk) * 10) / 10 : 0,
     rasioJK: perempuan ? Math.round((laki / perempuan) * 100) : 0,
@@ -527,7 +538,7 @@ function renderPublic(r, soft) {
   else if (p0 === 'highlight') content = pubHighlight(true);
   else if (p0 === 'profil') content = renderPubPage(r.parts[1] || 'profil');
   else if (p0 === 'infografis') content = renderInfografis();
-  else if (p0 === 'data') content = renderDataPortal(r.parts[1] || '');
+  else if (p0 === 'data') content = renderDataPortal(r.parts[1] || '', r.parts[2] || '');
   else if (p0 === 'lembaga') content = renderLembagaPublic(r.parts);
   else if (p0 === 'dokumen') content = renderDokumenPublic();
   else if (p0 === 'kegiatan') content = renderKegiatanPublic(r.parts[1] || '');
@@ -562,6 +573,7 @@ function renderPublic(r, soft) {
         <a href="#/data" class="${p0 === 'data' || p0 === 'infografis' ? 'active' : ''}">Data Publik</a>
         <a href="#/highlight" class="${p0 === 'highlight' ? 'active' : ''}">Galeri</a>
         <a href="${state.isAdmin ? '#/admin' : '#/login'}" class="btn btn-sm btn-primary">${ic('lock')} ${state.isAdmin ? 'Dasbor' : 'Masuk'}</a>
+        <div class="pn-extra">${menuExtras()}</div>
       </nav>
     </div>
   </header>
@@ -583,7 +595,7 @@ function renderPublic(r, soft) {
   applyTheme(state.config.tema);
   applyBackground(state.config.latar, { isHome: p0 === '' });
   bindPublic();
-  mountVisitorWidget(showVisits ? $('#vis-widget') : null);
+  mountVisitorWidget(showVisits && !isPhone() ? $('#vis-widget') : null); // v3.0.0: di HP footer (teks berjalan & statistik) dimatikan
   if (!soft && !pubStarted) { pubStarted = true; recordVisit(); startPresence(); }
   if (openDd >= 0) { const d = $$('.pub-nav .dropdown')[openDd]; d?.classList.add('open'); d?.querySelector('.dropdown-btn')?.setAttribute('aria-expanded', 'true'); }
   if (editing) enableLayoutEdit('public');
@@ -716,13 +728,13 @@ function pubHome() {
         <span class="eyebrow">${ic('loc')} ${esc([w.kecamatan && 'Kec. ' + w.kecamatan, w.kabupaten, w.provinsi].filter(Boolean).join(' · ') || 'Portal Data Publik')}</span>
         <h1>Portal Data & Informasi<br>${esc(`${desaJenis()} ${desaName()}`.trim())}</h1>
         <div class="hero-desc rich">${state.config.deskripsi ? richRender(state.config.deskripsi) : esc(HERO_DESC_DEFAULT)}</div>
-        <div class="hero-actions">
+        <div class="hero-actions" data-hl-btns>
           <a class="btn btn-primary" href="#/informasi" title="Informasi Terbaru">${ic('mega')} Informasi<span class="xw"> Terbaru</span></a>
           <a class="btn btn-ghost" href="#/data" title="Jelajahi Data">${ic('chart')} <span class="xw">Jelajahi </span>Data</a>
           <a class="btn btn-ghost" href="#/dokumen" title="Dokumen Publik">${ic('file')} Dokumen<span class="xw"> Publik</span></a>
         </div>
       </div>
-      <div class="hero-tiles">${tiles.map(([l, v, sub, i]) => `<a class="tile" href="#/data"><span class="tile-ic">${ic(i)}</span><b>${v != null ? fmtNum(v) : '–'}</b><span>${esc(l)}</span><small>${esc(sub)}</small></a>`).join('')}</div>
+      <div class="hero-tiles" data-hl-group>${tiles.map(([l, v, sub, i], n) => `<a class="tile${n ? '' : ' hl'}" href="${statHref({ Penduduk: 'penduduk', 'Kepala Keluarga': 'kk', 'Laki-laki': 'laki', Perempuan: 'perempuan', 'Usia Produktif': 'produktif', Dusun: 'dusun' }[l] || 'penduduk')}"><span class="tile-ic">${ic(i)}</span><b>${v != null ? fmtNum(v) : '–'}</b><span>${esc(l)}</span><small>${esc(sub)}</small></a>`).join('')}</div>
     </section>`,
     berita: `<section class="section news-wide"><div class="section-head"><h2>${ic('mega')} Informasi & Berita Terbaru</h2><a href="#/informasi" class="link">Lihat semua →</a></div>
       ${latest.length ? `<div class="news-top ${latest.length > 1 ? '' : 'solo'}"><div class="cards news-cards news-lead">${infoCard(latest[0], true)}</div>
@@ -860,7 +872,7 @@ function bindPublic() {
   bindLembagaPublic();
   bindDokumenPublic();
   startPublicTickers();
-  startTicker();
+  if (!isPhone()) startTicker();
   startNewsScroller();
 }
 function closeDropdowns(e) { if (!e.target.closest('.dropdown')) $$('.dropdown.open').forEach((x) => x.classList.remove('open')); }
@@ -951,12 +963,13 @@ function renderAdmin(r, soft) {
         <nav class="side-nav">${navHtml}</nav>
         <div class="side-foot">
           <a href="#/" target="_blank">${ic('ext')}<span>Lihat Situs Publik</span></a>
+          ${menuExtras(true)}
           <button id="logout">${ic('out')}<span>Keluar</span></button>
           <p class="muted small copyright" data-copyright>${esc(APP.credit)}</p>
         </div>
       </aside>
       <div class="admin-body">
-        <header class="topbar"><button class="icon-btn" id="nav-toggle" aria-label="Menu">${ic('menu')}</button><h2 id="page-title"></h2><div class="topbar-right"><button class="icon-btn theme-btn" data-theme-toggle aria-label="Mode gelap/terang"></button><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang</button><span class="muted small hide-sm">${esc(state.user?.email || '')}</span></div></header>
+        <header class="topbar"><button class="icon-btn" id="nav-toggle" aria-label="Menu">${ic('menu')}</button><h2 id="page-title"></h2><div class="topbar-right"><button class="icon-btn lite-btn" data-lite-toggle aria-label="Mode ringan"></button><button class="icon-btn theme-btn" data-theme-toggle aria-label="Mode gelap/terang"></button><button class="btn btn-sm btn-ghost" data-install hidden>${ic('phone')} Pasang</button><span class="muted small hide-sm">${esc(state.user?.email || '')}</span></div></header>
         <main class="admin-main" id="admin-main"></main>
         <footer class="admin-footer"><span title="${esc(APP.buildLabel)}">${APP.name} v${APP.version} • Build ${APP.build} • ${APP.revision}</span> • <span class="copyright" data-copyright>${esc(APP.credit)}</span></footer>
       </div>
@@ -1358,7 +1371,7 @@ function viewWargaForm(main, id) {
     ${GROUPS.map((g) => {
       const fs = fields.filter((f) => f.group === g.id);
       if (!fs.length) return '';
-      return `<details class="fieldset" ${['dasar', 'wilayah'].includes(g.id) || rec ? 'open' : ''}><summary>${esc(g.label)}</summary><div class="form-grid">
+      return `<details class="fieldset" ${(isLite() ? g.id === 'dasar' : ['dasar', 'wilayah'].includes(g.id) || rec) ? 'open' : ''}><summary>${esc(g.label)}</summary><div class="form-grid">
         ${fs.map((f) => `<label class="field ${f.type === 'textarea' || f.key === 'alamat' ? 'span-2' : ''}"><span>${esc(f.label)}${f.required ? ' *' : ''}</span>${fieldInput(f, init)}</label>`).join('')}
       </div></details>`;
     }).join('')}
@@ -2560,3 +2573,89 @@ function viewPengaturan(main) {
 
 // ---------------------------------------------------------------- Tampilan & Tema (khusus Super Admin)
 boot();
+
+// ---------------------------------------------------------------- v2.9.19 tombol Mode ringan (per perangkat)
+const LITE_LBL = { auto: 'Otomatis', on: 'Selalu ringan', off: 'Tampilan penuh' };
+function paintLite() {
+  const on = isLite();
+  document.querySelectorAll('[data-lite-toggle]').forEach((b) => { b.classList.toggle('on', on); b.innerHTML = ic('activity'); b.title = `Mode ringan ${on ? 'aktif' : 'nonaktif'} (${LITE_LBL[litePref()]}) — ketuk untuk ${on ? 'mematikan' : 'mengaktifkan'}`; });
+  document.querySelectorAll('[data-lite-switch]').forEach((b) => { b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); const st = b.querySelector('.sw-state'); if (st) st.textContent = on ? 'Aktif' : 'Nonaktif'; });
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-lite-toggle], [data-lite-switch]')) return;
+  const next = isLite() ? 'off' : 'on'; // sekali tekan → tersimpan permanen di perangkat ini sampai diubah lagi
+  setLitePref(next); paintLite(); applyBackground(state.view === 'public' ? state.config.latar : null, { isHome: (location.hash || '#/') === '#/' });
+  toast(`Mode ringan: ${LITE_LBL[next]}${isLite() ? ' — efek berat dimatikan di perangkat ini' : ' — semua efek tampil'}`, 'info');
+});
+new MutationObserver(() => { if (document.querySelector('[data-lite-toggle]:not([title]), [data-lite-switch]:not([aria-checked])')) paintLite(); }).observe(document.body, { childList: true, subtree: true });
+
+// ---------------------------------------------------------------- v3.0.0 tombol "← Kembali" di halaman publik
+// Kembali ke halaman sebelumnya di dalam website; bila halaman dibuka langsung (tanpa riwayat) → ikuti tautannya.
+let inAppNav = 0; addEventListener('hashchange', () => { inAppNav++; });
+document.addEventListener('click', (e) => { const a = e.target.closest('a[data-goback]'); if (!a || e.ctrlKey || e.metaKey) return; if (inAppNav > 0) { e.preventDefault(); history.back(); } });
+
+// v3.0.0: sorotan mengikuti kursor — kartu/tombol yang ditunjuk ikut berwarna, lalu kembali ke bawaan saat kursor keluar
+document.addEventListener('mouseover', (e) => {
+  const t = e.target.closest?.('[data-hl-group] > .tile'); if (t && !t.classList.contains('hl')) { t.parentElement.querySelectorAll('.tile.hl').forEach((x) => x.classList.remove('hl')); t.classList.add('hl'); }
+  const b = e.target.closest?.('[data-hl-btns] > .btn'); if (b && !b.classList.contains('btn-primary')) { b.parentElement.querySelectorAll('.btn').forEach((x) => { x.classList.toggle('btn-primary', x === b); x.classList.toggle('btn-ghost', x !== b); }); }
+});
+document.addEventListener('mouseout', (e) => {
+  const g = e.target.closest?.('[data-hl-group]'); if (g && !g.contains(e.relatedTarget)) g.querySelectorAll('.tile').forEach((x, i) => x.classList.toggle('hl', i === 0));
+  const h = e.target.closest?.('[data-hl-btns]'); if (h && !h.contains(e.relatedTarget)) h.querySelectorAll('.btn').forEach((x, i) => { x.classList.toggle('btn-primary', i === 0); x.classList.toggle('btn-ghost', i !== 0); });
+});
+
+function isPhone() { return matchMedia('(max-width: 860px)').matches; }
+
+// ---------------------------------------------------------------- v3.0.0 menu: Pasang Aplikasi & Mode Ringan, info pertama kali
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function menuExtras(admin = false) {
+  return `${standalone() ? '' : `<button type="button" class="menu-x" data-install-menu>${ic('phone')}<span>Pasang Aplikasi</span></button>`}
+    <button type="button" class="menu-x lite-sw" data-lite-switch role="switch">${ic('activity')}<span>Mode Ringan${admin ? '' : '<small>Lebih hemat & lancar di HP</small>'}</span><i class="sw"><b class="sw-state"></b></i></button>`;
+}
+function installHelp() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  modal({ title: 'Pasang Aplikasi', size: 'sm', body: `<p>Pasang website ini sebagai aplikasi di layar utama HP — terbuka lebih cepat, layar penuh, tanpa perlu mengetik alamat.</p>
+    ${ios ? `<ol class="steps-ol"><li>Buka website ini di <b>Safari</b>.</li><li>Ketuk tombol <b>Bagikan</b> (kotak dengan panah ke atas).</li><li>Pilih <b>Tambahkan ke Layar Utama</b>, lalu <b>Tambah</b>.</li></ol>`
+      : `<ol class="steps-ol"><li>Buka website ini di <b>Chrome</b>.</li><li>Ketuk menu <b>⋮</b> di kanan atas.</li><li>Pilih <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b>.</li></ol>`}
+    <p class="muted small">Bila tombol pasang otomatis tersedia di browser Anda, jendela pemasangan akan langsung muncul saat menu ini diketuk.</p>`,
+    footer: '<button class="btn btn-primary" data-close>Mengerti</button>' });
+}
+// Info Mode Ringan untuk pengunjung pertama di HP
+function liteIntro() {
+  try { if (localStorage.getItem('dd:liteInfo')) return; } catch { return; }
+  if (!isPhone() || state.view !== 'public' || document.querySelector('.modal-backdrop')) return;
+  try { localStorage.setItem('dd:liteInfo', '1'); } catch { /* */ }
+  const on = isLite();
+  const m = modal({ title: 'Mode Ringan', size: 'sm', body: `<div class="lite-intro">${ic('activity')}<div>
+      <p><b>Mode Ringan ${on ? 'sudah aktif' : 'tersedia'} di HP Anda.</b> Efek visual yang berat (kaca buram, video latar, animasi) dimatikan agar website lebih <b>lancar, hemat baterai & kuota</b>. Isi dan tampilan tetap sama.</p>
+      <p>Untuk menyalakan/mematikan kapan saja: ketuk <b>☰ Menu</b> di bilah bawah → <b>Mode Ringan</b>. Pilihan Anda tersimpan di HP ini.</p></div></div>`,
+    footer: `<button class="btn btn-ghost" data-lite-intro-toggle>${on ? 'Matikan' : 'Aktifkan'}</button><button class="btn btn-primary" data-close>Mengerti</button>` });
+  m.el.querySelector('[data-lite-intro-toggle]').onclick = () => { setLitePref(on ? 'off' : 'on'); paintLite(); applyBackground(state.config.latar, { isHome: (location.hash || '#/') === '#/' }); m.close(); toast(`Mode Ringan ${on ? 'dimatikan' : 'diaktifkan'} — ubah lagi lewat ☰ Menu`, 'info'); };
+}
+setTimeout(function tryIntro(n = 0) { if (state.view === 'public' && state.cfgLoaded) liteIntro(); else if (n < 20) setTimeout(() => tryIntro(n + 1), 1000); }, 1800);
+
+// ---------------------------------------------------------------- v3.0.0 tabel admin → kartu rapi di HP
+// Label kolom diambil otomatis dari judul tabel; tampilan kartu hanya aktif di layar ≤ 680px (CSS).
+let ctT = 0; const cardTables = () => { if (!ctT) ctT = setTimeout(() => { ctT = 0; cardTablesRun(); }, 120); };
+const cardTablesRun = () => {
+  const root = document.getElementById('admin-main'); if (!root) return;
+  root.querySelectorAll('table.table').forEach((tb) => {
+    if (tb.closest('.rows-table, .ocr-table, .kl-table, [data-nocard]') || tb.classList.contains('rows-table')) return;
+    const heads = [...tb.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    if (!heads.length) return;
+    tb.classList.add('mcard');
+    const mainIdx = heads.findIndex((h) => /^(nama|judul|pengguna|dokumen|aktivitas|akun|lembaga|kategori|waktu)/i.test(h));
+    tb.querySelectorAll('tbody > tr').forEach((tr) => {
+      if (tr.dataset.mc) return; tr.dataset.mc = '1';
+      [...tr.children].forEach((td, i) => {
+        if (td.colSpan > 1) { td.classList.add('mc-full'); return; }
+        const h = heads[i] || '';
+        if (!td.hasAttribute('data-l')) td.setAttribute('data-l', h);
+        if (i === mainIdx) td.classList.add('mc-main');
+        else if (!h && td.querySelector('input[type=checkbox]')) td.classList.add('mc-chk');
+        else if (!h || td.classList.contains('actions-col')) td.classList.add('mc-act');
+      });
+    });
+  });
+};
+new MutationObserver(cardTables).observe(document.body, { childList: true, subtree: true });

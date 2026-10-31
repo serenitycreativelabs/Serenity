@@ -1,6 +1,6 @@
 # Serenity — Sistem Informasi Gampong Digital
 
-![versi](https://img.shields.io/badge/versi-2.9.18-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
+![versi](https://img.shields.io/badge/versi-3.0.0-0f766e) ![PWA](https://img.shields.io/badge/PWA-siap-c98a16) ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%2B%20Auth-orange)
 
 Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & kepala dusun, data master dropdown, laporan PDF/Excel, papan informasi yang bisa disebarkan ke WhatsApp warga, serta highlight Instagram desa.
 
@@ -8,6 +8,12 @@ Aplikasi web (PWA) untuk pengelolaan data desa / gampong: data warga, dusun & ke
 
 ---
 
+
+## Baru di v3.0.0 “Meutuah”
+- **Mode Ringan** untuk HP (otomatis, bisa diatur di Menu) — tanpa efek kaca buram/video latar/animasi berat.
+- Tombol **Kembali** di HP menutup dialog/menu lebih dulu; footer dimatikan di HP; tabel admin menjadi kartu.
+- Kartu statistik publik bisa diklik: rincian jenis kelamin & sebaran per dusun.
+- Menu **Pasang Aplikasi**; judul tab statis.
 
 ## Baru di v2.9.0 “Kirana”
 - 📰 **3 model tampilan baca** — A Kartu Baca, B Lembar Kertas, C Dua Kolom — dipilih Super Admin, rapi di desktop, tablet, ponsel & PWA.

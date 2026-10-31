@@ -117,7 +117,55 @@ export function toast(msg, type = 'info', opts = {}) {
 }
 
 // ---------- Modal ----------
-export function modal({ title = '', body = '', footer = '', size = 'md', onClose, guard = true } = {}) {
+// ---------------------------------------------------------------- v3.0.0 tombol Kembali (HP) menutup panel yang terbuka
+// Setiap dialog / bilah menu / panel chat yang terbuka mendapat satu langkah riwayat. Tombol Kembali di HP
+// menutup panel teratas lebih dulu (bukan mengganti halaman di belakangnya). Panel yang ditutup lewat tombol
+// biasa menandai langkahnya "basi" (replaceState, sinkron → tidak bentrok dengan navigasi kode).
+const ovStack = []; let curState = history.state, curHref = location.href, ovSeq = 0, autoSkip = false;
+const syncState = () => { curState = history.state; curHref = location.href; };
+export function pushOverlay(closeFn) {
+  const id = `ov${++ovSeq}`;
+  try { history.pushState({ ...(history.state || {}), dd: 'ov', ovId: id }, ''); syncState(); } catch { /* */ }
+  ovStack.push({ id, closeFn });
+  return () => overlayClosed(id);
+}
+function overlayClosed(id) {
+  const i = ovStack.findIndex((o) => o.id === id); if (i < 0) return;
+  ovStack.splice(i, 1);
+  if (history.state?.ovId === id) { try { history.replaceState({ dd: 'ovStale' }, ''); syncState(); } catch { /* */ } }
+}
+addEventListener('hashchange', syncState);
+addEventListener('popstate', async (e) => {
+  const prev = curState, sameUrl = location.href === curHref; syncState();
+  const dead = (st) => st?.dd === 'ovStale' || (st?.dd === 'ov' && !ovStack.some((o) => o.id === st.ovId));
+  if (autoSkip) { autoSkip = false; return; }
+  const top = ovStack[ovStack.length - 1];
+  // Kembali saat panel terbuka → alamat tidak berubah → tutup panel teratas saja
+  if (top && sameUrl && history.state?.ovId !== top.id) {
+    e.stopImmediatePropagation(); ovStack.pop();
+    const closed = await top.closeFn();
+    if (closed === false) { ovStack.push(top); try { history.pushState({ ...(history.state || {}), dd: 'ov', ovId: top.id }, ''); syncState(); } catch { /* */ } }
+    return;
+  }
+  // langkah sisa panel yang sudah ditutup → lewati, agar satu tekan Kembali = satu perpindahan halaman
+  if (sameUrl && dead(prev)) { e.stopImmediatePropagation(); history.back(); return; }
+  if (!sameUrl && dead(history.state)) { autoSkip = true; history.back(); }
+}, true);
+// bilah menu (admin & publik) dan panel chat
+const OV_CLASSES = ['nav-open', 'pubnav-open'];
+const ovOpen = new Map();
+function watchClassOverlay(key, isOpen, close) {
+  const on = isOpen();
+  if (on && !ovOpen.has(key)) ovOpen.set(key, pushOverlay(() => { close(); ovOpen.delete(key); return true; }));
+  else if (!on && ovOpen.has(key)) { const done = ovOpen.get(key); ovOpen.delete(key); done(); }
+}
+new MutationObserver(() => {
+  for (const c of OV_CLASSES) watchClassOverlay(c, () => document.body.classList.contains(c), () => document.body.classList.remove(c));
+  const chat = document.getElementById('chat-root');
+  watchClassOverlay('chat', () => !!chat?.classList.contains('open'), () => chat?.querySelector('[data-chat-close], .chat-close')?.click() || chat?.classList.remove('open'));
+}).observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class'] });
+
+export function modal({ title = '', body = '', footer = '', size = 'md', onClose, guard = true, history: useHistory = true } = {}) {
   const el = document.createElement('div');
   el.className = 'modal-backdrop';
   el.innerHTML = `<div class="modal modal-${size}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
@@ -127,7 +175,7 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   </div>`;
   document.body.appendChild(el);
   document.body.classList.add('no-scroll');
-  let dirty = false, closed = false;
+  let dirty = false, closed = false, ovDone = null;
   if (guard) {
     const mark = (e) => { if (!e.target.closest('[data-noguard]') && e.isTrusted !== false) { dirty = true; el.dataset.dirty = '1'; } };
     el.addEventListener('input', mark); el.addEventListener('change', mark);
@@ -135,6 +183,7 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   // Tutup paksa (dipanggil kode setelah simpan berhasil)
   const close = () => {
     if (closed) return; closed = true;
+    ovDone?.();
     el.remove();
     if (!$('.modal-backdrop')) document.body.classList.remove('no-scroll');
     document.removeEventListener('keydown', onKey);
@@ -142,9 +191,10 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   };
   // Tutup oleh pengguna (✕, Batal, Esc, klik di luar) → konfirmasi bila ada isian belum disimpan
   const requestClose = async () => {
-    if (dirty && !(await confirmDialog('Perubahan yang Anda isi belum disimpan. Tutup tanpa menyimpan?', { title: 'Belum disimpan', okText: 'Tutup tanpa simpan', danger: true }))) return;
-    close();
+    if (dirty && !(await confirmDialog('Perubahan yang Anda isi belum disimpan. Tutup tanpa menyimpan?', { title: 'Belum disimpan', okText: 'Tutup tanpa simpan', danger: true }))) return false;
+    close(); return true;
   };
+  if (useHistory) ovDone = pushOverlay(() => requestClose());
   const isTop = () => { const all = document.querySelectorAll('.modal-backdrop'); return all[all.length - 1] === el; };
   const onKey = (e) => { if (e.key === 'Escape' && isTop()) requestClose(); };
   document.addEventListener('keydown', onKey);
@@ -154,11 +204,11 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   return { el, close, requestClose, isDirty: () => dirty, markClean: () => { dirty = false; delete el.dataset.dirty; } };
 }
 
-export function confirmDialog(message, { title = 'Konfirmasi', okText = 'Ya, lanjutkan', danger = false } = {}) {
+export function confirmDialog(message, { title = 'Konfirmasi', okText = 'Ya, lanjutkan', danger = false, history = true } = {}) {
   return new Promise((resolve) => {
     let done = false;
     const m = modal({
-      title, size: 'sm', guard: false,
+      title, size: 'sm', guard: false, history,
       body: `<p>${esc(message)}</p>`,
       footer: `<button class="btn btn-ghost" data-close>Batal</button><button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-ok>${esc(okText)}</button>`,
       onClose: () => { if (!done) resolve(false); },

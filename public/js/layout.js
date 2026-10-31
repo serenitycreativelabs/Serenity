@@ -301,6 +301,18 @@ export function backgroundKind(url = '') {
 }
 const ytId = (u) => (String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([\w-]{11})/) || [])[1] || '';
 const driveImg = (u) => { const m = String(u).match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]{20,})/); return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w1920` : u; };
+// ---------------------------------------------------------------- Mode ringan (per perangkat)
+export const isLite = () => document.documentElement.dataset.lite === '1';
+export const litePref = () => { try { return localStorage.getItem('dd:lite') || 'auto'; } catch { return 'auto'; } };
+export function setLitePref(v) {
+  try { if (v === 'auto') localStorage.removeItem('dd:lite'); else localStorage.setItem('dd:lite', v); } catch { /* */ }
+  const nc = navigator.connection || {};
+  const auto = (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 900) || nc.saveData === true || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+  document.documentElement.dataset.lite = v === 'on' || (v === 'auto' && auto) ? '1' : '';
+  bgKey = ''; document.dispatchEvent(new CustomEvent('dd:lite'));
+}
+// animasi hanya berjalan saat terlihat di layar (hemat baterai & prosesor)
+export function whenVisible(el, cb) { if (!('IntersectionObserver' in window)) return cb(true); const io = new IntersectionObserver((es) => cb(es[es.length - 1].isIntersecting)); io.observe(el); return io; }
 let bgKey = '';
 export function applyBackground(latar, { isHome = false } = {}) {
   const on = latar?.aktif && /^https:\/\//.test(latar.url || '') && (latar.cakupan !== 'beranda' || isHome);
@@ -313,8 +325,8 @@ export function applyBackground(latar, { isHome = false } = {}) {
   const kind = latar.jenis && latar.jenis !== 'auto' ? latar.jenis : backgroundKind(latar.url);
   // v2.9.2: video tetap berjalan di semua perangkat; gambar diam hanya bila perangkat memakai mode Hemat Data
   const saveData = !!navigator.connection?.saveData;
-  const lite = latar.hemat !== false && saveData;
-  const blur = Math.min(20, Math.max(0, Number(latar.blur) || 0));
+  const lite = (latar.hemat !== false && saveData) || isLite(); // v2.9.19: mode ringan → gambar diam, tanpa video
+  const blur = isLite() ? 0 : Math.min(20, Math.max(0, Number(latar.blur) || 0));
   const style = blur ? `filter:blur(${blur}px);transform:scale(1.06)` : '';
   let media = '';
   if (kind === 'youtube' && ytId(latar.url)) {
@@ -323,13 +335,13 @@ export function applyBackground(latar, { isHome = false } = {}) {
     // judul, atau logo YouTube yang terlihat. Bisu, tanpa kontrol, berulang terus.
     media = `<img class="bg-yt-poster" src="https://i.ytimg.com/vi/${id}/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/${id}/hqdefault.jpg'" alt="" style="${style}">${lite ? '' : `<div class="bg-yt" style="${style}"><div id="bg-yt-player"></div></div>`}`;
   } else if (kind === 'video') {
-    media = lite && latar.poster ? `<img src="${esc(latar.poster)}" alt="" style="${style}">` : `<video src="${esc(latar.url)}" ${latar.poster ? `poster="${esc(latar.poster)}"` : ''} autoplay muted loop playsinline preload="metadata" style="${style}"></video>`;
+    media = lite && latar.poster ? `<img src="${esc(latar.poster)}" alt="" style="${style}">` : lite ? `<video src="${esc(latar.url)}#t=0.1" muted playsinline preload="metadata" style="${style}"></video>` : `<video src="${esc(latar.url)}" ${latar.poster ? `poster="${esc(latar.poster)}"` : ''} autoplay muted loop playsinline preload="metadata" style="${style}"></video>`;
   } else media = `<img src="${esc(driveImg(latar.url))}" alt="" style="${style}" decoding="async">`;
   const ov = Math.min(95, Math.max(0, Number(latar.overlay ?? 55)));
   layer.innerHTML = `${media}<span class="bg-ov" style="opacity:${ov / 100}"></span>`;
   document.body.prepend(layer);
   if (kind === 'youtube' && ytId(latar.url) && !lite) startYtBackground(layer, ytId(latar.url), latar.hemat !== false);
-  if (kind === 'video') { const v = layer.querySelector('video'); v?.play?.().catch(() => retryOnGesture(() => v.play())); }
+  if (kind === 'video' && !lite) { const v = layer.querySelector('video'); v?.play?.().catch(() => retryOnGesture(() => v.play())); }
 }
 
 // ---------------------------------------------------------------- video YouTube latar (IFrame API)
@@ -526,7 +538,7 @@ export function setupExitGuards() {
     if (e.state?.dd !== 'root' || asking) return;
     asking = true;
     const msg = guard.dirty ? 'Ada isian yang belum disimpan. Tetap keluar dari aplikasi?' : 'Keluar dari aplikasi / website ini?';
-    const ok = await confirmDialog(msg, { title: 'Keluar', okText: 'Ya, keluar', danger: guard.dirty });
+    const ok = await confirmDialog(msg, { title: 'Keluar', okText: 'Ya, keluar', danger: guard.dirty, history: false });
     asking = false;
     if (ok) { guard.dirty = false; history.back(); } else history.pushState({ dd: 'app' }, '');
   });
@@ -549,11 +561,12 @@ export function startTicker() {
   const loopW = move.scrollWidth / (guardN + 1) || move.scrollWidth;
   move.insertAdjacentHTML('beforeend', base);
   let x = track.clientWidth * 0.15, last = performance.now(), paused = false;
+  let seen = true; whenVisible(track, (v) => { seen = v; });
   track.onmouseenter = () => { paused = true; }; track.onmouseleave = () => { paused = false; };
   track.ontouchstart = () => { paused = true; }; track.ontouchend = () => { paused = false; };
   const step = (t) => {
     const dt = Math.min(64, t - last); last = t;
-    if (!paused && !document.hidden) { x -= (speed * dt) / 1000; if (-x >= loopW) x += loopW; move.style.transform = `translate3d(${x}px,0,0)`; }
+    if (!paused && seen && !document.hidden) { x -= (speed * dt) / 1000; if (-x >= loopW) x += loopW; move.style.transform = `translate3d(${x}px,0,0)`; }
     tickerRaf = requestAnimationFrame(step);
   };
   tickerRaf = requestAnimationFrame(step);

@@ -1,5 +1,29 @@
 # Catatan Perubahan
 
+## v3.0.0 “Meutuah” — 2026.10.31 (Build 2026.10.31 · R35 · Stable)
+Rilis besar: website & aplikasi kini jauh lebih ringan dan rapi di HP.
+### Mode Ringan (HP)
+- **Aktif otomatis** di HP layar sentuh, perangkat dengan mode Hemat Data, atau RAM ≤ 4 GB: efek kaca buram (blur) dimatikan — header, bilah bawah, panel & kartu memakai warna polos; latar foto tanpa blur, video latar diganti gambar diam; animasi ikon & dekorasi dihentikan; bayangan diperingan. Tata letak, warna tema & isi tetap sama.
+- **Bisa diatur siapa saja**: ☰ Menu → **Mode Ringan** (pengunjung) atau tombol di bilah atas/menu samping (admin). Sekali tekan, pilihan tersimpan permanen di perangkat itu sampai diubah lagi.
+- **Info pertama kali**: pengunjung baru di HP mendapat pemberitahuan singkat tentang Mode Ringan beserta letak tombolnya (sekali saja).
+- Teks berjalan & panel gulir otomatis berhenti saat tidak terlihat di layar (semua perangkat).
+- Formulir Tambah Warga di HP: hanya bagian I terbuka (bagian lain diketuk), panduan ⓘ muncul pada kolom yang sedang diisi.
+### Tampilan HP lebih rapi & ringan
+- **Footer dimatikan di HP** (teks berjalan, statistik pengunjung, tombol tata letak) — tidak dimuat sama sekali.
+- **Tombol Kembali di HP**: menutup dialog, bilah menu admin, menu bawah, atau panel chat yang sedang terbuka lebih dulu — halaman di belakangnya tidak lagi berganti diam-diam. Dialog yang berisi isian belum disimpan meminta konfirmasi. Satu tekan Kembali = satu langkah.
+- Tabel panel admin (Data Warga, Manajemen Akun, Audit Log, Dokumen, dll.) tampil sebagai **kartu** di layar kecil; tombol aksi cepat dasbor rata dua kolom.
+- Menu baru **Pasang Aplikasi** (menu bawah pengunjung & menu samping admin): memasang aplikasi langsung bila browser mendukung, atau menampilkan panduan Android/iPhone.
+### Beranda & Data Publik
+- Sorotan warna di kartu statistik & tombol beranda kini **mengikuti kursor** (kartu/tombol yang ditunjuk ikut berwarna), kembali ke bawaan saat kursor keluar.
+- **Kartu statistik bisa diklik** (beranda, Data Publik, Infografis):
+  - Penduduk, Kepala Keluarga, Usia Produktif, Lansia, Balita → jumlah menurut **jenis kelamin** + tabel per dusun.
+  - Laki-laki / Perempuan → **sebaran per dusun** dan per kelompok umur.
+  - Dusun → penduduk, laki-laki, perempuan & KK per dusun.
+  - Jumlah di bawah batas privasi ditampilkan “< n”.
+- Tombol **← Kembali** di halaman Data Publik, rincian statistik, dan Infografis Lengkap; “← Semua data” dan label “PORTAL DATA PUBLIK” kini bertumpuk sejajar kiri.
+### Lainnya
+- Judul tab browser tidak lagi bergerak — cukup **“Deah Glumpang”**.
+
 ## v2.9.18 “Kirana” — 2026.10.31 (Build 2026.10.31 · R34 · Stable)
 ### Halaman publik Lembaga & Dokumen
 - Halaman setiap lembaga: bilah tab **Profil / Struktur / Berita / Galeri / Dokumen** kini kartu melayang membulat (transparan + blur) mengikuti gaya kartu lain — tidak lagi pita kaku selebar halaman. Berlaku untuk semua lembaga.

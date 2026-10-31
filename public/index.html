@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Portal Resmi Gampong Deah Glumpang Powered by © 2026 Serenity Creativa Labs.</title>
+  <title>Deah Glumpang</title>
   <meta name="description" content="Portal resmi Pemerintah Gampong Deah Glumpang — papan informasi, berita & kegiatan lembaga, kegiatan rutin, profil gampong, dan dokumen publik. Powered by © 2026 Serenity Creativa Labs.">
   <!-- Pratinjau tautan saat dibagikan (WhatsApp, Facebook, Telegram, X, LinkedIn, Instagram DM, dll.) -->
   <meta property="og:type" content="website">
@@ -47,6 +47,10 @@
       // warna dasar tema langsung dipasang → tidak ada kilatan layar putih (desktop, ponsel, PWA)
       h.style.backgroundColor = t ? (d ? t.bgD : t.bgL) || '' : (d ? '#0d1117' : '');
       h.style.colorScheme = d ? 'dark' : 'light';
+      // v2.9.19 Mode ringan: otomatis di HP (layar sentuh ≤ 900px), mode Hemat Data, atau RAM ≤ 4 GB; bisa diatur per perangkat
+      var lp = localStorage.getItem('dd:lite') || 'auto', nc = navigator.connection || {};
+      var autoLite = (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) <= 900) || nc.saveData === true || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+      if (lp === 'on' || (lp === 'auto' && autoLite)) h.dataset.lite = '1';
       var mc = t ? (d ? t.metaD : t.metaL) || t.meta : (d ? '#0f1419' : '');
       if (mc) document.querySelector('meta[name=theme-color]').setAttribute('content', mc);
     } catch (e) {} })();

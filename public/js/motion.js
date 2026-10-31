@@ -33,7 +33,7 @@ let cvs = null, ctx = null, dpr = 1;
 export function applyFx(fx, shell = '') {
   cfg = { ...FX_DEFAULT, ...(fx || {}) };
   const inScope = cfg.scope === 'semua' || shell !== 'admin';
-  const icons = inScope && !reduced() ? cfg.ikon : 'off';
+  const icons = inScope && !reduced() && document.documentElement.dataset.lite !== '1' ? cfg.ikon : 'off'; // mode ringan: ikon diam
   html.dataset.ican = icons === 'off' ? '' : icons;
   // Kursor tetap aktif walau Windows/macOS menyalakan "kurangi animasi" (banyak laptop mengaktifkannya
   // otomatis demi performa) — gerak kursor bukan animasi besar. Jejak & efek klik tetap mengikuti setelan itu.
