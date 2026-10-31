@@ -1,5 +1,12 @@
 # Catatan Perubahan
 
+## v3.0.1 “Meutuah” — 2026.10.31 (Build 2026.10.31 · R36 · Stable)
+### Keamanan — isolasi data antar dusun
+- **Catatan hapus diperketat** (temuan L2 laporan uji keamanan): hanya akun yang berhak menghapus suatu data yang bisa membuat catatan hapusnya (warga → hak hapus warga, informasi → hak Papan Informasi, dst.). Akun Kepala Dusun hanya bisa membuat catatan hapus untuk **warga dusunnya sendiri** (ditandai nama dusun, diwajibkan aturan database), dan perangkat admin lain hanya menerapkannya pada warga dusun tersebut.
+- **Uji otomatis aturan keamanan** (GitHub Actions › “Uji Aturan Keamanan”, Firebase Emulator, tanpa menyentuh data asli): 15 skenario — Kepala Dusun tidak bisa membaca, mengubah, memindah, menambah ke, atau menghapus warga dusun lain; tidak bisa menaikkan hak aksesnya sendiri; pengunjung tanpa login tidak bisa membaca data warga. Berjalan otomatis setiap aturan database berubah.
+### Mesin pencari
+- **robots.txt** (semua halaman publik boleh dijelajahi) dan **sitemap.xml** (alamat utama situs) untuk Google Search Console.
+
 ## v3.0.0 “Meutuah” — 2026.10.31 (Build 2026.10.31 · R35 · Stable)
 Rilis besar: website & aplikasi kini jauh lebih ringan dan rapi di HP.
 ### Mode Ringan (HP)

@@ -257,11 +257,20 @@ service cloud.firestore {
       allow delete: if false;
     }
     // Catatan ID yang dihapus (agar perangkat admin lain ikut menghapus tanpa memuat ulang semua data)
+    // v3.0.1: catatan hapus hanya oleh yang berhak menghapus koleksi tsb; Kepala Dusun hanya untuk warga dusunnya
+    // (field `dusun` wajib = dusun akunnya → perangkat lain hanya menerapkan pada warga dusun itu)
+    function hapusBoleh(c) {
+      return (c == 'warga' && can('wargaDelete')) || (c == 'dusun' && can('dusun')) || (c == 'master' && can('master'))
+        || (c == 'informasi' && can('informasi')) || (c == 'lembaga' && can('lembaga')) || (c == 'dokumen' && can('dokumen'))
+        || (c == 'kegiatan' && can('kegiatan')) || (c == 'halaman' && can('profil')) || (c == 'instagram' && can('instagram'));
+    }
     match /hapus/{id} {
       allow read: if isStaff();
-      allow create: if isStaff() && data().keys().hasOnly(['c', 'ids', 'at']) && data().at == request.time
+      allow create: if isStaff() && data().keys().hasOnly(['c', 'ids', 'at', 'dusun']) && data().at == request.time
         && data().c in ['informasi', 'lembaga', 'dokumen', 'kegiatan', 'halaman', 'instagram', 'warga', 'dusun', 'master']
-        && data().ids is list && data().ids.size() <= 500;
+        && data().ids is list && data().ids.size() <= 500
+        && hapusBoleh(data().c)
+        && (!isKadus() || (data().c == 'warga' && data().get('dusun', '') == me().dusun));
       allow update: if false;
       allow delete: if isSuper();
     }

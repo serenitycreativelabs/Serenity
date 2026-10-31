@@ -263,7 +263,8 @@ async function delta(w, mv) {
     try {
       const t = await F.getDocs(F.query(F.collection(F.db, 'hapus'), F.where('c', '==', w.col), F.where('at', '>=', w.v), F.limit(200)));
       cost += Math.max(1, t.size);
-      t.docs.forEach((d) => (d.data().ids || []).forEach((id) => { if (!changed.has(id)) w.docs.delete(id); }));
+      // catatan dari akun Kepala Dusun (ber-field `dusun`) hanya berlaku untuk warga dusun tersebut
+      t.docs.forEach((d) => { const td = d.data(); (td.ids || []).forEach((id) => { if (changed.has(id)) return; if (td.dusun && w.docs.get(id)?.dusun !== td.dusun) return; w.docs.delete(id); }); });
     } catch (e) { console.warn('tombstone', e?.code); }
   }
   const c = await F.getCountFromServer(qBase(w, w.limit ? [F.limit(w.limit)] : []));

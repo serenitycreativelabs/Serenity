@@ -156,8 +156,11 @@ function decorate(b, touched, dels) {
   const metas = {};
   for (const s of touched) (metas[s.meta] ||= {})[s.key] = serverTimestamp();
   for (const [m, v] of Object.entries(metas)) b.set(doc(_db, 'meta', m), v, { merge: true });
-  for (const [c, ids] of Object.entries(dels)) for (let i = 0; i < ids.length; i += 450) b.set(doc(collection(_db, 'hapus')), { c, ids: ids.slice(i, i + 450), at: serverTimestamp() });
+  for (const [c, ids] of Object.entries(dels)) for (let i = 0; i < ids.length; i += 450) b.set(doc(collection(_db, 'hapus')), { c, ids: ids.slice(i, i + 450), at: serverTimestamp(), ...(c === 'warga' && tombDusun ? { dusun: tombDusun } : {}) });
 }
+// v3.0.1: akun Kepala Dusun menandai catatan hapus dengan dusunnya (diwajibkan aturan database)
+let tombDusun = '';
+export const setTombDusun = (d) => { tombDusun = d || ''; };
 // Mode "Lihat Sebagai" (Super Admin): semua penulisan data diblokir di perangkat — hanya pratinjau
 let readOnlyMsg = '';
 export const setReadOnly = (msg) => { readOnlyMsg = msg || ''; };

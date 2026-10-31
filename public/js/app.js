@@ -110,7 +110,7 @@ function boot() {
     if (user) {
       const u = await ensureUser(user);
       if (u && u.active !== false) {
-        state.isAdmin = true; state.profile = u; state.role = u.role; state.perms = u.perms || {};
+        state.isAdmin = true; state.profile = u; state.role = u.role; state.perms = u.perms || {}; F.setTombDusun(state.role === 'kadus' ? state.profile?.dusun : '');
         startAdmin();
         if (sessionStorage.getItem('dd:justLogin')) {
           const fails = Number(localStorage.getItem('dd:fails') || 0);
@@ -123,7 +123,7 @@ function boot() {
         toast(u?.active === false ? 'Akun Anda dinonaktifkan oleh Super Admin.' : 'Akun ini belum didaftarkan oleh Super Admin.', 'error', { duration: 8000 });
       }
     } else {
-      state.isAdmin = false; state.profile = null; state.role = ''; state.perms = {}; stopAdmin();
+      state.isAdmin = false; state.profile = null; state.role = ''; state.perms = {}; stopAdmin(); F.setTombDusun('');
     }
     state.authReady = true;
     render();
@@ -313,7 +313,7 @@ function startAdmin() {
     // sehingga perbandingan teks mentah dulu sering salah mendeteksi "berubah" — terutama akun ber-badge)
     const before = accessKey(state.profile, state.role, state.perms), after = accessKey(d, d.role, d.perms);
     const what = before !== after ? accessDiff(state.profile, state.perms, state.role, d) : '';
-    state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {};
+    state.profile = { ...d, email: state.user.email }; state.role = d.role; state.perms = d.perms || {}; F.setTombDusun(state.role === 'kadus' ? state.profile?.dusun : '');
     if (before !== after) {
       toast(`Hak akses Anda baru saja diubah oleh Super Admin${what ? ': ' + what : ''}. Menu disesuaikan otomatis.`, 'info', { duration: 7000 });
       root.dataset.shell = ''; startAdmin(); render();

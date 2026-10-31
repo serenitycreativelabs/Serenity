@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Peta situs Portal Gampong Deah Glumpang. Halaman memakai alamat "#/…" (satu halaman aplikasi),
+     sehingga mesin pencari mengenal satu alamat utama: beranda. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.digides.web.id/</loc>
+    <lastmod>2026-10-31</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

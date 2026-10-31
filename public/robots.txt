@@ -1,0 +1,6 @@
+# Portal Data & Informasi Gampong Deah Glumpang
+# Semua halaman publik boleh dijelajahi mesin pencari.
+User-agent: *
+Allow: /
+
+Sitemap: https://www.digides.web.id/sitemap.xml
