@@ -11,9 +11,15 @@
 // =============================================================
 import * as F from './firebase.js';
 import { state, C, ic, logAudit, ROLE_LABEL, myDusun, isPengelola } from './core.js';
-import { esc, $, $$, toast, toDate, norm, humanErr } from './ui.js';
+import { esc, $, $$, toast, toDate, norm, humanErr, modal } from './ui.js';
 
 const MAX_LEN = 2000, PAGE = 60, DIR_TTL = 10 * 60e3;
+// v3.1.0 lampiran: disimpan di Firestore (bisa di paket gratis). Foto dikompres otomatis; berkas lain maks. 700 KB.
+const FILE_MAX = 700 * 1024, IMG_TARGET = 600 * 1024;
+const IMG_OK = /^image\/(jpeg|png|webp|gif)$/i;
+const FILE_OK = /\.(pdf|docx?|xlsx?|pptx?|txt|csv|odt|ods|zip)$/i;
+const THUMB_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const S = {
   on: false, me: '', unsubChats: null, unsubMsgs: null, chats: new Map(), staf: new Map(), stafAt: 0,
   open: false, view: 'list', cid: '', other: '', limit: PAGE, msgs: [], q: '', first: true, draft: {}, lastSeen: {},
@@ -205,6 +211,8 @@ function paintConv() {
       <button type="button" class="icon-btn ct-close" aria-label="Tutup chat">${ic('x')}</button></header>
     <div class="ct-scroll ct-msgs" id="ct-msgs"><p class="ct-empty">Memuat pesan…</p></div>
     <form class="ct-compose" id="ct-form" autocomplete="off">
+      <div class="ct-att-prev" id="ct-att-prev" hidden></div>
+      <label class="icon-btn ct-attach" title="Lampirkan foto atau berkas (PDF, Word, Excel — maks. 700 KB)" aria-label="Lampirkan foto atau berkas">${ic('image')}<input type="file" id="ct-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.odt,.ods,.zip" hidden></label>
       <textarea id="ct-text" rows="1" maxlength="${MAX_LEN}" placeholder="Tulis pesan untuk ${esc(nameOf(o))}…" title="Enter untuk kirim, Shift+Enter untuk baris baru" aria-label="Tulis pesan"></textarea>
       <button type="submit" class="ct-send" aria-label="Kirim pesan" disabled>${ic('send')}</button>
     </form>`;
@@ -212,7 +220,9 @@ function paintConv() {
   panel.querySelector('.ct-close').onclick = closePanel;
   const ta = panel.querySelector('#ct-text'), btn = panel.querySelector('.ct-send');
   ta.value = S.draft[S.cid] || '';
-  const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; btn.disabled = !ta.value.trim(); };
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; btn.disabled = !ta.value.trim() && !S.att; };
+  S.att = null; paintAtt();
+  panel.querySelector('#ct-file').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { S.att = await prepAttachment(f); paintAtt(); fit(); ta.focus(); } catch (err) { toast(err.message, 'error'); } };
   ta.oninput = fit; fit();
   ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); panel.querySelector('#ct-form').requestSubmit(); } };
   panel.querySelector('#ct-form').onsubmit = (e) => { e.preventDefault(); send(ta); };
@@ -230,11 +240,12 @@ function paintMsgs() {
     const d = toDate(m.at) || new Date(); const dk = d.toDateString();
     if (dk !== lastDay) { html += `<div class="ct-day"><span>${esc(dayLabel(d))}</span></div>`; lastDay = dk; lastFrom = ''; }
     const mine = m.from === S.me;
-    html += `<div class="ct-msg${mine ? ' me' : ''}${lastFrom === m.from ? ' cont' : ''}"><div class="ct-bub">${msgHtml(m.text)}<time>${m.pending ? 'mengirim…' : esc(hhmm(m.at))}</time></div></div>`;
+    html += `<div class="ct-msg${mine ? ' me' : ''}${lastFrom === m.from ? ' cont' : ''}"><div class="ct-bub${m.att ? ' has-att' : ''}">${attHtml(m)}${m.text ? msgHtml(m.text) : ''}<time>${m.pending ? 'mengirim…' : esc(hhmm(m.at))}</time></div></div>`;
     lastFrom = m.from;
   }
   html += '<p class="ct-seen" id="ct-seen" hidden>Dibaca</p>';
   box.innerHTML = html; box.dataset.ready = '1';
+  box.querySelectorAll('[data-att]').forEach((el) => el.onclick = () => openAttachment(el.dataset.att, el.dataset.mid));
   box.querySelector('.ct-more')?.addEventListener('click', () => { S.limit += PAGE; box.dataset.keep = '1'; listenMsgs(); });
   if (box.dataset.keep) { box.scrollTop = box.scrollHeight - prevH + prevTop; delete box.dataset.keep; }
   else if (nearBottom) box.scrollTop = box.scrollHeight;
@@ -250,22 +261,31 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 
 async function send(ta) {
   const text = ta.value.replace(/\s+$/, '').replace(/^\s*\n/, '');
-  if (!text.trim()) return;
+  const att = S.att;
+  if (!text.trim() && !att) return;
   if (text.length > MAX_LEN) { toast(`Pesan terlalu panjang (maks. ${MAX_LEN} karakter).`, 'error'); return; }
   const cid = S.cid, other = S.other, me = S.me;
-  ta.value = ''; S.draft[cid] = ''; ta.dispatchEvent(new Event('input'));
+  ta.value = ''; S.draft[cid] = ''; S.att = null; paintAtt(); ta.dispatchEvent(new Event('input'));
+  const label = att ? (att.kind === 'img' ? '📷 Foto' : `📎 ${att.name}`) : '';
+  const lastText = [label, text.replace(/\s+/g, ' ')].filter(Boolean).join(' · ').slice(0, 200);
   try {
     const b = F.writeBatch();
-    b.set(F.doc(F.collection(F.db, 'chats', cid, 'pesan')), { from: me, text, at: F.serverTimestamp() });
+    const msg = { from: me, text, at: F.serverTimestamp() };
+    if (att) {
+      const aref = F.doc(F.collection(F.db, 'chats', cid, 'lampiran'));
+      b.set(aref, { from: me, at: F.serverTimestamp(), name: att.name, type: att.type, size: att.size, b64: att.b64 });
+      msg.att = { id: aref.id, kind: att.kind, name: att.name, type: att.type, size: att.size, ...(att.thumb ? { thumb: att.thumb, w: att.w, h: att.h } : {}) };
+    }
+    b.set(F.doc(F.collection(F.db, 'chats', cid, 'pesan')), msg);
     b.set(C(`chats/${cid}`), {
-      members: cid.split('_'), last: { from: me, text: text.replace(/\s+/g, ' ').slice(0, 200), at: F.serverTimestamp() },
+      members: cid.split('_'), last: { from: me, text: lastText, at: F.serverTimestamp() },
       unread: { [other]: F.increment(1), [me]: 0 }, updatedAt: F.serverTimestamp(),
     }, { merge: true });
     await b.commit();
     const to = person(other); const toLabel = to.role === 'superadmin' ? 'Super Admin' : `${roleText(to)} ${to.nama || ''}`.trim();
-    logAudit('chat', 'kirim', `Pesan chat ke ${toLabel}`.slice(0, 300), { target: toLabel, targetId: cid, detail: text, to: other, toNama: toLabel });
+    logAudit('chat', 'kirim', `Pesan chat ke ${toLabel}`.slice(0, 300), { target: toLabel, targetId: cid, detail: [att ? `[${att.kind === 'img' ? 'Foto' : 'Berkas'}: ${att.name}]` : '', text].filter(Boolean).join(' ').slice(0, 2500), to: other, toNama: toLabel });
   } catch (e) {
-    ta.value = text; ta.dispatchEvent(new Event('input'));
+    ta.value = text; S.att = att; paintAtt(); ta.dispatchEvent(new Event('input'));
     toast(/permission|insufficient/i.test(`${e.code} ${e.message}`) ? 'Pesan tidak terkirim: akun penerima tidak aktif atau akses Anda berubah.' : 'Pesan gagal dikirim: ' + humanErr(e), 'error');
   }
 }
@@ -306,3 +326,57 @@ function notifyIncoming(cid, c) {
 }
 // Klik notifikasi perangkat → buka chat dengan pengirimnya
 navigator.serviceWorker?.addEventListener?.('message', (e) => { if (e.data?.type === 'open-chat' && e.data.chat && S.on) openChatWith(e.data.chat); });
+
+// ---------------------------------------------------------------- v3.1.0 lampiran foto & berkas
+const readB64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('Berkas tidak dapat dibaca')); r.readAsDataURL(blob); });
+function loadImg(file) { return new Promise((res, rej) => { const u = URL.createObjectURL(file); const im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Gambar tidak dapat dibuka')); }; im.src = u; }); }
+function toJpeg(im, maxW, q) { const k = Math.min(1, maxW / Math.max(im.naturalWidth, im.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k)); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height); return new Promise((res) => c.toBlob((b) => res({ blob: b, w: c.width, h: c.height }), 'image/jpeg', q)); }
+async function prepAttachment(file) {
+  const name = String(file.name || 'berkas').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120);
+  if (/^image\//i.test(file.type) && !/svg/i.test(file.type)) {
+    const im = await loadImg(file);
+    let out = null;
+    for (const [w, q] of [[1600, 0.82], [1280, 0.75], [1024, 0.7], [800, 0.65]]) { out = await toJpeg(im, w, q); if (out.blob.size <= IMG_TARGET) break; }
+    if (!out || out.blob.size > FILE_MAX) throw new Error('Foto terlalu besar meski sudah dikompres.');
+    const th = await toJpeg(im, 320, 0.6);
+    return { kind: 'img', name: name.replace(/\.\w+$/, '') + '.jpg', type: 'image/jpeg', size: out.blob.size, b64: await readB64(out.blob), thumb: `data:image/jpeg;base64,${await readB64(th.blob)}`, w: out.w, h: out.h };
+  }
+  if (!FILE_OK.test(name)) throw new Error('Jenis berkas tidak didukung. Gunakan foto, PDF, Word, Excel, PowerPoint, TXT/CSV, atau ZIP.');
+  if (file.size > FILE_MAX) throw new Error(`Berkas terlalu besar (${fmtSize(file.size)}). Maksimal ${fmtSize(FILE_MAX)} — kompres atau kirim tautan Google Drive.`);
+  return { kind: 'file', name, type: String(file.type || 'application/octet-stream').slice(0, 100), size: file.size, b64: await readB64(file) };
+}
+function paintAtt() {
+  const box = $('#ct-att-prev'); if (!box) return;
+  const a = S.att; box.hidden = !a;
+  box.innerHTML = a ? `${a.kind === 'img' ? `<img src="${esc(a.thumb)}" alt="">` : `<span class="ct-fi">${ic('file')}</span>`}<span class="ct-an"><b>${esc(a.name)}</b><small>${esc(fmtSize(a.size))}${a.kind === 'img' ? ' · dikompres' : ''}</small></span><button type="button" class="icon-btn ct-att-x" aria-label="Batalkan lampiran">${ic('x')}</button>` : '';
+  box.querySelector('.ct-att-x')?.addEventListener('click', () => { S.att = null; paintAtt(); const ta = $('#ct-text'); ta?.dispatchEvent(new Event('input')); });
+}
+function attHtml(m) {
+  const a = m.att; if (!a || !a.id) return '';
+  if (a.kind === 'img' && THUMB_RE.test(a.thumb || '')) {
+    const ratio = a.w && a.h ? Math.max(0.5, Math.min(2, a.h / a.w)) : 0.75;
+    return `<button type="button" class="ct-img" data-att="${esc(a.id)}" data-mid="${esc(m.id)}" title="Lihat foto" style="--r:${ratio}"><img src="${esc(a.thumb)}" alt="Foto"></button>`;
+  }
+  return `<button type="button" class="ct-file" data-att="${esc(a.id)}" data-mid="${esc(m.id)}" title="Unduh berkas"><span class="ct-fi">${ic('file')}</span><span class="ct-an"><b>${esc(a.name || 'Berkas')}</b><small>${esc(fmtSize(Number(a.size) || 0))} · ketuk untuk unduh</small></span>${ic('download')}</button>`;
+}
+const attCache = new Map();
+async function fetchAttachment(id) {
+  if (attCache.has(id)) return attCache.get(id);
+  const s = await F.getDoc(C(`chats/${S.cid}/lampiran/${id}`)); if (!s.exists()) throw new Error('Lampiran tidak ditemukan.');
+  const d = s.data(); const bin = atob(d.b64 || ''); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const safeType = IMG_OK.test(d.type || '') ? d.type : 'application/octet-stream'; // berkas selain foto selalu diunduh, tidak dibuka di halaman
+  const url = URL.createObjectURL(new Blob([u8], { type: safeType }));
+  const r = { url, name: d.name || 'berkas', isImg: IMG_OK.test(d.type || '') };
+  attCache.set(id, r); return r;
+}
+function download(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+async function openAttachment(id, mid) {
+  const m = S.msgs.find((x) => x.id === mid); const a = m?.att;
+  try {
+    toast(a?.kind === 'img' ? 'Membuka foto…' : 'Menyiapkan unduhan…', 'info', { duration: 1200 });
+    const r = await fetchAttachment(id);
+    if (!r.isImg) { download(r.url, r.name); return; }
+    const v = modal({ title: r.name, size: 'lg', body: `<div class="ct-view"><img src="${esc(r.url)}" alt="${esc(r.name)}"></div>`, footer: '<button class="btn btn-ghost" data-close>Tutup</button><button class="btn btn-primary" data-dl>Unduh foto</button>' });
+    v.el.querySelector('[data-dl]').onclick = () => download(r.url, r.name);
+  } catch (e) { toast('Lampiran gagal dibuka: ' + humanErr(e), 'error'); }
+}

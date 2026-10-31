@@ -1,5 +1,15 @@
 # Catatan Perubahan
 
+## v3.1.0 “Meutuah” — 2026.10.31 (Build 2026.10.31 · R37 · Stable)
+### Chat staf — kirim foto & berkas
+- Tombol **lampiran** (ikon gambar) di kolom tulis pesan: pilih **foto** (dari galeri atau kamera HP) atau **berkas** (PDF, Word, Excel, PowerPoint, TXT/CSV, ZIP), boleh ditambah keterangan.
+- **Foto dikompres otomatis** (maks. 1600 px, umumnya 150–600 KB) sebelum dikirim; pratinjau tampil di atas kolom tulis dan bisa dibatalkan (×).
+- Di percakapan: foto tampil sebagai gambar kecil — ketuk untuk melihat ukuran penuh dan **Unduh foto**; berkas tampil sebagai kartu nama + ukuran — ketuk untuk mengunduh.
+- Batas berkas **700 KB** (untuk berkas lebih besar, kirim tautan Google Drive). Jenis berbahaya (HTML, SVG, program) ditolak; berkas selain foto selalu diunduh, tidak dibuka di halaman.
+- Lampiran tetap **privat** untuk kedua anggota percakapan, permanen seperti pesan, tercatat di Audit Log (“[Foto: …]”). Daftar percakapan menampilkan “📷 Foto” / “📎 nama berkas”.
+- Disimpan di database (tanpa layanan penyimpanan berbayar) — **tetap bisa di paket gratis**. Lampiran dimuat hanya saat diketuk agar hemat kuota.
+- Aturan database baru untuk lampiran + 3 skenario uji otomatis tambahan (total 18).
+
 ## v3.0.1 “Meutuah” — 2026.10.31 (Build 2026.10.31 · R36 · Stable)
 ### Keamanan — isolasi data antar dusun
 - **Catatan hapus diperketat** (temuan L2 laporan uji keamanan): hanya akun yang berhak menghapus suatu data yang bisa membuat catatan hapusnya (warga → hak hapus warga, informasi → hak Papan Informasi, dst.). Akun Kepala Dusun hanya bisa membuat catatan hapus untuk **warga dusunnya sendiri** (ditandai nama dusun, diwajibkan aturan database), dan perangkat admin lain hanya menerapkannya pada warga dusun tersebut.

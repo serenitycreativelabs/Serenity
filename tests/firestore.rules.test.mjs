@@ -18,6 +18,7 @@ before(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users/k1'), { email: KADUS.email, nama: 'Kadus Mawar', role: 'kadus', active: true, dusun: 'Mawar', perms: { warga: true, wargaEdit: true, wargaDelete: true } });
     await setDoc(doc(db, 'users/a1'), { email: 'op@contoh.id', nama: 'Operator', role: 'admin', active: true, perms: { warga: true, wargaEdit: true } });
+    await setDoc(doc(db, 'users/a2'), { email: 'lain@contoh.id', nama: 'Admin Lain', role: 'admin', active: true, perms: {} });
     await setDoc(doc(db, 'warga/w1'), { nama: 'Warga Mawar', dusun: 'Mawar' });
     await setDoc(doc(db, 'warga/w2'), { nama: 'Warga Melati', dusun: 'Melati' });
     await setDoc(doc(db, 'warga/w3'), { nama: 'Warga Tanpa Dusun' });
@@ -61,4 +62,23 @@ test('Catatan hapus: admin tanpa hak hapus warga ditolak', async () => {
 test('Pengunjung tanpa login: tidak bisa membaca data warga', async () => {
   await assertFails(getDoc(doc(anon(), 'warga/w1')));
   await assertFails(getDocs(collection(anon(), 'warga')));
+});
+
+// v3.1.0 — lampiran chat: hanya kedua anggota percakapan yang bisa mengirim & membuka
+const CID = 'a1_k1';
+test('Chat: anggota boleh mengirim foto + pesan berlampiran', async () => {
+  const db = kadus();
+  await assertSucceeds(setDoc(doc(db, `chats/${CID}/lampiran/f1`), { from: 'k1', at: serverTimestamp(), name: 'foto.jpg', type: 'image/jpeg', size: 1234, b64: 'QUJD' }));
+  await assertSucceeds(setDoc(doc(db, `chats/${CID}/pesan/m1`), { from: 'k1', text: '', at: serverTimestamp(), att: { id: 'f1', kind: 'img', name: 'foto.jpg', type: 'image/jpeg', size: 1234, thumb: 'data:image/jpeg;base64,QUJD', w: 10, h: 10 } }));
+});
+test('Chat: lampiran hanya terbaca anggota percakapan', async () => {
+  await assertSucceeds(getDoc(doc(admin(), `chats/${CID}/lampiran/f1`)));
+  const lain = env.authenticatedContext('a2', { email: 'lain@contoh.id' }).firestore();
+  await assertFails(getDoc(doc(lain, `chats/${CID}/lampiran/f1`)));
+  await assertFails(getDoc(doc(anon(), `chats/${CID}/lampiran/f1`)));
+});
+test('Chat: lampiran tidak bisa diubah/dihapus & tidak boleh atas nama orang lain', async () => {
+  await assertFails(updateDoc(doc(kadus(), `chats/${CID}/lampiran/f1`), { name: 'ganti.jpg' }));
+  await assertFails(deleteDoc(doc(kadus(), `chats/${CID}/lampiran/f1`)));
+  await assertFails(setDoc(doc(kadus(), `chats/${CID}/lampiran/f2`), { from: 'a1', at: serverTimestamp(), name: 'x', type: 'image/jpeg', size: 1, b64: 'QQ==' }));
 });

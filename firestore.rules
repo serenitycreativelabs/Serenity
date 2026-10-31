@@ -354,6 +354,11 @@ service cloud.firestore {
         && (!('last' in data()) || (data().last is map && str(data().last.get('text', ''), 300)
              && ((resource != null && 'last' in resource.data && data().last == resource.data.last) || data().last.from == request.auth.uid)));
     }
+    function attOk(a) {
+      return a is map && a.keys().hasOnly(['id', 'kind', 'name', 'type', 'size', 'thumb', 'w', 'h'])
+        && str(a.id, 40) && a.kind in ['img', 'file'] && str(a.name, 200) && str(a.type, 100) && a.size is int
+        && (!('thumb' in a) || str(a.thumb, 80000));
+    }
     match /chats/{cid} {
       allow get: if inChat(cid);
       allow list: if isStaff() && request.auth.uid in resource.data.members;
@@ -364,9 +369,20 @@ service cloud.firestore {
       match /pesan/{mid} {
         allow read: if inChat(cid);
         allow create: if inChat(cid) && bothActive(cid)
-          && data().keys().hasOnly(['from', 'text', 'at'])
+          && data().keys().hasOnly(['from', 'text', 'at', 'att'])
           && data().from == request.auth.uid && data().at == request.time
-          && str(data().text, 2000) && data().text.size() > 0;
+          && str(data().text, 2000) && (data().text.size() > 0 || 'att' in data())
+          && (!('att' in data()) || attOk(data().att));
+        allow update, delete: if false;
+      }
+      // v3.1.0 lampiran chat (foto/berkas, base64 ≤ ~950 KB) — dibaca hanya oleh kedua anggota, permanen
+      match /lampiran/{aid} {
+        allow read: if inChat(cid);
+        allow create: if inChat(cid) && bothActive(cid)
+          && data().keys().hasOnly(['from', 'at', 'name', 'type', 'size', 'b64'])
+          && data().from == request.auth.uid && data().at == request.time
+          && str(data().name, 200) && str(data().type, 100) && data().size is int && data().size <= 720000
+          && data().b64 is string && data().b64.size() <= 980000;
         allow update, delete: if false;
       }
     }
