@@ -162,7 +162,7 @@ function watchClassOverlay(key, isOpen, close) {
 new MutationObserver(() => {
   for (const c of OV_CLASSES) watchClassOverlay(c, () => document.body.classList.contains(c), () => document.body.classList.remove(c));
   const chat = document.getElementById('chat-root');
-  watchClassOverlay('chat', () => !!chat?.classList.contains('open'), () => chat?.querySelector('[data-chat-close], .chat-close')?.click() || chat?.classList.remove('open'));
+  watchClassOverlay('chat', () => !!chat?.classList.contains('open'), () => chat?.querySelector('.ct-close')?.click() || chat?.classList.remove('open'));
 }).observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class'] });
 
 export function modal({ title = '', body = '', footer = '', size = 'md', onClose, guard = true, history: useHistory = true } = {}) {
@@ -200,6 +200,14 @@ export function modal({ title = '', body = '', footer = '', size = 'md', onClose
   document.addEventListener('keydown', onKey);
   el.addEventListener('mousedown', (e) => { if (e.target === el) requestClose(); });
   el.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) requestClose(); });
+  // v3.1.1: di HP, ketuk bilah judul dialog (lembar bawah) untuk menutup — isian belum disimpan tetap ditanya dulu
+  { const head = el.querySelector('.modal-head'); let ts = null, fired = 0;
+    const can = (e) => !e.target.closest('button, a, input, select, textarea') && matchMedia('(max-width: 860px)').matches;
+    const fire = () => { if (Date.now() - fired < 600) return; fired = Date.now(); requestClose(); };
+    // sentuhan dihitung saat jari diangkat; preventDefault mencegah "klik bayangan" menutup dialog konfirmasi yang baru muncul
+    head?.addEventListener('touchstart', (e) => { const t = e.touches[0]; ts = t ? { x: t.clientX, y: t.clientY, t: Date.now() } : null; }, { passive: true });
+    head?.addEventListener('touchend', (e) => { const t = e.changedTouches[0]; if (ts && t && can(e) && Math.hypot(t.clientX - ts.x, t.clientY - ts.y) < 12 && Date.now() - ts.t < 700) { e.preventDefault(); fire(); } ts = null; }, { passive: false });
+    head?.addEventListener('click', (e) => { if (can(e)) fire(); }); }
   requestAnimationFrame(() => el.classList.add('show'));
   return { el, close, requestClose, isDirty: () => dirty, markClean: () => { dirty = false; delete el.dataset.dirty; } };
 }

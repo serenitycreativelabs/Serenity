@@ -11,7 +11,7 @@
 // =============================================================
 import * as F from './firebase.js';
 import { state, C, ic, logAudit, ROLE_LABEL, myDusun, isPengelola } from './core.js';
-import { esc, $, $$, toast, toDate, norm, humanErr, modal } from './ui.js';
+import { esc, $, $$, toast, toDate, norm, humanErr, modal, confirmDialog } from './ui.js';
 
 const MAX_LEN = 2000, PAGE = 60, DIR_TTL = 10 * 60e3;
 // v3.1.0 lampiran: disimpan di Firestore (bisa di paket gratis). Foto dikompres otomatis; berkas lain maks. 700 KB.
@@ -90,7 +90,7 @@ export function mountChat() {
     <section class="chat-panel" role="dialog" aria-label="Chat staf" hidden></section>
     <button type="button" class="chat-fab" aria-label="Buka chat staf" title="Chat staf (privat)">${ic('chat')}<span class="chat-badge" hidden>0</span></button>`;
   document.body.appendChild(el);
-  el.querySelector('.chat-fab').onclick = () => (S.open ? closePanel() : openPanel());
+  el.querySelector('.chat-fab').onclick = () => (S.open ? requestClose() : openPanel());
   document.addEventListener('keydown', onKey);
   publishMe();
   loadStaf().then(() => { paintFab(); if (S.open) paint(); });
@@ -113,7 +113,7 @@ export function unmountChat() {
   root()?.remove();
   try { navigator.clearAppBadge?.(); } catch { /* */ }
 }
-const onKey = (e) => { if (e.key === 'Escape' && S.open && !document.querySelector('.modal-backdrop')) closePanel(); };
+const onKey = (e) => { if (e.key === 'Escape' && S.open && !document.querySelector('.modal-backdrop')) requestClose(); };
 
 // ---------------------------------------------------------------- tombol & lencana
 function paintFab() {
@@ -132,6 +132,13 @@ function openPanel() {
   loadStaf().then(() => S.open && S.view === 'list' && paintList());
   paint();
 }
+// v3.1.1: pesan/lampiran yang belum terkirim → minta konfirmasi sebelum percakapan ditutup
+const unsent = () => S.view === 'chat' && (!!$('#ct-text')?.value.trim() || !!S.att);
+async function confirmLeave() {
+  if (!unsent()) return true;
+  return confirmDialog(`Pesan untuk ${nameOf(S.other)} belum terkirim. Tetap tutup?${S.att ? ' Lampiran yang dipilih akan dibatalkan.' : ''} Tulisan Anda disimpan sebagai draf.`, { title: 'Pesan belum terkirim', okText: 'Tutup' });
+}
+async function requestClose() { if (await confirmLeave()) { S.att = null; closePanel(); } }
 function closePanel() {
   const r = root(); if (!r) return;
   saveDraft();
@@ -207,17 +214,18 @@ function paintConv() {
   const panel = root()?.querySelector('.chat-panel'); if (!panel) return;
   const o = S.other; const p = person(o);
   panel.innerHTML = `<header class="ct-head conv"><button type="button" class="icon-btn ct-back" aria-label="Kembali ke daftar pesan">${ic('back')}</button>
-      ${avatar(o, 'sm')}<div class="ct-title"><b>${esc(nameOf(o))}</b><small>${esc(roleText(p))}</small></div>
+      <button type="button" class="ct-center" title="Ketuk untuk menutup chat">${avatar(o, 'sm')}<span class="ct-title"><b>${esc(nameOf(o))}</b><small>${esc(roleText(p))}</small></span></button>
       <button type="button" class="icon-btn ct-close" aria-label="Tutup chat">${ic('x')}</button></header>
     <div class="ct-scroll ct-msgs" id="ct-msgs"><p class="ct-empty">Memuat pesan…</p></div>
     <form class="ct-compose" id="ct-form" autocomplete="off">
       <div class="ct-att-prev" id="ct-att-prev" hidden></div>
       <label class="icon-btn ct-attach" title="Lampirkan foto atau berkas (PDF, Word, Excel — maks. 700 KB)" aria-label="Lampirkan foto atau berkas">${ic('image')}<input type="file" id="ct-file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.odt,.ods,.zip" hidden></label>
-      <textarea id="ct-text" rows="1" maxlength="${MAX_LEN}" placeholder="Tulis pesan untuk ${esc(nameOf(o))}…" title="Enter untuk kirim, Shift+Enter untuk baris baru" aria-label="Tulis pesan"></textarea>
+      <textarea id="ct-text" rows="1" maxlength="${MAX_LEN}" placeholder="Tulis pesan…" title="Enter untuk kirim, Shift+Enter untuk baris baru" aria-label="Tulis pesan"></textarea>
       <button type="submit" class="ct-send" aria-label="Kirim pesan" disabled>${ic('send')}</button>
     </form>`;
-  panel.querySelector('.ct-back').onclick = () => { saveDraft(); S.unsubMsgs?.(); S.unsubMsgs = null; S.view = 'list'; S.cid = ''; paintList(); };
-  panel.querySelector('.ct-close').onclick = closePanel;
+  panel.querySelector('.ct-back').onclick = async () => { if (!await confirmLeave()) return; S.att = null; saveDraft(); S.unsubMsgs?.(); S.unsubMsgs = null; S.view = 'list'; S.cid = ''; paintList(); };
+  panel.querySelector('.ct-close').onclick = requestClose;
+  panel.querySelector('.ct-center').onclick = requestClose;
   const ta = panel.querySelector('#ct-text'), btn = panel.querySelector('.ct-send');
   ta.value = S.draft[S.cid] || '';
   const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; btn.disabled = !ta.value.trim() && !S.att; };

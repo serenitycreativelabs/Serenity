@@ -2789,3 +2789,33 @@ body.has-bg .news-mini { background: color-mix(in srgb, var(--surface) 58%, tran
 .ct-view { display: grid; place-items: center; background: #111; border-radius: 10px; overflow: hidden; }
 .ct-view img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; }
 .ct-bub.has-att time { padding: 0 8px; }
+
+/* ================= v3.1.1 — HP: tabel rincian statistik utuh, chat rapi, ukuran tulisan lebih nyaman ================= */
+.th-s { display: none; }
+@media (max-width: 680px) {
+  .viz-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .viz-grid > .viz, .rk-page .panel { min-width: 0; }
+  .rk-page .table-wrap { overflow: visible; border: 0; }
+  .rk-page table.table { width: 100%; min-width: 0 !important; table-layout: fixed; font-size: .8rem; }
+  .rk-page table.table th, .rk-page table.table td { padding: 8px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rk-page table.table th:first-child, .rk-page table.table td:first-child { width: 36%; padding-left: 10px; }
+  .rk-page .th-l { display: none; } .rk-page .th-s { display: inline; }
+  .rk-page .rk-table td:last-child { width: 38%; }
+  .rk-page .donut { width: 150px !important; height: 150px !important; }
+  .rk-page .rk-jk { font-size: .82rem; gap: 12px; }
+}
+/* chat: nama di tengah kepala percakapan (ketuk untuk menutup) & petunjuk tulis satu baris */
+.ct-head.conv { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; }
+.ct-center { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; padding: 2px 4px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; border-radius: 10px; }
+.ct-center:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.ct-center .ct-title { flex: 0 1 auto; align-items: center; text-align: center; }
+.ct-compose textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ukuran tulisan sedikit lebih kecil di HP */
+@media (max-width: 860px) {
+  html { font-size: 15px; }
+  body { font-size: 14px; }
+}
+
+/* v3.1.1 — judul dialog tema macOS tepat di tengah (lampu kiri 54px + jarak 14px diimbangi di kanan) */
+:root[data-efek="macos"] .modal-head h3 { margin-right: 68px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 860px) { .modal-head { cursor: pointer; } }

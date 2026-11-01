@@ -426,7 +426,7 @@ function computePublicStats() {
   const rinci = {};
   for (const [k, fn] of Object.entries(METRIC)) {
     const set = aktif.filter(fn);
-    rinci[k] = { l: hide(set.filter(L).length), p: hide(set.filter(P).length), d: dNames.map((d) => { const x = set.filter((w) => w.dusun === d); return { d, l: hide(x.filter(L).length), p: hide(x.filter(P).length) }; }) };
+    rinci[k] = { l: hide(set.filter(L).length), p: hide(set.filter(P).length), d: dNames.map((d) => { const x = set.filter((w) => w.dusun === d); return { d, l: hide(x.filter(L).length), p: hide(x.filter(P).length), n: hide(x.length) }; }) };
   }
   const perDusun = dNames.map((d) => { const x = aktif.filter((w) => w.dusun === d); return { d, n: x.length, l: hide(x.filter(L).length), p: hide(x.filter(P).length), kk: hide(x.filter(METRIC.kk).length) }; });
   return {
