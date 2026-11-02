@@ -1,0 +1,59 @@
+# v3.1.2 — Perbarui public/brand.js (tema + nama gampong untuk layar memuat pengunjung pertama kali)
+# setiap jam, atau jalankan manual dari tab Actions setelah Super Admin mengubah tema.
+# Syarat: Settings → Actions → General → Workflow permissions = "Read and write permissions".
+name: Sinkron Tampilan
+
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: brand-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Ambil cuplikan tampilan terbaru
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/sync-brand.mjs
+      - name: Simpan bila berubah
+        id: commit
+        run: |
+          if git diff --quiet -- public/brand.js; then echo "changed=0" >> "$GITHUB_OUTPUT"; echo "Tidak ada perubahan."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git add public/brand.js
+          git commit -m "Perbarui tampilan layar memuat (otomatis)"
+          git push
+          echo "changed=1" >> "$GITHUB_OUTPUT"
+      # Commit dari GITHUB_TOKEN tidak memicu workflow lain → minta GitHub Pages membangun ulang secara langsung
+      - name: Bangun ulang GitHub Pages
+        if: steps.commit.outputs.changed == '1'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "::warning::Pages tidak bisa dipicu otomatis — akan diperbarui pada push berikutnya."
+      # Situs cadangan di Firebase Hosting ikut diperbarui
+      - name: Deploy Firebase Hosting
+        if: steps.commit.outputs.changed == '1'
+        continue-on-error: true
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@13 deploy --only hosting --project digides-8423e --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"

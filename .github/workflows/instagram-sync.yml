@@ -1,14 +1,19 @@
-# Sinkronisasi postingan Instagram ke Firestore setiap jam (tanpa perlu admin membuka aplikasi)
+# Sinkronisasi postingan Instagram ke Firestore setiap 6 jam (hemat kuota; tanpa perlu admin membuka aplikasi)
 name: Sinkron Instagram
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '17 */6 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: instagram-sync
+  cancel-in-progress: true
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

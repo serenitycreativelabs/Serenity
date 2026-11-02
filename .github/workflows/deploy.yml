@@ -1,4 +1,4 @@
-# Deploy otomatis ke Firebase Hosting + Firestore Rules setiap push ke branch main
+# Deploy otomatis ke Firebase Hosting + Firestore Rules + Indeks setiap push ke branch main
 name: Deploy ke Firebase
 
 on:
@@ -35,6 +35,14 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project digides-8423e --non-interactive
+
+      # v2.4: indeks komposit untuk sinkron bertahap. Bila service account belum punya peran
+      # "Cloud Datastore Index Admin", langkah ini hanya memberi peringatan (aplikasi tetap berjalan).
+      - name: Deploy Firestore Indexes
+        continue-on-error: true
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only firestore:indexes --project digides-8423e --non-interactive
 
       - name: Hapus berkas kredensial sementara
         if: always()
