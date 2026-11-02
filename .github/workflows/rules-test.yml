@@ -22,11 +22,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - name: Pasang alat uji
         run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@3 firebase@10
       - name: Jalankan uji di emulator
-        run: npx --yes firebase-tools@13 emulators:exec --only firestore --project demo-serenity "node --test tests/"
+        run: npx --yes firebase-tools@13 emulators:exec --only firestore --project demo-serenity "node --test tests/firestore.rules.test.mjs"
