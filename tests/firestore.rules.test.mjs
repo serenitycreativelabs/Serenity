@@ -2,7 +2,7 @@
 //  Serenity v3.0.1 — Uji otomatis Firestore Rules (Firebase Emulator)
 //  Memastikan Kepala Dusun TIDAK bisa melihat, mengubah, memindah, atau menghapus warga dusun lain,
 //  dan catatan hapus hanya bisa dibuat oleh yang berhak.
-//  Jalankan: npx firebase-tools@13 emulators:exec --only firestore --project demo-serenity "node --test tests/"
+//  Jalankan: npx firebase-tools@13 emulators:exec --only firestore --project demo-serenity "node --test tests/firestore.rules.test.mjs"
 //  (otomatis lewat GitHub Actions › "Uji Aturan Keamanan")
 // =============================================================
 import { test, before, after } from 'node:test';
@@ -22,6 +22,9 @@ before(async () => {
     await setDoc(doc(db, 'warga/w1'), { nama: 'Warga Mawar', dusun: 'Mawar' });
     await setDoc(doc(db, 'warga/w2'), { nama: 'Warga Melati', dusun: 'Melati' });
     await setDoc(doc(db, 'warga/w3'), { nama: 'Warga Tanpa Dusun' });
+    // v3.1.2 — admin dengan hak 'pengaturan' (bukan Super Admin) & dokumen pengaturan
+    await setDoc(doc(db, 'users/p1'), { email: 'atur@contoh.id', nama: 'Pengatur', role: 'admin', active: true, perms: { pengaturan: true } });
+    await setDoc(doc(db, 'config/app'), { namaDesa: 'Deah Glumpang' });
   });
 });
 after(async () => { await env?.cleanup(); });
@@ -85,10 +88,6 @@ test('Chat: lampiran tidak bisa diubah/dihapus & tidak boleh atas nama orang lai
 
 // v3.1.2 — cuplikan tampilan untuk layar memuat hanya boleh diubah Super Admin
 test('Cuplikan tampilan (brandSnap): admin berhak pengaturan TIDAK boleh mengubah', async () => {
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'users/p1'), { email: 'atur@contoh.id', nama: 'Pengatur', role: 'admin', active: true, perms: { pengaturan: true } });
-    await setDoc(doc(ctx.firestore(), 'config/app'), { namaDesa: 'Deah Glumpang' });
-  });
   const db = env.authenticatedContext('p1', { email: 'atur@contoh.id' }).firestore();
   await assertSucceeds(setDoc(doc(db, 'config/app'), { deskripsi: 'Halo' }, { merge: true }));
   await assertFails(setDoc(doc(db, 'config/app'), { brandSnap: { nama: 'Palsu', tema: { css: 'x' } } }, { merge: true }));
