@@ -1,6 +1,6 @@
 {
   "name": "serenity",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "Portal Resmi Pemerintah Gampong Deah Glumpang — Serenity (PWA + Firebase). © Serenity Creativa 2026",
   "private": true,
   "type": "module",
@@ -11,7 +11,8 @@
     "deploy": "npx --yes firebase-tools deploy --only hosting,firestore:rules,firestore:indexes",
     "version:patch": "node scripts/bump-version.mjs patch",
     "version:minor": "node scripts/bump-version.mjs minor",
-    "sync:instagram": "node scripts/sync-instagram.mjs"
+    "sync:instagram": "node scripts/sync-instagram.mjs",
+    "sync:brand": "node scripts/sync-brand.mjs"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0"

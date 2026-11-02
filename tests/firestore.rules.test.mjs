@@ -82,3 +82,17 @@ test('Chat: lampiran tidak bisa diubah/dihapus & tidak boleh atas nama orang lai
   await assertFails(deleteDoc(doc(kadus(), `chats/${CID}/lampiran/f1`)));
   await assertFails(setDoc(doc(kadus(), `chats/${CID}/lampiran/f2`), { from: 'a1', at: serverTimestamp(), name: 'x', type: 'image/jpeg', size: 1, b64: 'QQ==' }));
 });
+
+// v3.1.2 — cuplikan tampilan untuk layar memuat hanya boleh diubah Super Admin
+test('Cuplikan tampilan (brandSnap): admin berhak pengaturan TIDAK boleh mengubah', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'users/p1'), { email: 'atur@contoh.id', nama: 'Pengatur', role: 'admin', active: true, perms: { pengaturan: true } });
+    await setDoc(doc(ctx.firestore(), 'config/app'), { namaDesa: 'Deah Glumpang' });
+  });
+  const db = env.authenticatedContext('p1', { email: 'atur@contoh.id' }).firestore();
+  await assertSucceeds(setDoc(doc(db, 'config/app'), { deskripsi: 'Halo' }, { merge: true }));
+  await assertFails(setDoc(doc(db, 'config/app'), { brandSnap: { nama: 'Palsu', tema: { css: 'x' } } }, { merge: true }));
+});
+test('Cuplikan tampilan: pengunjung tanpa login tidak bisa menulis', async () => {
+  await assertFails(setDoc(doc(anon(), 'config/app'), { brandSnap: { nama: 'Palsu' } }, { merge: true }));
+});

@@ -1,5 +1,5 @@
 /* Serenity Service Worker — Powered by Serenity Creativa Labs. © 2026 All Rights Reserved */
-const VERSION = '3.1.1';
+const VERSION = '3.1.2';
 const SHELL = `serenity-shell-v${VERSION}`;
 const RUNTIME = `serenity-runtime-v${VERSION}`;
 const SHELL_FILES = [
@@ -15,7 +15,8 @@ const CACHEABLE_HOSTS = ['www.gstatic.com', 'cdn.sheetjs.com', 'cdnjs.cloudflare
 const BYPASS = ['/__/auth/', 'firebase-config.local.js', 'firestore.googleapis.com', 'firebaseappcheck.googleapis.com', 'recaptcha', 'www.google.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'graph.instagram.com', 'firebaseinstallations.googleapis.com', 'wa.me'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)));
+  // v3.1.2: versi baru langsung aktif (halaman yang sedang dibuka diberi tahu lewat app.js)
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES.map((u) => new Request(u, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', (e) => {
@@ -40,26 +41,36 @@ self.addEventListener('notificationclick', (e) => {
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => { const c = cs.find((x) => x.url.startsWith(self.registration.scope)); if (c) { c.navigate(url); return c.focus(); } return self.clients.openWindow(url); }));
 });
 
+// Ambil dari jaringan (melewati cache HTTP browser); bila gagal / lebih dari 8 detik → pakai salinan cache
+async function fresh(req, fallback) {
+  const c = await caches.open(SHELL);
+  const net = fetch(req).then((r) => {
+    if (r.ok && r.type === 'basic') { const copy = r.clone(); c.put(req.url.split('?')[0], copy).catch(() => {}); if (fallback && /\/(index\.html)?$/.test(new URL(req.url).pathname)) c.put(fallback, r.clone()).catch(() => {}); }
+    return r;
+  });
+  net.catch(() => {});
+  try {
+    return await Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('lambat')), 8000))]);
+  } catch {
+    const h = (await c.match(req, { ignoreSearch: true })) || (await caches.match(req, { ignoreSearch: true })) || (fallback && (await c.match(fallback)));
+    return h || net; // tidak ada cache: tunggu jaringan saja
+  }
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (BYPASS.some((h) => url.hostname.includes(h) || url.pathname.includes(h))) return;
 
-  // Navigasi: network-first, fallback ke shell (offline)
+  // v3.1.2: halaman & berkas aplikasi sendiri selalu diambil TERBARU dari server (network-first, tanpa cache
+  // browser) → setiap pengunjung langsung mendapat versi terbaru. Cache hanya dipakai saat offline / server lambat.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then((r) => { const copy = r.clone(); caches.open(SHELL).then((c) => c.put('./index.html', copy)); return r; })
-      .catch(() => caches.match('./index.html')));
+    e.respondWith(fresh(new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }), './index.html'));
     return;
   }
-
-  // Berkas aplikasi sendiri: stale-while-revalidate
   if (url.origin === self.location.origin) {
-    e.respondWith(caches.open(SHELL).then(async (c) => {
-      const hit = await c.match(req, { ignoreSearch: true });
-      const net = fetch(req).then((r) => { if (r.ok) c.put(req, r.clone()); return r; }).catch(() => hit);
-      return hit || net;
-    }));
+    e.respondWith(fresh(req.mode === 'navigate' ? req : new Request(req, { cache: 'no-cache' })));
     return;
   }
 

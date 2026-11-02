@@ -31,11 +31,15 @@
   <meta name="apple-mobile-web-app-title" content="Deah Glumpang">
   <meta name="author" content="Serenity Creativa Labs">
   <meta name="copyright" content="Deah Glumpang ◦ Powered by Serenity Creativa Labs. © 2026 All Rights Reserved">
+  <!-- v3.1.2: cuplikan tampilan terbaru (tema + nama gampong) untuk pengunjung yang baru pertama kali datang -->
+  <script src="brand.js"></script>
   <script>
     // Terapkan mode gelap/terang sebelum halaman tampil (mencegah kedip putih)
     // Terapkan tema terakhir dari Super Admin (warna, huruf, model, efek) + mode gelap/terang sebelum halaman tampil
     (function () { try {
-      var h = document.documentElement, t = JSON.parse(localStorage.getItem('dd:temaSnap') || 'null');
+      var h = document.documentElement, t = null;
+      try { t = JSON.parse(localStorage.getItem('dd:temaSnap') || 'null'); } catch (e) {}
+      if (!t && window.__ddBrand && window.__ddBrand.tema) t = window.__ddBrand.tema;
       if (t) {
         if (t.css) h.style.cssText = t.css;
         for (var k in t.ds) if (t.ds[k]) h.dataset[k] = t.ds[k];
@@ -61,23 +65,24 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <script>
     // Ikon kustom dari Super Admin (disimpan di perangkat) agar langsung tampil di tab browser
-    (function () { try { var ic = localStorage.getItem('dd:icon'); if (ic && /^(data:image\/|https:\/\/)/.test(ic)) document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]').forEach(function (l) { l.href = ic; l.removeAttribute('type'); }); } catch (e) {} })();
+    (function () { try { var ic = localStorage.getItem('dd:icon') || (window.__ddBrand || {}).icon; if (ic && /^(data:image\/|https:\/\/)/.test(ic)) document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]').forEach(function (l) { l.href = ic; l.removeAttribute('type'); }); } catch (e) {} })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=Lora:ital,wght@0,500;0,700;1,500&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>html{background:#f5f6f8}@media (prefers-color-scheme:dark){html{background:#0d1117}}</style>
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=3.1.2">
 </head>
 <body>
   <div id="app">
-    <div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big"><img id="splash-ic" src="icons/icon-192.png" alt=""></div></div><b class="splash-title" id="splash-nm">Serenity</b><div class="splash-bar"><span></span></div><small class="muted">Memuat portal data…</small></div>
+    <div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big"><img id="splash-ic" src="icons/icon-192.png" alt="" data-logo></div></div><b class="splash-title" id="splash-nm">Gampong Deah Glumpang</b><div class="splash-bar"><span></span></div><small class="muted">Memuat portal data…</small></div>
   </div>
   <script>
     // Layar memuat langsung memakai ikon aplikasi & nama terbaru yang tersimpan di perangkat
     (function () { try {
-      var b = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; var ic = b.icon || localStorage.getItem('dd:icon') || b.logo;
+      var g = window.__ddBrand || {}, b = {}; try { b = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; } catch (e) {}
+      var ic = b.icon || localStorage.getItem('dd:icon') || b.logo || g.icon; if (!b.nama) b.nama = g.nama;
       var im = document.getElementById('splash-ic'); if (im && ic && /^(data:image\/|https:\/\/)/.test(ic)) { im.src = ic; im.setAttribute('data-logo', ''); }
       var nm = document.getElementById('splash-nm'); if (nm && b.nama) nm.textContent = b.nama;
     } catch (e) {} })();
@@ -91,7 +96,7 @@
         if (!el || !el.querySelector('.splash')) return;
         // Warna mengikuti tema website (variabel tema sudah terpasang oleh skrip awal di <head>)
         var src = 'icons/icon-192.png';
-        try { var bc = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; var c = bc.icon || localStorage.getItem('dd:icon') || bc.logo; if (c && /^(data:image\/|https:\/\/)/.test(c)) src = c; } catch (e) {}
+        try { var bc = JSON.parse(localStorage.getItem('dd:brand') || 'null') || {}; var c = bc.icon || localStorage.getItem('dd:icon') || bc.logo || (window.__ddBrand || {}).icon; if (c && /^(data:image\/|https:\/\/)/.test(c)) src = c; } catch (e) {}
         el.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:28px;font-family:var(--font,system-ui,sans-serif);line-height:1.6;background:var(--surface,#fff);color:var(--ink,#111);border:1px solid var(--line,#e3e1d8);border-radius:calc(var(--radius,12px) + 4px);box-shadow:var(--shadow-lg,none);text-align:center">' +
           '<img src="' + src + '" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:16px;margin:0 auto 6px;display:block">' +
           '<h2 style="margin-top:0;color:var(--primary,#0f766e);font-family:var(--font-head,inherit)">Website belum dapat dimuat</h2><p>' + reason + '</p>' +
@@ -105,6 +110,6 @@
       }
     })();
   </script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3.1.2"></script>
 </body>
 </html>

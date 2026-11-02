@@ -14,6 +14,7 @@ rep('public/js/config.js', /build: '[^']+'/, `build: '${build}'`);
 const prevRev = Number((fs.readFileSync('public/js/config.js', 'utf8').match(/revision: 'R(\d+)'/) || [])[1] || 0);
 const rev = `R${prevRev + 1}`;
 rep('public/js/config.js', /revision: '[^']+'/, `revision: '${rev}'`);
+rep('public/index.html', /\?v=[0-9.]+/g, `?v=${next}`);
 rep('public/sw.js', /const VERSION = '[^']+'/, `const VERSION = '${next}'`);
 const cl = fs.readFileSync('CHANGELOG.md', 'utf8');
 fs.writeFileSync('CHANGELOG.md', cl.replace('# Catatan Perubahan\n', `# Catatan Perubahan\n\n## v${next} — ${build}\n- ${note}\n`));

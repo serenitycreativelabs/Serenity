@@ -97,7 +97,7 @@ service cloud.firestore {
     }
 
     // ================================================= /config
-    function protectedCfg() { return ['tema', 'layout', 'ikon', 'latar', 'widget']; }
+    function protectedCfg() { return ['tema', 'layout', 'ikon', 'latar', 'widget', 'brandSnap']; }
     function noProtectedCfg() {
       return resource == null ? !data().keys().hasAny(protectedCfg())
                               : !data().diff(resource.data).affectedKeys().hasAny(protectedCfg());

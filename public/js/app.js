@@ -90,7 +90,7 @@ function boot() {
   if (F.configError) { renderConfigError(); return; }
   // v2.4: semua data publik lewat Sinkron Bertahap → kunjungan berikutnya hanya membaca yang berubah
   Sync.startPublic();
-  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; state.cfgLoaded = true; applyTheme(state.config.tema, { fromServer: true }); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); saveBrandCache(); if (cfgWaiting) { cfgWaiting = false; render(); return; } softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
+  Sync.watch({ id: 'config:app', scope: 'pub', doc: 'config/app', onData: (d) => { state.config = d || {}; state.cfgLoaded = true; applyTheme(state.config.tema, { fromServer: true }); applyIcon(state.config.ikon, state.config.namaDesa ? `${desaJenis()} ${desaName()}` : ''); applyBranding(); saveBrandCache(); saveBrandSnap(); if (cfgWaiting) { cfgWaiting = false; render(); return; } softRerender(['public', 'dash', 'shell']); if (state.view !== 'public') applyBackground(null); } });
   Sync.watch({ id: 'config:stats', scope: 'pub', doc: 'config/stats', onData: (d) => { state.stats = d || {}; softRerender(['public']); } });
   Sync.watch({ id: 'instagram', scope: 'pub', col: 'instagram', limit: 150, onData: (list) => {
     state.ig = list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
@@ -168,7 +168,7 @@ function renderConfigError() {
     other: `<li>Hosting ini bukan Firebase Hosting. Deploy dulu ke Firebase (workflow <b>Deploy ke Firebase</b>) agar konfigurasi bisa diambil dari <code>${esc(APP.firebaseProjectId)}.web.app</code>, atau buat berkas <code>js/firebase-config.local.js</code> saat proses deploy.</li>`,
   }[where];
   root.innerHTML = `<div class="login-page"><div class="login-card" style="width:min(640px,100%);text-align:left">
-    <div class="logo-mark big"><img src="icons/icon-192.png" alt=""></div>
+    <div class="logo-mark big"><img src="icons/icon-192.png" alt="" data-logo></div>
     <h1 style="text-align:center">Konfigurasi Firebase belum tersedia</h1>
     <p class="muted">API key sengaja tidak disimpan di kode sumber (agar tidak bocor di GitHub). Aplikasi mencoba mengambilnya dari sumber berikut:</p>
     <ul class="small" style="margin:0;padding-left:1.2em">${F.configAttempts.map((a) => `<li>${a.ok ? '✅' : '❌'} <code>${esc(a.src)}</code> — ${esc(a.why || 'berhasil')}</li>`).join('')}</ul>
@@ -196,18 +196,36 @@ function renderConfigError() {
 
 function registerSW() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('./sw.js').then((reg) => {
+  // v3.1.2: versi baru dipasang OTOMATIS. Bila pengguna sedang mengisi formulir/pesan yang belum disimpan,
+  // pemasangan ditunda (muncul pemberitahuan) agar isian tidak hilang.
+  const busy = () => guard.dirty || !!document.querySelector('[data-dirty], form[data-guard] [data-dirty]') || !!(document.getElementById('ct-text')?.value || '').trim();
+  const activate = (w) => { if (w) w.postMessage('skipWaiting'); };
+  let asked = false;
+  const offer = (w) => {
+    if (!w || !navigator.serviceWorker.controller) return;
+    if (!busy()) return activate(w);
+    if (asked) return; asked = true;
+    toast('Versi baru tersedia.', 'info', { duration: 15000, action: { label: 'Muat ulang', onClick: () => activate(w) } });
+    // pasang otomatis saat isian sudah disimpan / ditinggalkan
+    const t = setInterval(() => { if (!busy()) { clearInterval(t); activate(w); } }, 5000);
+  };
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
     if (!reg) return;
     state.swReg = reg;
-    const notify = (w) => toast('Versi baru tersedia.', 'info', { duration: 15000, action: { label: 'Muat ulang', onClick: () => w.postMessage('skipWaiting') } });
-    if (reg.waiting && navigator.serviceWorker.controller) notify(reg.waiting);
+    if (reg.waiting) offer(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
-      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) notify(w); });
+      w?.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); });
     });
+    // periksa versi baru saat aplikasi dibuka kembali (penting untuk PWA di HP) & setiap 30 menit
+    const check = () => { if (navigator.onLine !== false) reg.update().catch(() => {}); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
   }).catch((e) => console.warn('SW', e));
   let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+  // muat ulang sekali hanya bila halaman ini sudah dikendalikan versi lama (bukan saat kunjungan pertama)
+  const hadCtrl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtrl && !reloaded && !busy()) { reloaded = true; location.reload(); } });
 }
 
 function applyBranding() {
@@ -301,7 +319,7 @@ function exitViewAs() {
 
 let adminGen = 0;
 function startAdmin() {
-  stopAdmin();
+  stopAdmin(); setTimeout(saveBrandSnap, 4000);
   const gen = adminGen;
   const u = state.adminUnsubs;
   // Profil terbaru (hak akses bisa diubah Super Admin sewaktu-waktu)
@@ -521,10 +539,32 @@ function saveBrandCache() {
     localStorage.setItem('dd:brand', JSON.stringify({ icon: small(c.ikon?.src), logo: small(c.logo), nama: c.namaDesa ? `${desaJenis()} ${desaName()}`.trim() : '' }));
   } catch { /* */ }
 }
+// v3.1.2: cuplikan tampilan (tema + nama) untuk pengunjung pertama kali. Ditulis oleh perangkat Super Admin ke
+// config/app.brandSnap, lalu tugas otomatis menyalinnya ke berkas brand.js agar layar memuat & warna tema langsung benar.
+let brandSnapBusy = false;
+const stable = (v) => Array.isArray(v) ? `[${v.map(stable).join(',')}]` : v && typeof v === 'object' ? `{${Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}` : JSON.stringify(v ?? null);
+async function saveBrandSnap() {
+  try {
+    if (brandSnapBusy || !state.cfgLoaded || !state.user || state.viewAs || !isSuper()) return;
+    const tema = JSON.parse(localStorage.getItem('dd:temaSnap') || 'null'); if (!tema) return;
+    if (typeof tema.css === 'string') tema.css = tema.css.replace(/\s+/g, ' ').trim();
+    // bagian yang berubah per perangkat/sesi (animasi ikon, mode gelap/terang perangkat ini) tidak ikut disimpan
+    delete tema.meta; if (tema.ds) delete tema.ds.ican;
+    const c = state.config; const nama = c.namaDesa ? `${desaJenis()} ${desaName()}`.trim() : '';
+    const icon = c.ikon?.src && c.ikon.src.length < 60000 ? c.ikon.src : '';
+    const snap = { tema, nama, icon };
+    const old = c.brandSnap || {}; const key = stable(snap);
+    const last = localStorage.getItem('dd:brandSnapKey');
+    if (key === last || stable({ tema: old.tema && { ...old.tema, css: String(old.tema.css || '').replace(/\s+/g, ' ').trim(), meta: undefined, ds: old.tema.ds && { ...old.tema.ds, ican: undefined } }, nama: old.nama, icon: old.icon || '' }) === key) return;
+    brandSnapBusy = true;
+    await F.setDoc(C('config/app'), { brandSnap: { ...snap, v: APP.version, at: Date.now() } }, { merge: true });
+    localStorage.setItem('dd:brandSnapKey', key);
+  } catch (e) { console.warn('brandSnap', e); } finally { brandSnapBusy = false; }
+}
 const appIconSrc = () => state.config.ikon?.src || state.config.logo || brandCache().icon || brandCache().logo || 'icons/icon-192.png';
-const appIconImg = () => { const s = appIconSrc(); return `<img src="${esc(s)}" alt=""${s.startsWith('icons/') ? '' : ' data-logo'}>`; };
-const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${appIconImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : brandCache().nama || APP.name)}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
-const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="" data-logo>` : `<img src="icons/icon-192.png" alt="">`;
+const appIconImg = () => `<img src="${esc(appIconSrc())}" alt="" data-logo>`;
+const splash = (msg = 'Memuat portal data…') => `<div class="splash"><div class="splash-logo"><span class="ring"></span><span class="ring r2"></span><div class="logo-mark big">${appIconImg()}</div></div><b class="splash-title">${esc(state.config.namaDesa ? `${desaJenis()} ${desaName()}` : brandCache().nama || window.__ddBrand?.nama || 'Gampong Deah Glumpang')}</b><div class="splash-bar"><span></span></div><small class="muted">${esc(msg)}</small></div>`;
+const logoImg = () => state.config.logo ? `<img src="${esc(state.config.logo)}" alt="" data-logo>` : `<img src="icons/icon-192.png" alt="" data-logo>`;
 
 // ================================================================ PUBLIK
 function renderPublic(r, soft) {
